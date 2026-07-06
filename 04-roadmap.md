@@ -25,8 +25,8 @@ Upstream issues found while scaffolding (details in [01-architecture.md](./01-ar
 
 Follow-ups tied to the fixes:
 
-- Merge + release `@svebcomponents/ssr` (and rebuild/release `@svebcomponents/build` if it pins ssr), then **drop the `link:` overrides** in this repo's `pnpm-workspace.yaml` and the cast in `apps/web/vite.config.ts`.
-- Add sync-wrapper e2e coverage upstream: `e2e/ssr` only tests `svebcomponents({ async: true })`, which is why the sync breakage shipped unnoticed. Needs a second (synchronous) test component + a vitest project without the async option.
+- All three fixes are in **[svebcomponents PR #103](https://github.com/svebcomponents/svebcomponents/pull/103)** (sync rendering with svelte ≥5.36, chunk-order-safe SSR entries, parallel-build clean race) including sync-wrapper e2e coverage (verified to fail pre-fix) and changesets.
+- After merge + release: **drop the `link:` overrides** in this repo's `pnpm-workspace.yaml` and the cast in `apps/web/vite.config.ts`.
 
 ## Phase 1 — read-only `<atproto-comments>` (first shippable)
 
