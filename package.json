@@ -1,5 +1,5 @@
 {
-  "name": "svebcomponents",
+  "name": "atproto-comments-monorepo",
   "private": true,
   "scripts": {
     "build": "turbo build",

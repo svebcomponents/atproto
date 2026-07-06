@@ -123,6 +123,12 @@ Static site generators (Astro, Eleventy, Hugo with a build step) can prefetch th
 
 Freshness: when preloaded data is present, optionally revalidate in the background (`revalidate` attribute) and morph in changes — important after the user posts a comment, where we locally append the new reply optimistically, then refetch.
 
+### Findings from the scaffold (2026-07-06, verified against real builds)
+
+1. **The async wrapper is mandatory with current Svelte.** Since ~5.36, `render()` results are thenable, so `@svebcomponents/ssr`'s sync `Server.svelte` (`collectResultSync`) throws `Promises not supported in collectResultSync` for *every* component. Host apps must use `svebcomponents({ async: true })` in `vite.config.ts` **and** `compilerOptions.experimental.async` in `svelte.config.js`. → upstream: the sync wrapper is effectively dead code with svelte ≥5.36; plugin should probably default to async or detect.
+2. **Never statically import the component's client build in SSR'd app code.** The compiled custom-element code needs DOM globals at module-eval time; when both `hooks.server.ts` and a page import it, rollup hoists it into a shared chunk that evaluates *before* the entry-level DOM-shim side effect → `Class extends value undefined` crash in `adapter-node` builds (dev mode unaffected, which hides the bug). Pattern that works: `onMount(() => void import("atproto-comments"))`. → upstream: shim ordering by import-position is fragile under code splitting; consider having the build prepend a guarded shim import to the client entry, and fix the template's `+page.svelte`.
+3. Watch-out for Tier 1: framework-set *properties* on a not-yet-upgraded element (client bundle now arrives late via dynamic import) is the classic pre-upgrade-property CE gotcha — verify Svelte's CE wrapper handles pre-upgrade property shadowing when implementing `threadData`.
+
 ### SSR registration ergonomics
 
 Host apps register renderers once (template pattern):

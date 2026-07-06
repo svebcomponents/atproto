@@ -13,6 +13,16 @@ Date: 2026-07-06
 
 Deliverable: green build/check/lint/test on the renamed skeleton. **This step also doubles as dogfooding svebcomponents' template DX — file issues upstream for every rough edge.**
 
+### ✅ Step 0 done (2026-07-06)
+
+Scaffold is committed and the full loop (dev SSR + adapter-node production SSR with declarative shadow DOM) is verified. Version reality: published latest is `@svebcomponents/build@0.0.9` / `ssr@0.0.8`, which matches local svebcomponents main — nothing needs releasing. Naming: **`atproto-comments` is unclaimed on npm** and is now the component package name; support packages use the `@atproto-comments/*` scope (org still to be created on npm).
+
+Upstream issues to file against svebcomponents (found while scaffolding — details in [01-architecture.md](./01-architecture.md#findings-from-the-scaffold-2026-07-06-verified-against-real-builds)):
+
+1. Sync SSR wrapper (`collectResultSync`) is broken with svelte ≥5.36 thenable render results — async wrapper + `experimental.async` is effectively mandatory; plugin should default/detect or document loudly.
+2. Static client-build imports in SSR'd pages crash `adapter-node` builds via rollup chunk-order vs. the DOM-shim side effect (dev mode hides it). Template's `+page.svelte` has this bug; fix template to `onMount(() => import(...))` and/or make the shim a real dependency of emitted client entries.
+3. Template niceties: shared eslint/prettier configs don't ignore `build/` (adapter-node output); template `turbo.json` `outputs` misses kit's `build/`/`.svelte-kit/output/`; app has a `test:e2e` script but no playwright dependency.
+
 ## Phase 1 — read-only `<atproto-comments>` (first shippable)
 
 - `atproto-client`: AT-URI/bsky-URL parsing, `getPostThread` fetch, thread normalization with all edge variants, facet segmentation. Fixture-based unit tests.

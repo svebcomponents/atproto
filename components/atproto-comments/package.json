@@ -1,8 +1,9 @@
 {
-  "name": "@svebcomponents/example-component",
+  "name": "atproto-comments",
   "version": "0.0.0",
   "type": "module",
   "private": true,
+  "description": "Web component rendering ATProto/Bluesky threads as blog comments",
   "exports": {
     ".": {
       "import": "./dist/client/index.js"
@@ -14,7 +15,10 @@
   "scripts": {
     "build": "svebcomponents",
     "lint": "eslint .",
-    "check-types": "svelte-check"
+    "check": "svelte-check"
+  },
+  "dependencies": {
+    "@atproto-comments/client": "workspace:*"
   },
   "devDependencies": {
     "@svebcomponents/build": "catalog:",

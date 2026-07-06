@@ -1,0 +1,36 @@
+{
+  "name": "@atproto-comments/client",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Isomorphic ATProto read utilities and service client for atproto-comments",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*"
+  ],
+  "scripts": {
+    "build": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\" && tsc",
+    "check": "tsc --noEmit",
+    "lint": "pnpm /^lint:.*/",
+    "lint:eslint": "eslint .",
+    "lint:format": "prettier --check .",
+    "fix": "pnpm /^fix:.*/",
+    "fix:eslint": "eslint . --fix",
+    "fix:format": "prettier --write .",
+    "test": "vitest run",
+    "test:dev": "vitest --watch"
+  },
+  "devDependencies": {
+    "@svebcomponents/eslint-config": "workspace:*",
+    "@svebcomponents/prettier-config": "workspace:*",
+    "@svebcomponents/typescript-config": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
