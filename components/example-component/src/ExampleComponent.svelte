@@ -1,0 +1,34 @@
+<script lang="ts">
+  let {
+    increments = 1,
+  }: {
+    increments: number;
+  } = $props();
+  let count = $state(0);
+</script>
+
+<button onclick={() => (count += increments)}>
+  add {increments} to {count}
+</button>
+
+<style>
+  button {
+    border-radius: 8px;
+    border: 1px solid transparent;
+    padding: 0.6em 1.2em;
+    font-size: 1em;
+    font-weight: 500;
+    font-family: inherit;
+    color: #fff;
+    background-color: #1a1a1a;
+    cursor: pointer;
+    transition: border-color 0.25s;
+  }
+  button:hover {
+    border-color: #646cff;
+  }
+  button:focus,
+  button:focus-visible {
+    outline: 4px auto -webkit-focus-ring-color;
+  }
+</style>

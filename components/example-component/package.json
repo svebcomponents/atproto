@@ -1,0 +1,29 @@
+{
+  "name": "@svebcomponents/example-component",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "import": "./dist/client/index.js"
+    },
+    "./ssr": {
+      "import": "./dist/server/ssr.js"
+    }
+  },
+  "scripts": {
+    "build": "svebcomponents",
+    "lint": "eslint .",
+    "check-types": "svelte-check"
+  },
+  "devDependencies": {
+    "@svebcomponents/build": "catalog:",
+    "@svebcomponents/eslint-config": "workspace:*",
+    "@svebcomponents/prettier-config": "workspace:*",
+    "@svebcomponents/ssr": "catalog:",
+    "@svebcomponents/typescript-config": "workspace:*",
+    "svelte": "catalog:",
+    "svelte-check": "catalog:",
+    "vite": "catalog:"
+  }
+}
