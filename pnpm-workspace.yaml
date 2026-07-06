@@ -3,6 +3,13 @@ packages:
   - components/*
   - packages/*
   - configs/*
+# TEMPORARY: consume the local svebcomponents checkout until the fixes on
+# branch fix/ssr-svelte-536-and-shim-ordering are released to npm
+# (svelte >=5.36 sync-render support + chunk-order-safe SSR entries).
+# Drop these overrides once @svebcomponents/ssr > 0.0.8 / build > 0.0.9 ship.
+overrides:
+  "@svebcomponents/ssr": "link:../svebcomponents/packages/ssr"
+  "@svebcomponents/build": "link:../svebcomponents/packages/build"
 catalog:
   "@svebcomponents/build": 0.0.9
   "@svebcomponents/ssr": 0.0.8

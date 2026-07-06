@@ -17,11 +17,16 @@ Deliverable: green build/check/lint/test on the renamed skeleton. **This step al
 
 Scaffold is committed and the full loop (dev SSR + adapter-node production SSR with declarative shadow DOM) is verified. Version reality: published latest is `@svebcomponents/build@0.0.9` / `ssr@0.0.8`, which matches local svebcomponents main — nothing needs releasing. Naming: **`atproto-comments` is unclaimed on npm** and is now the component package name; support packages use the `@atproto-comments/*` scope (org still to be created on npm).
 
-Upstream issues to file against svebcomponents (found while scaffolding — details in [01-architecture.md](./01-architecture.md#findings-from-the-scaffold-2026-07-06-verified-against-real-builds)):
+Upstream issues found while scaffolding (details in [01-architecture.md](./01-architecture.md#findings-from-the-scaffold-2026-07-06-verified-against-real-builds)):
 
-1. Sync SSR wrapper (`collectResultSync`) is broken with svelte ≥5.36 thenable render results — async wrapper + `experimental.async` is effectively mandatory; plugin should default/detect or document loudly.
-2. Static client-build imports in SSR'd pages crash `adapter-node` builds via rollup chunk-order vs. the DOM-shim side effect (dev mode hides it). Template's `+page.svelte` has this bug; fix template to `onMount(() => import(...))` and/or make the shim a real dependency of emitted client entries.
-3. Template niceties: shared eslint/prettier configs don't ignore `build/` (adapter-node output); template `turbo.json` `outputs` misses kit's `build/`/`.svelte-kit/output/`; app has a `test:e2e` script but no playwright dependency.
+1. ✅ **Fixed** (svebcomponents branch `fix/ssr-svelte-536-and-shim-ordering`): sync SSR wrapper broken with svelte ≥5.36 thenable render results.
+2. ✅ **Fixed** (same branch): static client-build imports in SSR'd pages crashed `adapter-node` builds via rollup chunk-order vs. the DOM-shim side effect.
+3. Still open — template niceties: shared eslint/prettier configs don't ignore `build/` (adapter-node output); template `turbo.json` `outputs` misses kit's `build/`/`.svelte-kit/output/`; app has a `test:e2e` script but no playwright dependency.
+
+Follow-ups tied to the fixes:
+
+- Merge + release `@svebcomponents/ssr` (and rebuild/release `@svebcomponents/build` if it pins ssr), then **drop the `link:` overrides** in this repo's `pnpm-workspace.yaml` and the cast in `apps/web/vite.config.ts`.
+- Add sync-wrapper e2e coverage upstream: `e2e/ssr` only tests `svebcomponents({ async: true })`, which is why the sync breakage shipped unnoticed. Needs a second (synchronous) test component + a vitest project without the async option.
 
 ## Phase 1 — read-only `<atproto-comments>` (first shippable)
 
