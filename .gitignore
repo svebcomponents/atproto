@@ -32,3 +32,7 @@ npm-debug.log*
 *.pem
 
 *storybook.log
+
+# playwright
+apps/web/test-results/
+apps/web/playwright-report/

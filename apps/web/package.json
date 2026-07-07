@@ -15,7 +15,8 @@
     "lint:format": "prettier --check .",
     "fix": "pnpm /^fix:.*/",
     "fix:eslint": "eslint . --fix",
-    "fix:format": "prettier --write ."
+    "fix:format": "prettier --write .",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@atproto-comments/client": "workspace:*",
@@ -23,6 +24,7 @@
     "atproto-comments": "workspace:*"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.0",
     "@svebcomponents/eslint-config": "workspace:*",
     "@svebcomponents/prettier-config": "workspace:*",
     "@svebcomponents/typescript-config": "workspace:*",
