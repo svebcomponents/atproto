@@ -1,0 +1,43 @@
+{
+  "name": "@atproto-comments/service-core",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Framework-agnostic ATProto OAuth + posting bridge: fetch handlers mountable in any Request/Response server",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*"
+  ],
+  "scripts": {
+    "build": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\" && tsc",
+    "check": "tsc --noEmit",
+    "lint": "pnpm /^lint:.*/",
+    "lint:eslint": "eslint .",
+    "lint:format": "prettier --check .",
+    "fix": "pnpm /^fix:.*/",
+    "fix:eslint": "eslint . --fix",
+    "fix:format": "prettier --write .",
+    "test": "vitest run",
+    "test:dev": "vitest --watch"
+  },
+  "dependencies": {
+    "@atproto-comments/client": "workspace:*",
+    "@atproto/jwk-jose": "^0.2.3",
+    "@atproto/oauth-client-node": "^0.4.6",
+    "jose": "^6.2.3"
+  },
+  "devDependencies": {
+    "@svebcomponents/eslint-config": "workspace:*",
+    "@svebcomponents/prettier-config": "workspace:*",
+    "@svebcomponents/typescript-config": "workspace:*",
+    "@types/node": "^22.14.1",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

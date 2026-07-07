@@ -36,11 +36,11 @@ svebcomponent-bsky/
 │       └── src/hooks.server.ts     # ElementRendererRegistry setup
 ├── components/
 │   ├── atproto-comments/           # core component (Phase 1)
-│   └── standard-site-comments/     # discovery wrapper (Phase 2)
+│   └── standard-site-comments/     # discovery wrapper (Phase 3)
 │   # standard-site-post/           # Phase 5, deferred
 ├── packages/
 │   ├── atproto-client/             # isomorphic reads + service client + types
-│   └── service-core/               # (Phase 3) OAuth/session/posting logic
+│   └── service-core/               # (Phase 2) OAuth/session/posting logic
 └── configs/                        # eslint / prettier / tsconfig presets
 ```
 

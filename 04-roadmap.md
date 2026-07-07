@@ -47,14 +47,11 @@ Follow-ups tied to the fixes:
 - ~~Known limitation: hydrating SvelteKit hosts re-created the element~~ **Fixed upstream (PR #105, wrapper symmetry)**: SvelteKit hosts now claim the SSR'd element — verified same-node identity + zero refetch in the adapter-node showcase. **Both halves of the exit criterion are met.**
 - Still open from the Phase 1 list: npm publish (user action; `@atproto-comments` org needed), async-SSR demo page, Tier 2 JSON child.
 
-## Phase 2 — Standard.site discovery
+## Phase 2 — hosted auth & posting (the killer feature)
 
-- `atproto-client`: DID→PDS resolution, `com.atproto.repo.getRecord`, `site.standard.document` parsing → `bskyPostRef`.
-- `components/standard-site-comments`: link discovery, delegation to `<atproto-comments>`, SSR caveats documented (explicit `document-link` for SSR).
-- Tier 2 preloaded-JSON channel finalized (matters most for the SSG audience this phase targets).
-- Dogfood on your own blog (theosteiner.de publishes Standard.site records? if not, that's its own fun side quest).
-
-## Phase 3 — hosted auth & posting
+> Reordered 2026-07-07: originally Phase 3. Posting is the differentiator (all
+> prior art is read-only) and nothing in it depends on Standard.site
+> discovery, which only changes where the thread URI comes from.
 
 The big one; see [03-oauth-service.md](./03-oauth-service.md).
 
@@ -65,6 +62,13 @@ The big one; see [03-oauth-service.md](./03-oauth-service.md).
 - Security pass before announcing: origin binding, token TTLs, secrets handling, rate limits (consider running the repo's /security-review here).
 
 **Exit criterion**: stranger signs into a demo blog with their Bluesky handle and their comment appears on Bluesky.
+
+## Phase 3 — Standard.site discovery
+
+- `atproto-client`: DID→PDS resolution, `com.atproto.repo.getRecord`, `site.standard.document` parsing → `bskyPostRef`.
+- `components/standard-site-comments`: link discovery, delegation to `<atproto-comments>`, SSR caveats documented (explicit `document-link` for SSR).
+- Tier 2 preloaded-JSON channel finalized (matters most for the SSG audience this phase targets).
+- Dogfood on your own blog (theosteiner.de publishes Standard.site records? if not, that's its own fun side quest).
 
 ## Phase 4 — site-owner controls (product maturation, demand-driven)
 
