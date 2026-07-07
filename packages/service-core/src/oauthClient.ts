@@ -30,11 +30,17 @@ export interface OAuthPdsSession {
 export const buildOAuthClient = async (
   config: ResolvedServiceConfig,
 ): Promise<OAuthBridgeClient> => {
-  const redirectUri = `${config.publicUrl}${config.basePath}/oauth/callback`;
-
   if (config.isLoopback) {
-    // atproto's development mode: a loopback client_id carries its metadata
-    // in query params and requires no hosted metadata document or keys
+    // atproto's development mode. Rules (RFC 8252): the client_id origin is
+    // always `http://localhost` with metadata carried in the query string,
+    // but redirect_uris must use a loopback IP (127.0.0.1), not "localhost".
+    const redirectUrl = new URL(
+      `${config.basePath}/oauth/callback`,
+      config.publicUrl,
+    );
+    redirectUrl.hostname = "127.0.0.1";
+    const redirectUri = redirectUrl.toString();
+
     const clientId = `http://localhost?${new URLSearchParams({
       scope: config.scope,
       redirect_uri: redirectUri,
@@ -42,7 +48,6 @@ export const buildOAuthClient = async (
     return new NodeOAuthClient({
       clientMetadata: {
         client_id: clientId,
-        client_name: config.clientName,
         redirect_uris: [redirectUri],
         grant_types: ["authorization_code", "refresh_token"],
         response_types: ["code"],
@@ -55,6 +60,8 @@ export const buildOAuthClient = async (
       sessionStore: config.sessionStore,
     }) as unknown as OAuthBridgeClient;
   }
+
+  const redirectUri = `${config.publicUrl}${config.basePath}/oauth/callback`;
 
   if (!(config.keys && config.keys.length > 0)) {
     throw new Error(

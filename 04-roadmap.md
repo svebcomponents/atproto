@@ -63,6 +63,17 @@ The big one; see [03-oauth-service.md](./03-oauth-service.md).
 
 **Exit criterion**: stranger signs into a demo blog with their Bluesky handle and their comment appears on Bluesky.
 
+### 🚧 Phase 2 in progress (2026-07-07)
+
+Server side **done and running**; component write UX is the remaining piece.
+
+- ✅ `packages/service-core`: framework-agnostic `fetch(Request) → Response` bridge — origin-bound HS256 session JWTs (BFF; ATProto tokens stay server-side), `client-metadata.json`/`jwks.json`, `oauth/start` (handle page + PDS redirect), `oauth/callback` (postMessage to the exact embedding origin), `api/session|refresh|logout|reply`. Narrow scope `atproto repo:app.bsky.feed.post?action=create`. Loopback client mode for keyless local dev. **39 tests** (token binding/expiry/revocation, reply validation, full handler flow vs. injected fake OAuth client + fake PDS).
+- ✅ Mounted in `apps/web` via a `/atproto/[...path]` catch-all + `node:sqlite` stores (built-in, no native rebuild). Verified on the running adapter-node server: valid loopback metadata, correct 401/400 guards, sign-in page renders.
+- ⏳ **Remaining — component write UX** (`atproto-client` service client + component: sign-in button, popup + postMessage handshake, composer with grapheme counter, optimistic append, signed-in chrome). Needs interactive OAuth against a real test account to verify end-to-end — the natural next working session.
+- ⏳ Deploy to Fly/Railway under a real domain (needs an ES256 keypair for `private_key_jwt`); security pass before announcing.
+
+Node bumped to 24 (`.nvmrc`): `@atproto/oauth-client-node` → undici 8 requires node ≥22.19; also unlocks built-in `node:sqlite`.
+
 ## Phase 3 — Standard.site discovery
 
 - `atproto-client`: DID→PDS resolution, `com.atproto.repo.getRecord`, `site.standard.document` parsing → `bskyPostRef`.

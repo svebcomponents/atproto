@@ -36,3 +36,6 @@ npm-debug.log*
 # playwright
 apps/web/test-results/
 apps/web/playwright-report/
+
+# service runtime data
+apps/web/.data/

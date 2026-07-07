@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@atproto-comments/client": "workspace:*",
+    "@atproto-comments/service-core": "workspace:*",
     "@svebcomponents/ssr": "catalog:",
     "atproto-comments": "workspace:*"
   },
