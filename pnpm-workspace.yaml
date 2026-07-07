@@ -3,13 +3,15 @@ packages:
   - components/*
   - packages/*
   - configs/*
-# TEMPORARY: consume the local svebcomponents checkout until the fixes on
-# branch fix/ssr-svelte-536-and-shim-ordering are released to npm
-# (svelte >=5.36 sync-render support + chunk-order-safe SSR entries).
-# Drop these overrides once @svebcomponents/ssr > 0.0.8 / build > 0.0.9 ship.
+# TEMPORARY: consume the local svebcomponents *hydration worktree* (contains
+# the released #103 fixes AND the pending hydratable-custom-elements PR #105).
+# The main ../svebcomponents checkout may sit on unrelated branches, so we
+# link the worktree for reproducible dist output. Drop these overrides (and
+# the cast in apps/web/vite.config.ts) once PR #105 is released to npm.
 overrides:
-  "@svebcomponents/ssr": "link:../svebcomponents/packages/ssr"
-  "@svebcomponents/build": "link:../svebcomponents/packages/build"
+  "@svebcomponents/ssr": "link:../svebcomponents-hydration/packages/ssr"
+  "@svebcomponents/build": "link:../svebcomponents-hydration/packages/build"
+  "@svebcomponents/auto-options": "link:../svebcomponents-hydration/packages/auto-options"
 catalog:
   "@svebcomponents/build": 0.0.9
   "@svebcomponents/ssr": 0.0.8

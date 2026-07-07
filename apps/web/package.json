@@ -18,6 +18,7 @@
     "fix:format": "prettier --write ."
   },
   "dependencies": {
+    "@atproto-comments/client": "workspace:*",
     "@svebcomponents/ssr": "catalog:",
     "atproto-comments": "workspace:*"
   },

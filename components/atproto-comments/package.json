@@ -17,15 +17,14 @@
     "lint": "eslint .",
     "check": "svelte-check"
   },
-  "dependencies": {
-    "@atproto-comments/client": "workspace:*"
-  },
   "devDependencies": {
+    "@atproto-comments/client": "workspace:*",
     "@svebcomponents/build": "catalog:",
     "@svebcomponents/eslint-config": "workspace:*",
     "@svebcomponents/prettier-config": "workspace:*",
     "@svebcomponents/ssr": "catalog:",
     "@svebcomponents/typescript-config": "workspace:*",
+    "esm-env": "^1.2.0",
     "svelte": "catalog:",
     "svelte-check": "catalog:",
     "vite": "catalog:"

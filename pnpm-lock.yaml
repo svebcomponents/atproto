@@ -65,8 +65,9 @@ catalogs:
       version: 3.2.4
 
 overrides:
-  '@svebcomponents/ssr': link:../svebcomponents/packages/ssr
-  '@svebcomponents/build': link:../svebcomponents/packages/build
+  '@svebcomponents/ssr': link:../svebcomponents-hydration/packages/ssr
+  '@svebcomponents/build': link:../svebcomponents-hydration/packages/build
+  '@svebcomponents/auto-options': link:../svebcomponents-hydration/packages/auto-options
 
 importers:
 
@@ -84,9 +85,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@atproto-comments/client':
+        specifier: workspace:*
+        version: link:../../packages/atproto-client
       '@svebcomponents/ssr':
-        specifier: link:../../../svebcomponents/packages/ssr
-        version: link:../../../svebcomponents/packages/ssr
+        specifier: link:../../../svebcomponents-hydration/packages/ssr
+        version: link:../../../svebcomponents-hydration/packages/ssr
       atproto-comments:
         specifier: workspace:*
         version: link:../../components/atproto-comments
@@ -126,14 +130,13 @@ importers:
         version: 7.3.6(@types/node@22.14.1)(jiti@2.7.0)
 
   components/atproto-comments:
-    dependencies:
+    devDependencies:
       '@atproto-comments/client':
         specifier: workspace:*
         version: link:../../packages/atproto-client
-    devDependencies:
       '@svebcomponents/build':
-        specifier: link:../../../svebcomponents/packages/build
-        version: link:../../../svebcomponents/packages/build
+        specifier: link:../../../svebcomponents-hydration/packages/build
+        version: link:../../../svebcomponents-hydration/packages/build
       '@svebcomponents/eslint-config':
         specifier: workspace:*
         version: link:../../configs/eslint-config
@@ -141,11 +144,14 @@ importers:
         specifier: workspace:*
         version: link:../../configs/prettier-config
       '@svebcomponents/ssr':
-        specifier: link:../../../svebcomponents/packages/ssr
-        version: link:../../../svebcomponents/packages/ssr
+        specifier: link:../../../svebcomponents-hydration/packages/ssr
+        version: link:../../../svebcomponents-hydration/packages/ssr
       '@svebcomponents/typescript-config':
         specifier: workspace:*
         version: link:../../configs/typescript-config
+      esm-env:
+        specifier: ^1.2.0
+        version: 1.2.2
       svelte:
         specifier: 'catalog:'
         version: 5.56.4(@typescript-eslint/types@8.62.1)

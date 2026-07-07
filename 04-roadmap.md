@@ -38,6 +38,15 @@ Follow-ups tied to the fixes:
 
 **Exit criterion**: a random blog can paste two lines of HTML and get rendered comments, and a SvelteKit blog gets flash-free SSR.
 
+### ✅ Phase 1 substantially done (2026-07-07)
+
+- `atproto-client`: parsing, `getPostThread`, handle resolution, normalization (tombstones/truncation/labels), UTF-8 facet segmentation, sorting, URL helpers — 36 unit tests, wire types grounded against real AppView responses.
+- `<atproto-comments>`: all rendering states, root stats header, Reply-on-Bluesky links, rich text, relative timestamps, custom props + parts, `atproto-comments:*` events, Tier 1 (`threadData`) + Tier 3 (self-fetch). Self-contained bundle **25.8 KB gz** (under the 40 KB budget; svebcomponents client builds now minified + svelte-deduped upstream).
+- Showcase (`apps/web`): server-side prefetch of a live thread (`?thread=` override), SSR verified in adapter-node prod.
+- **Verified via browser automation**: on a static/non-svelte host the SSR'd DOM is hydrated in place (same-node identity, zero client refetch — rich props travel via the new serialized-props channel in svebcomponents PR #105).
+- **Known limitation**: a *hydrating SvelteKit host* currently re-creates the element (svebcomponents `Server.svelte`/`Client.svelte` wrapper asymmetry — pre-existing, exposed by hydration). Falls back to mount + refetch; page correct, hydration benefit lost. Fix = wrapper symmetry, next upstream work item ("flash-free SvelteKit" half of the exit criterion pending on it).
+- Still open from the Phase 1 list: npm publish (user action; `@atproto-comments` org needed), async-SSR demo page, Tier 2 JSON child.
+
 ## Phase 2 — Standard.site discovery
 
 - `atproto-client`: DID→PDS resolution, `com.atproto.repo.getRecord`, `site.standard.document` parsing → `bskyPostRef`.
