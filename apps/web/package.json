@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "test": "echo 'skip'",
+    "test": "vitest run",
     "lint": "pnpm /^lint:.*/",
     "lint:eslint": "eslint .",
     "lint:format": "prettier --check .",
@@ -37,6 +37,7 @@
     "svelte": "catalog:",
     "svelte-check": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }
