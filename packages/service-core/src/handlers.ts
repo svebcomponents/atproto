@@ -124,6 +124,7 @@ const handleStart = async (
     return html(errorPage("Missing or invalid origin parameter"), 400);
   }
   const handle = url.searchParams.get("handle")?.trim() ?? "";
+  const claim = url.searchParams.get("claim")?.trim();
   const startUrl = `${config.basePath}/oauth/start`;
 
   if (!handle) {
@@ -132,11 +133,12 @@ const handleStart = async (
         clientName: config.clientName,
         actionUrl: startUrl,
         origin,
+        // preserved as a hidden field so the handle submission carries it back
+        ...(claim ? { claim } : {}),
       }),
     );
   }
 
-  const claim = url.searchParams.get("claim")?.trim();
   try {
     const state: AuthorizeState = {
       origin,
@@ -157,6 +159,7 @@ const handleStart = async (
         clientName: config.clientName,
         actionUrl: startUrl,
         origin,
+        ...(claim ? { claim } : {}),
         error: `Could not start sign-in for "${handle}" — check the handle and try again.`,
       }),
       400,

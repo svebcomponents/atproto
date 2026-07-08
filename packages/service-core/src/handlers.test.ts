@@ -157,6 +157,34 @@ describe("service handlers", () => {
     expect(res!.headers.get("location")).toContain("pds.example");
   });
 
+  it("carries the claim nonce through the handle-input form into authorize state", async () => {
+    // regression: the form shown when no handle is given must preserve the
+    // claim nonce, or the handle submission drops it and the callback never
+    // stores a claim (poll 404s forever).
+    const CLAIM = "claim-xyz";
+
+    // 1. popup opens with a claim but no handle → renders the form
+    const form = await service.fetch(
+      new Request(
+        `${SERVICE}/atproto/oauth/start?origin=${encodeURIComponent(ORIGIN)}&claim=${CLAIM}`,
+      ),
+    );
+    const formHtml = await form!.text();
+    expect(formHtml).toContain(`name="claim"`);
+    expect(formHtml).toContain(`value="${CLAIM}"`);
+
+    // 2. the form submits handle + the preserved claim → authorize gets it in state
+    await service.fetch(
+      new Request(
+        `${SERVICE}/atproto/oauth/start?origin=${encodeURIComponent(ORIGIN)}&handle=commenter.test&claim=${CLAIM}`,
+      ),
+    );
+    const authorizeState = JSON.parse(
+      vi.mocked(fakeOAuthClient.authorize).mock.calls.at(-1)![1].state,
+    ) as { claim?: string };
+    expect(authorizeState.claim).toBe(CLAIM);
+  });
+
   it("hands off the session by claim nonce (COOP-safe path)", async () => {
     // callback carries a claim nonce in state
     vi.mocked(fakeOAuthClient.callback).mockResolvedValueOnce({

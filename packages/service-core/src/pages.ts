@@ -29,11 +29,14 @@ export const signInPage = ({
   clientName,
   actionUrl,
   origin,
+  claim,
   error,
 }: {
   clientName: string;
   actionUrl: string;
   origin: string;
+  /** claim nonce the opener polls with — must survive the form submission */
+  claim?: string;
   error?: string;
 }): string =>
   page(
@@ -43,6 +46,7 @@ export const signInPage = ({
 ${error ? `<p class="hint" style="color:#c00">${escapeHtml(error)}</p>` : ""}
 <form method="get" action="${escapeHtml(actionUrl)}">
   <input type="hidden" name="origin" value="${escapeHtml(origin)}" />
+  ${claim ? `<input type="hidden" name="claim" value="${escapeHtml(claim)}" />` : ""}
   <label for="handle">Your handle</label>
   <input id="handle" name="handle" placeholder="you.bsky.social" autocomplete="username" required autofocus />
   <button type="submit">Continue</button>
