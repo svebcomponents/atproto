@@ -22,7 +22,8 @@
     "@atproto-comments/client": "workspace:*",
     "@atproto-comments/service-core": "workspace:*",
     "@svebcomponents/ssr": "catalog:",
-    "atproto-comments": "workspace:*"
+    "atproto-comments": "workspace:*",
+    "valibot": "1.4.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",

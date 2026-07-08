@@ -8,10 +8,12 @@ export default defineConfig({
   // the same host the dev server listens on.
   server: { host: "127.0.0.1" },
   plugins: [
+    // async wrapper: the page compiles with experimental.async (for remote
+    // functions), so the web-component SSR wrapper must be the async variant.
     // Cast needed only while @svebcomponents/ssr is consumed via the local
     // link: override (its Plugin type resolves against that checkout's vite
     // copy). Remove together with the override in pnpm-workspace.yaml.
-    svebcomponents() as unknown as PluginOption,
+    svebcomponents({ async: true }) as unknown as PluginOption,
     sveltekit(),
   ],
 });

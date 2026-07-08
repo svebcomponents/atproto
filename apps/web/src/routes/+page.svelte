@@ -1,23 +1,37 @@
 <script lang="ts">
+  import { page } from "$app/state";
   import "atproto-comments";
-  import type { PageProps } from "./$types";
+  import { getThread } from "./thread.remote";
 
-  let { data }: PageProps = $props();
+  // @bsky.app's v1.125 announcement — a lively thread. Override with
+  // ?thread=<at-uri or bsky.app URL>.
+  const DEFAULT_THREAD =
+    "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3mojb23vtt22c";
+
+  const threadUri = $derived(
+    page.url.searchParams.get("thread") ?? DEFAULT_THREAD,
+  );
+
+  // Awaited during SSR (experimental.async): the component renders with the
+  // thread already loaded — no client refetch, no flash — via the remote
+  // `getThread` query. Null on failure → the component self-fetches (Tier 3).
+  const threadData = $derived(await getThread(threadUri));
 </script>
 
 <main>
   <h1>atproto-comments showcase</h1>
   <p>
-    Comments below are a live Bluesky thread, server-rendered into declarative
-    shadow DOM and hydrated in place. Pass <code>?thread=</code> an
-    <code>at://</code> URI or bsky.app post URL to render another thread. Sign
-    in with your Bluesky account to reply directly — the reply is posted to your
-    own repo via the hosted bridge at <code>/atproto</code>.
+    Comments below are a live Bluesky thread, prefetched by a SvelteKit remote
+    function, server-rendered into declarative shadow DOM, and hydrated in
+    place. Pass <code>?thread=</code> an <code>at://</code> URI or bsky.app post
+    URL to render another thread. Sign in with your Bluesky account to reply
+    directly — the reply is posted to your own repo via the hosted bridge at
+    <code>/atproto</code>.
   </p>
 
   <atproto-comments
-    thread={data.thread}
-    threadData={data.threadData ?? undefined}
+    thread={threadUri}
+    threadData={threadData ?? undefined}
     service="/atproto"
   ></atproto-comments>
 </main>
