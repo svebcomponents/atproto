@@ -36,18 +36,21 @@ const SESSION_STORAGE_PREFIX = "atproto-comments:token:";
  */
 export class ServiceClient {
   #token: string | null = null;
+  private readonly fetchImpl: typeof globalThis.fetch;
+  private readonly serviceUrl: string;
 
-  constructor(
-    serviceUrl: string,
-    private readonly fetchImpl: typeof globalThis.fetch = globalThis.fetch,
-  ) {
+  constructor(serviceUrl: string, fetchImpl?: typeof globalThis.fetch) {
+    // Wrap (rather than store `globalThis.fetch` directly): the browser's
+    // `fetch` throws "Illegal invocation" when called with any receiver other
+    // than the global object, and `this.fetchImpl(...)` would set the receiver
+    // to this instance. An injected fetch (tests) is used as-is.
+    this.fetchImpl =
+      fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
     // resolve relative service URLs (e.g. same-origin "/atproto") to absolute
     const base = globalThis.location?.href;
     this.serviceUrl = new URL(serviceUrl, base).href.replace(/\/$/, "");
     this.#token = this.#readStoredToken();
   }
-
-  private readonly serviceUrl: string;
 
   get #storageKey(): string {
     return `${SESSION_STORAGE_PREFIX}${this.serviceUrl}`;
