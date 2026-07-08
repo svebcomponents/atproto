@@ -15,9 +15,12 @@ auto-options preserves these explicit options and infers the rest. -->
     fetchCommentTree,
     parseThreadRef,
     sortComments,
+    ServiceClient,
+    ServiceError,
     type CommentNode,
     type CommentSort,
     type CommentTree,
+    type ServiceSessionInfo,
   } from "@atproto-comments/client";
 
   interface Props {
@@ -33,6 +36,10 @@ auto-options preserves these explicit options and infers the rest. -->
     labels?: "hide" | "collapse" | "show";
     /** AppView base URL override */
     appview?: string;
+    /** hosted OAuth/posting bridge URL — enables in-page sign-in and replies */
+    service?: string;
+    /** force read-only rendering even when a service is configured */
+    readonly?: boolean;
   }
 
   let {
@@ -42,6 +49,8 @@ auto-options preserves these explicit options and infers the rest. -->
     sort = "oldest",
     labels = "collapse",
     appview = "",
+    service = "",
+    readonly = false,
   }: Props = $props();
 
   let fetched = $state<CommentTree | undefined>(undefined);
@@ -50,9 +59,123 @@ auto-options preserves these explicit options and infers the rest. -->
   let retryToken = $state(0);
   let revealedLabeled = $state<string[]>([]);
   let container = $state<HTMLElement | undefined>(undefined);
+  /** locally appended replies not yet reflected in a refetched thread */
+  let optimistic = $state<CommentNode[]>([]);
 
   const tree = $derived(threadData ?? fetched);
-  const comments = $derived(tree ? sortComments(tree.comments, sort) : []);
+  const comments = $derived(
+    tree
+      ? [
+          ...sortComments(tree.comments, sort),
+          // locally-posted replies not yet in a refetched thread, always last
+          ...optimistic,
+        ]
+      : [],
+  );
+
+  // --- authenticated posting (only when `service` is set and not readonly) ---
+  const MAX_GRAPHEMES = 300;
+  const graphemeSegmenter = new Intl.Segmenter(undefined, {
+    granularity: "grapheme",
+  });
+  const countGraphemes = (text: string): number => {
+    let count = 0;
+    for (const _ of graphemeSegmenter.segment(text)) count += 1;
+    return count;
+  };
+
+  const writable = $derived(Boolean(service) && !readonly);
+  let client = $state<ServiceClient | undefined>(undefined);
+  let session = $state<ServiceSessionInfo | null>(null);
+  let composerOpen = $state(false);
+  let draft = $state("");
+  let posting = $state(false);
+  let postError = $state<string | undefined>(undefined);
+
+  const remaining = $derived(MAX_GRAPHEMES - countGraphemes(draft));
+
+  $effect(() => {
+    if (!BROWSER || !writable) return;
+    const c = new ServiceClient(service);
+    client = c;
+    c.getSession()
+      .then((s) => {
+        session = s;
+      })
+      .catch(() => {
+        session = null;
+      });
+  });
+
+  const signIn = async () => {
+    if (!client) return;
+    postError = undefined;
+    try {
+      session = await client.signIn();
+      composerOpen = true;
+      emit("atproto-comments:signed-in", { session });
+    } catch (error) {
+      if (error instanceof ServiceError && error.code === "Cancelled") return;
+      postError =
+        error instanceof Error ? error.message : "Sign-in failed";
+    }
+  };
+
+  const signOut = async () => {
+    await client?.signOut();
+    session = null;
+    composerOpen = false;
+  };
+
+  const submitReply = async () => {
+    if (!client || !tree || draft.trim().length === 0 || remaining < 0) return;
+    posting = true;
+    postError = undefined;
+    const text = draft.trim();
+    try {
+      const rootRef = { uri: tree.root.uri, cid: tree.root.cid };
+      const posted = await client.postReply({
+        root: rootRef,
+        parent: rootRef,
+        text,
+      });
+      // optimistic append so the user sees their comment immediately
+      optimistic = [
+        ...optimistic,
+        {
+          kind: "comment",
+          uri: posted.uri,
+          cid: posted.cid,
+          author: {
+            did: session?.did ?? "",
+            handle: session?.handle ?? "you",
+            displayName: session?.displayName,
+            avatarUrl: session?.avatarUrl,
+            profileUrl: session?.handle
+              ? `https://bsky.app/profile/${session.handle}`
+              : "https://bsky.app",
+          },
+          text,
+          segments: [{ type: "text", text }],
+          createdAt: new Date().toISOString(),
+          likeCount: 0,
+          replyCount: 0,
+          labels: [],
+          url: tree.root.url,
+          replies: [],
+          hasMoreReplies: false,
+        },
+      ];
+      draft = "";
+      composerOpen = false;
+      emit("atproto-comments:posted", { uri: posted.uri, cid: posted.cid });
+    } catch (error) {
+      postError =
+        error instanceof Error ? error.message : "Could not post your reply";
+    } finally {
+      posting = false;
+    }
+  };
 
   // events dispatched from an inner node with composed: true retarget to the
   // host element, so consumers listen on <atproto-comments> as documented.
@@ -252,14 +375,68 @@ auto-options preserves these explicit options and infers the rest. -->
         · 🔁 {compactNumber.format(tree.root.repostCount + tree.root.quoteCount)}
         · 💬 {compactNumber.format(tree.root.replyCount)}
       </span>
-      <a
-        class="reply-cta"
-        part="reply-button"
-        href={tree.root.url}
-        target="_blank"
-        rel="noopener noreferrer">Reply on Bluesky</a
-      >
+      {#if writable && session}
+        <span class="signed-in" part="signed-in">
+          <button type="button" class="link-button" onclick={() => (composerOpen = !composerOpen)}>
+            Reply
+          </button>
+          <span class="as-handle">@{session.handle ?? "you"}</span>
+          <button type="button" class="link-button muted" onclick={signOut}>
+            Sign out
+          </button>
+        </span>
+      {:else if writable}
+        <button type="button" class="signin-button" part="reply-button" onclick={signIn}>
+          Sign in with Bluesky to comment
+        </button>
+      {:else}
+        <a
+          class="reply-cta"
+          part="reply-button"
+          href={tree.root.url}
+          target="_blank"
+          rel="noopener noreferrer">Reply on Bluesky</a
+        >
+      {/if}
     </header>
+    {#if writable && session && composerOpen}
+      <form
+        class="composer"
+        part="composer"
+        onsubmit={(e) => {
+          e.preventDefault();
+          void submitReply();
+        }}
+      >
+        <textarea
+          part="composer-input"
+          bind:value={draft}
+          rows="3"
+          placeholder="Write a reply…"
+          disabled={posting}
+        ></textarea>
+        <p class="composer-notice">
+          Posting publicly as <strong>@{session.handle ?? "you"}</strong> from your
+          Bluesky account.
+        </p>
+        {#if postError}
+          <p class="composer-error" part="error">{postError}</p>
+        {/if}
+        <div class="composer-actions">
+          <span class="counter" class:over={remaining < 0}>{remaining}</span>
+          <button type="button" class="link-button muted" onclick={() => (composerOpen = false)}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="post-button"
+            disabled={posting || draft.trim().length === 0 || remaining < 0}
+          >
+            {posting ? "Posting…" : "Post reply"}
+          </button>
+        </div>
+      </form>
+    {/if}
     {#if comments.length === 0}
       <p class="empty" part="empty">
         No comments yet.
@@ -319,6 +496,86 @@ auto-options preserves these explicit options and infers the rest. -->
   }
   .stats {
     color: var(--atproto-comments-muted, light-dark(#666, #999));
+  }
+  .signed-in {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875em;
+  }
+  .as-handle {
+    color: var(--atproto-comments-muted, light-dark(#666, #999));
+  }
+  .signin-button,
+  .post-button {
+    font: inherit;
+    font-size: 0.875em;
+    padding: 0.4em 0.9em;
+    border-radius: var(--atproto-comments-radius, 8px);
+    border: none;
+    background: var(--atproto-comments-accent, #2864ff);
+    color: #fff;
+    cursor: pointer;
+  }
+  .signin-button:disabled,
+  .post-button:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+  .link-button {
+    font: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--atproto-comments-accent, #2864ff);
+  }
+  .link-button.muted {
+    color: var(--atproto-comments-muted, light-dark(#666, #999));
+  }
+  .composer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-block: 0.75rem;
+    border-bottom: 1px solid
+      var(--atproto-comments-border, light-dark(#e0e0e0, #333));
+  }
+  .composer textarea {
+    font: inherit;
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    padding: 0.6em;
+    border-radius: var(--atproto-comments-radius, 8px);
+    border: 1px solid var(--atproto-comments-border, light-dark(#ccc, #444));
+    background: transparent;
+    color: inherit;
+  }
+  .composer-notice {
+    margin: 0;
+    font-size: 0.8125em;
+    color: var(--atproto-comments-muted, light-dark(#666, #999));
+  }
+  .composer-error {
+    margin: 0;
+    font-size: 0.8125em;
+    color: #c0392b;
+  }
+  .composer-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    justify-content: flex-end;
+  }
+  .counter {
+    margin-right: auto;
+    font-size: 0.8125em;
+    color: var(--atproto-comments-muted, light-dark(#666, #999));
+    font-variant-numeric: tabular-nums;
+  }
+  .counter.over {
+    color: #c0392b;
   }
   ul {
     list-style: none;

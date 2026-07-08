@@ -10,12 +10,15 @@
   <p>
     Comments below are a live Bluesky thread, server-rendered into declarative
     shadow DOM and hydrated in place. Pass <code>?thread=</code> an
-    <code>at://</code> URI or bsky.app post URL to render another thread.
+    <code>at://</code> URI or bsky.app post URL to render another thread. Sign
+    in with your Bluesky account to reply directly — the reply is posted to your
+    own repo via the hosted bridge at <code>/atproto</code>.
   </p>
 
   <atproto-comments
     thread={data.thread}
     threadData={data.threadData ?? undefined}
+    service="/atproto"
   ></atproto-comments>
 </main>
 

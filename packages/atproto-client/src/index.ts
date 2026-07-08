@@ -23,6 +23,13 @@ export {
 } from "./fetchThread.js";
 export { sortComments, type CommentSort } from "./sort.js";
 export { bskyPostUrl, bskyProfileUrl, bskyTagUrl } from "./urls.js";
+export {
+  ServiceClient,
+  ServiceError,
+  type PostedReply,
+  type PostRef,
+  type ServiceSessionInfo,
+} from "./serviceClient.js";
 export type {
   Facet,
   FacetFeature,
