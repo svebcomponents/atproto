@@ -157,6 +157,52 @@ describe("service handlers", () => {
     expect(res!.headers.get("location")).toContain("pds.example");
   });
 
+  it("hands off the session by claim nonce (COOP-safe path)", async () => {
+    // callback carries a claim nonce in state
+    vi.mocked(fakeOAuthClient.callback).mockResolvedValueOnce({
+      session: { did: DID } as OAuthPdsSession,
+      state: JSON.stringify({
+        origin: ORIGIN,
+        nonce: "csrf",
+        claim: "claim-1",
+      }),
+    });
+    await service.fetch(
+      new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=xyz`),
+    );
+
+    // the opener polls with the nonce and gets the session once
+    const claimed = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session/claim?nonce=claim-1`, {
+        headers: { origin: ORIGIN },
+      }),
+    );
+    expect(claimed!.status).toBe(200);
+    expect(claimed!.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+    const body = (await claimed!.json()) as { token: string; handle: string };
+    expect(body.token).toBeTruthy();
+    expect(body.handle).toBe("commenter.test");
+
+    // the token works, and the claim is one-time (second read is 404)
+    const session = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session`, {
+        headers: { authorization: `Bearer ${body.token}`, origin: ORIGIN },
+      }),
+    );
+    expect(session!.status).toBe(200);
+    const second = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session/claim?nonce=claim-1`),
+    );
+    expect(second!.status).toBe(404);
+  });
+
+  it("returns 404 for an unknown claim nonce", async () => {
+    const res = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session/claim?nonce=nope`),
+    );
+    expect(res!.status).toBe(404);
+  });
+
   it("completes the callback and posts a session to the opener origin", async () => {
     const res = await service.fetch(
       new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=xyz`),

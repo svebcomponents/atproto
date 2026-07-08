@@ -1,6 +1,9 @@
 export {
+  createMemoryAuthClaimStore,
   createMemoryRateLimiter,
   resolveConfig,
+  type AuthClaim,
+  type AuthClaimStore,
   type RateLimiter,
   type ServiceConfig,
   type ServiceSession,

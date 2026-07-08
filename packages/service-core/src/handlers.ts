@@ -55,7 +55,10 @@ const parseOrigin = (value: string | null): string | null => {
 
 interface AuthorizeState {
   origin: string;
+  /** CSRF nonce */
   nonce: string;
+  /** claim nonce the opener polls with (undefined for the redirect fallback) */
+  claim?: string;
 }
 
 export interface CreateServiceOptions {
@@ -133,8 +136,13 @@ const handleStart = async (
     );
   }
 
+  const claim = url.searchParams.get("claim")?.trim();
   try {
-    const state: AuthorizeState = { origin, nonce: crypto.randomUUID() };
+    const state: AuthorizeState = {
+      origin,
+      nonce: crypto.randomUUID(),
+      ...(claim ? { claim } : {}),
+    };
     const client = await clientPromise;
     const authorizeUrl = await client.authorize(handle, {
       state: JSON.stringify(state),
@@ -164,6 +172,7 @@ const handleCallback = async (
 ): Promise<Response> => {
   let did: string;
   let origin: string;
+  let claimNonce: string | undefined;
   try {
     const client = await clientPromise;
     const { session, state } = await client.callback(url.searchParams);
@@ -172,6 +181,7 @@ const handleCallback = async (
     const parsedOrigin = parseOrigin(parsedState.origin ?? null);
     if (!parsedOrigin) throw new Error("state is missing the origin");
     origin = parsedOrigin;
+    claimNonce = parsedState.claim;
   } catch {
     return html(
       errorPage("Sign-in failed. Close this window and try again."),
@@ -188,6 +198,13 @@ const handleCallback = async (
     ...profile,
   });
   const token = await tokens.mint({ did, origin, sid });
+
+  // Primary handoff: stash the claim for the opener to poll. OAuth providers
+  // set COOP which severs window.opener, so postMessage (below) can't be
+  // relied on — it's kept only as a same-origin fast path.
+  if (claimNonce) {
+    await config.authClaimStore.set(claimNonce, { token, did, ...profile });
+  }
 
   return html(
     callbackPage({
@@ -246,6 +263,20 @@ const handleApi = async (
         "access-control-max-age": "86400",
       },
     });
+  }
+
+  // Claim retrieval is authenticated by the unguessable nonce itself (the
+  // opener generated it and only it knows it), so it runs before the bearer
+  // gate. The returned token is origin-bound, so a leaked claim is still
+  // useless off its origin. One-time read.
+  if (request.method === "GET" && route === "/api/session/claim") {
+    const cors = requestOrigin ? corsHeaders(requestOrigin) : {};
+    const nonce = new URL(request.url).searchParams.get("nonce");
+    const claim = nonce ? await config.authClaimStore.take(nonce) : undefined;
+    if (!claim) {
+      return jsonError(404, "NotReady", "No claim for this nonce yet", cors);
+    }
+    return json(claim, 200, cors);
   }
 
   const authorization = request.headers.get("authorization") ?? "";

@@ -28,6 +28,28 @@ export interface ServiceSessionStore {
 /** returns true when the action is allowed, false when rate-limited */
 export type RateLimiter = (key: string) => Promise<boolean> | boolean;
 
+/**
+ * A freshly-minted session waiting to be claimed by the tab that started
+ * sign-in. Keyed by an unguessable nonce (the claim's bearer secret) because
+ * OAuth providers set `Cross-Origin-Opener-Policy`, which severs
+ * `window.opener` during the cross-origin redirect — so the popup can't
+ * reliably `postMessage` back. The opener polls for the claim instead.
+ */
+export interface AuthClaim {
+  token: string;
+  did: string;
+  handle?: string;
+  displayName?: string;
+  avatarUrl?: string;
+}
+
+/** short-TTL, single-read store for pending auth claims */
+export interface AuthClaimStore {
+  set(nonce: string, claim: AuthClaim): Promise<void>;
+  /** returns and removes the claim (one-time), or undefined if absent/expired */
+  take(nonce: string): Promise<AuthClaim | undefined>;
+}
+
 export interface ServiceConfig {
   /**
    * Public base URL the service is reachable at, e.g.
@@ -61,6 +83,12 @@ export interface ServiceConfig {
   sessionStore: NodeSavedSessionStore;
   /** the service's own browser sessions */
   serviceSessionStore: ServiceSessionStore;
+  /**
+   * Pending-auth claim store (default: in-memory, 120s TTL). In-memory is
+   * fine even for the reference deployment — claims live for seconds — but a
+   * multi-instance deployment behind a load balancer needs a shared store.
+   */
+  authClaimStore?: AuthClaimStore;
   /** rate limiter for reply posting, keyed per DID (default: 10 per 10min) */
   replyRateLimiter?: RateLimiter;
   /** AppView for unauthenticated profile lookups */
@@ -75,6 +103,7 @@ export interface ResolvedServiceConfig extends ServiceConfig {
   sessionTtlSeconds: number;
   scope: string;
   appView: string;
+  authClaimStore: AuthClaimStore;
   replyRateLimiter: RateLimiter;
   fetch: typeof globalThis.fetch;
   /** true when publicUrl is a localhost/127.0.0.1 loopback */
@@ -105,10 +134,28 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     sessionTtlSeconds: config.sessionTtlSeconds ?? 3600,
     scope: config.scope ?? "atproto repo:app.bsky.feed.post?action=create",
     appView: config.appView ?? "https://public.api.bsky.app",
+    authClaimStore:
+      config.authClaimStore ?? createMemoryAuthClaimStore(120_000),
     replyRateLimiter:
       config.replyRateLimiter ?? createMemoryRateLimiter(10, 10 * 60_000),
     fetch: config.fetch ?? globalThis.fetch,
     isLoopback,
+  };
+};
+
+/** in-memory single-read claim store with TTL expiry */
+export const createMemoryAuthClaimStore = (ttlMs: number): AuthClaimStore => {
+  const claims = new Map<string, { claim: AuthClaim; expiresAt: number }>();
+  return {
+    async set(nonce, claim) {
+      claims.set(nonce, { claim, expiresAt: Date.now() + ttlMs });
+    },
+    async take(nonce) {
+      const entry = claims.get(nonce);
+      if (!entry) return undefined;
+      claims.delete(nonce);
+      return entry.expiresAt > Date.now() ? entry.claim : undefined;
+    },
   };
 };
 

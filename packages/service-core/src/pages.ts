@@ -66,15 +66,20 @@ export const callbackPage = ({
   }).replaceAll("<", "\\u003C");
   return page(
     "Signed in",
-    `<h1>Signed in</h1>
-<p class="hint">You can close this window.</p>
+    `<h1>✓ Signed in</h1>
+<p class="hint">You can close this tab and return to the page you were on — it will pick up your session automatically.</p>
 <script>
   (function () {
     var data = ${json};
-    if (window.opener) {
-      window.opener.postMessage(data, ${JSON.stringify(origin).replaceAll("<", "\\u003C")});
-      window.close();
-    }
+    // Fast path for same-origin popups. OAuth providers set COOP, which often
+    // severs window.opener, so the opener also polls for the session by nonce
+    // — this is best-effort only.
+    try {
+      if (window.opener) {
+        window.opener.postMessage(data, ${JSON.stringify(origin).replaceAll("<", "\\u003C")});
+        window.close();
+      }
+    } catch (e) {}
   })();
 </script>`,
   );
