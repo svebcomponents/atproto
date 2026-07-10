@@ -1,3 +1,9 @@
+<!-- The tag is declared here (not only in the build) so svelte's tooling
+compiles this as a custom element — required for $host() below to pass
+svelte-check. auto-options merges the inferred props in; the SSR build strips
+the option (and neutralizes $host()) before its plain-component compile. -->
+<svelte:options customElement={{ tag: "atproto-comments" }} />
+
 <script lang="ts">
   import { BROWSER } from "esm-env";
   import {
@@ -47,7 +53,6 @@
   let loading = $state(false);
   let retryToken = $state(0);
   let revealedLabeled = $state<string[]>([]);
-  let container = $state<HTMLElement | undefined>(undefined);
   /** locally appended replies not yet reflected in a refetched thread */
   let optimistic = $state<CommentNode[]>([]);
 
@@ -166,14 +171,11 @@
     }
   };
 
-  // events dispatched from an inner node with composed: true retarget to the
-  // host element, so consumers listen on <atproto-comments> as documented.
-  // ($host() is unavailable here: the SSR build compiles with customElement
-  // disabled.)
+  // dispatched on the host element itself, so consumers listen on
+  // <atproto-comments> as documented ($host() is undefined during SSR;
+  // emit only runs from client-side effects and handlers)
   const emit = (type: string, detail: unknown) => {
-    container?.dispatchEvent(
-      new CustomEvent(type, { detail, bubbles: true, composed: true }),
-    );
+    $host()?.dispatchEvent(new CustomEvent(type, { detail, bubbles: true }));
   };
 
   $effect(() => {
@@ -356,7 +358,7 @@
   {/if}
 {/snippet}
 
-<section class="container" part="container" bind:this={container}>
+<section class="container" part="container">
   {#if tree}
     <header class="header" part="header">
       <span class="stats">
