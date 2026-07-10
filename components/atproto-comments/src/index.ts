@@ -1,15 +1,9 @@
+import { defineElement } from "@svebcomponents/utils";
+
 import AtprotoComments from "./AtprotoComments.svelte";
 
 export default AtprotoComments;
-
-if (
-  !customElements.get("atproto-comments") &&
-  // we want to only register our custom element, if the compiler actually emitted a constructor for one
-  // (check necessary for SSR-ing svelte-built web components)
-  "element" in AtprotoComments
-) {
-  customElements.define(
-    "atproto-comments",
-    AtprotoComments.element as CustomElementConstructor,
-  );
-}
+// svelte auto-defines when the tag is declared in <svelte:options>; this is
+// the guarded fallback for environments where that module-scope define did
+// not (or must not) run
+defineElement("atproto-comments", AtprotoComments);

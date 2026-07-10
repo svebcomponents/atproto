@@ -28,5 +28,8 @@
     "svelte": "catalog:",
     "svelte-check": "catalog:",
     "vite": "catalog:"
+  },
+  "dependencies": {
+    "@svebcomponents/utils": "catalog:"
   }
 }

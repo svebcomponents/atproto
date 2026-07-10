@@ -68,6 +68,7 @@ overrides:
   '@svebcomponents/ssr': link:../svebcomponents-hydration/packages/ssr
   '@svebcomponents/build': link:../svebcomponents-hydration/packages/build
   '@svebcomponents/auto-options': link:../svebcomponents-hydration/packages/auto-options
+  '@svebcomponents/utils': link:../svebcomponents-hydration/packages/utils
 
 importers:
 
@@ -142,6 +143,10 @@ importers:
         version: 3.2.4(@types/node@22.14.1)(jiti@2.7.0)
 
   components/atproto-comments:
+    dependencies:
+      '@svebcomponents/utils':
+        specifier: link:../../../svebcomponents-hydration/packages/utils
+        version: link:../../../svebcomponents-hydration/packages/utils
     devDependencies:
       '@atproto-comments/client':
         specifier: workspace:*
