@@ -8,14 +8,14 @@ export default defineConfig({
   // the same host the dev server listens on.
   server: { host: "127.0.0.1" },
   plugins: [
-    // async wrapper: the page compiles with experimental.async (for remote
-    // functions), so the web-component SSR wrapper must be the async variant.
+    // The SSR wrapper variant (sync/async) is auto-detected from svelte's
+    // compilerOptions.experimental.async (enabled here for remote functions).
     // Cast needed only while @svebcomponents/ssr is consumed via the local
     // link: override: the linked checkout types against its own vite install,
     // and TS won't unify two installations even at the same version. Once the
     // package is consumed from npm, its `vite` peer dependency resolves to
     // this repo's vite and the cast can go.
-    svebcomponents({ async: true }) as unknown as PluginOption,
+    svebcomponents() as unknown as PluginOption,
     sveltekit(),
   ],
 });
