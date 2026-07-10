@@ -1,14 +1,3 @@
-<!-- threadData is rich data: never reflect it back to an attribute, and use
-the Object converter so `thread-data` attribute usage (inline JSON) works.
-auto-options preserves these explicit options and infers the rest. -->
-<svelte:options
-  customElement={{
-    props: {
-      threadData: { attribute: "thread-data", reflect: false, type: "Object" },
-    },
-  }}
-/>
-
 <script lang="ts">
   import { BROWSER } from "esm-env";
   import {
