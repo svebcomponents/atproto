@@ -172,9 +172,9 @@ export class ServiceClient {
       };
       globalThis.addEventListener("message", onMessage);
 
-      // Mechanism 2: poll the claim endpoint
+      // Mechanism 2: poll the claim endpoint for the session.
       const claimUrl = `${this.serviceUrl}/api/session/claim?nonce=${encodeURIComponent(nonce)}`;
-      const poll = globalThis.setInterval(() => {
+      const pollOnce = () => {
         void this.fetchImpl(claimUrl)
           .then(async (response) => {
             if (response.status !== 200) return;
@@ -190,25 +190,20 @@ export class ServiceClient {
           .catch(() => {
             // transient — keep polling
           });
-      }, 1000);
+      };
+      const poll = globalThis.setInterval(pollOnce, 1000);
 
-      // If the popup/tab is closed, give any in-flight claim a moment to
-      // land, then treat it as cancelled. Guarded: COOP can make `.closed`
-      // unreadable, in which case we just fall back to the overall timeout.
-      let closedGrace: ReturnType<typeof globalThis.setTimeout> | undefined;
-      const closeWatch = globalThis.setInterval(() => {
-        let closed = false;
-        try {
-          closed = popup.closed;
-        } catch {
-          return;
-        }
-        if (closed && closedGrace === undefined) {
-          closedGrace = globalThis.setTimeout(() => {
-            fail(new ServiceError("Sign-in was cancelled", 0, "Cancelled"));
-          }, 2500);
-        }
-      }, 500);
+      // Crucial: poll immediately whenever this tab regains focus/visibility.
+      // While the user is on the sign-in popup/tab, this (background) tab's
+      // timers are throttled to a near-standstill by the browser — so the
+      // interval alone can miss the claim. Returning here (which is exactly
+      // when they finish or close the sign-in tab) fires these and picks it
+      // up at once.
+      const onVisible = () => {
+        if (!globalThis.document?.hidden) pollOnce();
+      };
+      globalThis.addEventListener("focus", onVisible);
+      globalThis.document?.addEventListener("visibilitychange", onVisible);
 
       const deadline = globalThis.setTimeout(() => {
         fail(new ServiceError("Sign-in timed out", 0, "Timeout"));
@@ -216,10 +211,10 @@ export class ServiceClient {
 
       const cleanup = () => {
         globalThis.removeEventListener("message", onMessage);
+        globalThis.removeEventListener("focus", onVisible);
+        globalThis.document?.removeEventListener("visibilitychange", onVisible);
         globalThis.clearInterval(poll);
-        globalThis.clearInterval(closeWatch);
         globalThis.clearTimeout(deadline);
-        if (closedGrace !== undefined) globalThis.clearTimeout(closedGrace);
       };
     });
   }
