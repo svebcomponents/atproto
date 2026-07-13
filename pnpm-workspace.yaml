@@ -3,20 +3,10 @@ packages:
   - components/*
   - packages/*
   - configs/*
-# TEMPORARY: consume the local svebcomponents *hydration worktree* (contains
-# the released #103 fixes AND the pending hydratable-custom-elements PR #105).
-# The main ../svebcomponents checkout may sit on unrelated branches, so we
-# link the worktree for reproducible dist output. Drop these overrides (and
-# the cast in apps/web/vite.config.ts) once PR #105 is released to npm.
-overrides:
-  "@svebcomponents/ssr": "link:../svebcomponents-hydration/packages/ssr"
-  "@svebcomponents/build": "link:../svebcomponents-hydration/packages/build"
-  "@svebcomponents/auto-options": "link:../svebcomponents-hydration/packages/auto-options"
-  "@svebcomponents/utils": "link:../svebcomponents-hydration/packages/utils"
 catalog:
-  "@svebcomponents/build": 0.0.9
-  "@svebcomponents/ssr": 0.0.8
-  "@svebcomponents/utils": 0.0.3
+  "@svebcomponents/build": 0.1.0
+  "@svebcomponents/ssr": 0.1.0
+  "@svebcomponents/utils": 0.1.0
   "@sveltejs/adapter-node": 5.5.7
   "@sveltejs/kit": 2.69.1
   "@sveltejs/vite-plugin-svelte": 6.2.4

@@ -125,7 +125,7 @@ Freshness: when preloaded data is present, optionally revalidate in the backgrou
 
 ### Findings from the scaffold (2026-07-06, verified against real builds)
 
-Both upstream bugs found here are now **fixed in svebcomponents** (branch `fix/ssr-svelte-536-and-shim-ordering`); this repo consumes the fix via temporary `link:` overrides in `pnpm-workspace.yaml` until a release ships. Kept for the record:
+Both upstream bugs found here are now **fixed and released in svebcomponents** (≥0.1.0); this repo consumes the packages from npm. Kept for the record:
 
 1. ~~The async wrapper is mandatory with current Svelte~~ **Fixed.** Since svelte ~5.36, `render()` results are always thenable, which made `renderShadow` treat every component as async and killed the sync wrapper (`collectResultSync` threw for everything). The renderer now uses the `RenderOutput`'s lazy sync getters and only falls back to the promise path for genuinely async components (svelte's `await_invalid` signal). `async: true` + `experimental.async` is only needed once components actually `await` during SSR (we'll enable it in Phase 1 for async thread fetching).
 2. ~~Never statically import the component's client build in SSR'd app code~~ **Fixed.** The generated `dist/server/ssr.js` now installs the DOM shim via `@svebcomponents/ssr/shim` first and dynamically imports the client bundle, which is chunk-order-proof. Static imports in pages are safe again (page chunks evaluate after server init). Root cause for the record: svelte's `SvelteElement` is captured at module-eval time (`typeof HTMLElement === 'function'` at module scope), and rollup code-splitting could evaluate the client bundle in a shared chunk before the shim side effect ran — prod-only (`adapter-node`), dev unaffected.

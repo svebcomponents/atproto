@@ -26,7 +26,7 @@ Upstream issues found while scaffolding (details in [01-architecture.md](./01-ar
 Follow-ups tied to the fixes:
 
 - All three fixes are in **[svebcomponents PR #103](https://github.com/svebcomponents/svebcomponents/pull/103)** (sync rendering with svelte ≥5.36, chunk-order-safe SSR entries, parallel-build clean race) including sync-wrapper e2e coverage (verified to fail pre-fix) and changesets.
-- After merge + release: **drop the `link:` overrides** in this repo's `pnpm-workspace.yaml` and the cast in `apps/web/vite.config.ts`.
+- ~~After merge + release: drop the `link:` overrides~~ **Done (2026-07-13)**: PR #105 merged and all `@svebcomponents/*` packages released at 0.1.0; this repo consumes them from npm (no overrides, no vite-plugin cast).
 
 ## Phase 1 — read-only `<atproto-comments>` (first shippable)
 
