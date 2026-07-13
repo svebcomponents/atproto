@@ -5,8 +5,10 @@ the option (and neutralizes $host()) before its plain-component compile. -->
 <svelte:options customElement={{ tag: "atproto-comments" }} />
 
 <script lang="ts">
+  import { tick } from "svelte";
   import { BROWSER } from "esm-env";
   import {
+    bskyPostUrl,
     fetchCommentTree,
     parseThreadRef,
     sortComments,
@@ -53,16 +55,17 @@ the option (and neutralizes $host()) before its plain-component compile. -->
   let loading = $state(false);
   let retryToken = $state(0);
   let revealedLabeled = $state<string[]>([]);
-  /** locally appended replies not yet reflected in a refetched thread */
-  let optimistic = $state<CommentNode[]>([]);
+  /** locally posted replies not yet reflected in a refetched thread, keyed
+   * by the uri of the post they reply to (the thread root or any comment) */
+  let optimistic = $state<Record<string, CommentNode[]>>({});
 
   const tree = $derived(threadData ?? fetched);
   const comments = $derived(
     tree
       ? [
           ...sortComments(tree.comments, sort),
-          // locally-posted replies not yet in a refetched thread, always last
-          ...optimistic,
+          // locally-posted top-level replies, always last
+          ...(optimistic[tree.root.uri] ?? []),
         ]
       : [],
   );
@@ -81,10 +84,40 @@ the option (and neutralizes $host()) before its plain-component compile. -->
   const writable = $derived(Boolean(service) && !readonly);
   let client = $state<ServiceClient | undefined>(undefined);
   let session = $state<ServiceSessionInfo | null>(null);
-  let composerOpen = $state(false);
+  /** the post the composer dialog is replying to; undefined = dialog closed */
+  interface ReplyTarget {
+    uri: string;
+    cid: string;
+    /** author handle, for the "Replying to @…" context line; undefined = the thread root */
+    handle?: string;
+  }
+  let replyTarget = $state<ReplyTarget | undefined>(undefined);
+  let dialogElement = $state<HTMLDialogElement | undefined>(undefined);
   let draft = $state("");
   let posting = $state(false);
   let postError = $state<string | undefined>(undefined);
+
+  const openComposer = (target: ReplyTarget) => {
+    postError = undefined;
+    replyTarget = target;
+    dialogElement?.showModal();
+  };
+
+  // state is cleared via the dialog's `close` event so Esc stays in sync
+  const closeComposer = () => dialogElement?.close();
+
+  // the dialog's content renders a tick after showModal(), so the autofocus
+  // attribute can't take effect — focus the textarea once it exists (also
+  // covers the composer appearing after an in-dialog sign-in)
+  $effect(() => {
+    if (!replyTarget || !session) return;
+    void tick().then(() =>
+      dialogElement?.querySelector("textarea")?.focus(),
+    );
+  });
+
+  const rootTarget = (): ReplyTarget | undefined =>
+    tree ? { uri: tree.root.uri, cid: tree.root.cid } : undefined;
 
   const remaining = $derived(MAX_GRAPHEMES - countGraphemes(draft));
 
@@ -106,7 +139,12 @@ the option (and neutralizes $host()) before its plain-component compile. -->
     postError = undefined;
     try {
       session = await client.signIn();
-      composerOpen = true;
+      // opened from the header (no target yet): compose a top-level reply.
+      // opened from a comment's Reply button: keep that comment as target.
+      if (!replyTarget) {
+        const target = rootTarget();
+        if (target) openComposer(target);
+      }
       emit("atproto-comments:signed-in", { session });
     } catch (error) {
       if (error instanceof ServiceError && error.code === "Cancelled") return;
@@ -118,51 +156,65 @@ the option (and neutralizes $host()) before its plain-component compile. -->
   const signOut = async () => {
     await client?.signOut();
     session = null;
-    composerOpen = false;
+    closeComposer();
   };
 
   const submitReply = async () => {
-    if (!client || !tree || draft.trim().length === 0 || remaining < 0) return;
+    if (
+      !client ||
+      !tree ||
+      !replyTarget ||
+      draft.trim().length === 0 ||
+      remaining < 0
+    )
+      return;
     posting = true;
     postError = undefined;
     const text = draft.trim();
+    const parent = replyTarget;
     try {
-      const rootRef = { uri: tree.root.uri, cid: tree.root.cid };
       const posted = await client.postReply({
-        root: rootRef,
-        parent: rootRef,
+        root: { uri: tree.root.uri, cid: tree.root.cid },
+        parent: { uri: parent.uri, cid: parent.cid },
         text,
       });
-      // optimistic append so the user sees their comment immediately
-      optimistic = [
+      // optimistic append under the parent so the user sees it immediately
+      optimistic = {
         ...optimistic,
-        {
-          kind: "comment",
-          uri: posted.uri,
-          cid: posted.cid,
-          author: {
-            did: session?.did ?? "",
-            handle: session?.handle ?? "you",
-            displayName: session?.displayName,
-            avatarUrl: session?.avatarUrl,
-            profileUrl: session?.handle
-              ? `https://bsky.app/profile/${session.handle}`
-              : "https://bsky.app",
+        [parent.uri]: [
+          ...(optimistic[parent.uri] ?? []),
+          {
+            kind: "comment",
+            uri: posted.uri,
+            cid: posted.cid,
+            author: {
+              did: session?.did ?? "",
+              handle: session?.handle ?? "you",
+              displayName: session?.displayName,
+              avatarUrl: session?.avatarUrl,
+              profileUrl: session?.handle
+                ? `https://bsky.app/profile/${session.handle}`
+                : "https://bsky.app",
+            },
+            text,
+            segments: [{ type: "text", text }],
+            createdAt: new Date().toISOString(),
+            likeCount: 0,
+            replyCount: 0,
+            labels: [],
+            url: bskyPostUrl(posted.uri, session?.handle),
+            replies: [],
+            hasMoreReplies: false,
           },
-          text,
-          segments: [{ type: "text", text }],
-          createdAt: new Date().toISOString(),
-          likeCount: 0,
-          replyCount: 0,
-          labels: [],
-          url: tree.root.url,
-          replies: [],
-          hasMoreReplies: false,
-        },
-      ];
+        ],
+      };
       draft = "";
-      composerOpen = false;
-      emit("atproto-comments:posted", { uri: posted.uri, cid: posted.cid });
+      closeComposer();
+      emit("atproto-comments:posted", {
+        uri: posted.uri,
+        cid: posted.cid,
+        parent: parent.uri,
+      });
     } catch (error) {
       postError =
         error instanceof Error ? error.message : "Could not post your reply";
@@ -308,13 +360,27 @@ the option (and neutralizes $host()) before its plain-component compile. -->
         {#if node.likeCount > 0}
           <span class="likes">♡ {compactNumber.format(node.likeCount)}</span>
         {/if}
-        <a
-          class="reply-link"
-          part="reply-button"
-          href={node.url}
-          target="_blank"
-          rel="noopener noreferrer">Reply on Bluesky</a
-        >
+        {#if writable}
+          <button
+            type="button"
+            class="reply-link link-button"
+            part="reply-button"
+            onclick={() =>
+              openComposer({
+                uri: node.uri,
+                cid: node.cid,
+                handle: node.author.handle,
+              })}>Reply</button
+          >
+        {:else}
+          <a
+            class="reply-link"
+            part="reply-button"
+            href={node.url}
+            target="_blank"
+            rel="noopener noreferrer">Reply on Bluesky</a
+          >
+        {/if}
       </p>
     </div>
   </div>
@@ -339,13 +405,22 @@ the option (and neutralizes $host()) before its plain-component compile. -->
       {:else}
         {@render commentBody(node)}
         {#if node.kind === "comment"}
-          {#if node.replies.length > 0 && depth < maxDepth}
+          {@const optimisticReplies = optimistic[node.uri] ?? []}
+          {#if (node.replies.length > 0 && depth < maxDepth) || optimisticReplies.length > 0}
             <ul class="replies">
-              {#each node.replies as reply (reply.kind === "comment" ? reply.uri : `${reply.kind}-${reply.uri}`)}
+              {#if depth < maxDepth}
+                {#each node.replies as reply (reply.kind === "comment" ? reply.uri : `${reply.kind}-${reply.uri}`)}
+                  {@render commentNode(reply, depth + 1)}
+                {/each}
+              {/if}
+              <!-- locally posted replies render even past the depth cap: the
+                   user must see the comment they just published -->
+              {#each optimisticReplies as reply (reply.uri)}
                 {@render commentNode(reply, depth + 1)}
               {/each}
             </ul>
-          {:else if node.hasMoreReplies || (node.replies.length > 0 && depth >= maxDepth)}
+          {/if}
+          {#if node.hasMoreReplies || (node.replies.length > 0 && depth >= maxDepth)}
             <p class="continue">
               <a href={node.url} target="_blank" rel="noopener noreferrer"
                 >Continue this thread on Bluesky →</a
@@ -368,7 +443,14 @@ the option (and neutralizes $host()) before its plain-component compile. -->
       </span>
       {#if writable && session}
         <span class="signed-in" part="signed-in">
-          <button type="button" class="link-button" onclick={() => (composerOpen = !composerOpen)}>
+          <button
+            type="button"
+            class="link-button"
+            onclick={() => {
+              const target = rootTarget();
+              if (target) openComposer(target);
+            }}
+          >
             Reply
           </button>
           <span class="as-handle">@{session.handle ?? "you"}</span>
@@ -390,44 +472,6 @@ the option (and neutralizes $host()) before its plain-component compile. -->
         >
       {/if}
     </header>
-    {#if writable && session && composerOpen}
-      <form
-        class="composer"
-        part="composer"
-        onsubmit={(e) => {
-          e.preventDefault();
-          void submitReply();
-        }}
-      >
-        <textarea
-          part="composer-input"
-          bind:value={draft}
-          rows="3"
-          placeholder="Write a reply…"
-          disabled={posting}
-        ></textarea>
-        <p class="composer-notice">
-          Posting publicly as <strong>@{session.handle ?? "you"}</strong> from your
-          Bluesky account.
-        </p>
-        {#if postError}
-          <p class="composer-error" part="error">{postError}</p>
-        {/if}
-        <div class="composer-actions">
-          <span class="counter" class:over={remaining < 0}>{remaining}</span>
-          <button type="button" class="link-button muted" onclick={() => (composerOpen = false)}>
-            Cancel
-          </button>
-          <button
-            type="submit"
-            class="post-button"
-            disabled={posting || draft.trim().length === 0 || remaining < 0}
-          >
-            {posting ? "Posting…" : "Post reply"}
-          </button>
-        </div>
-      </form>
-    {/if}
     {#if comments.length === 0}
       <p class="empty" part="empty">
         No comments yet.
@@ -442,6 +486,92 @@ the option (and neutralizes $host()) before its plain-component compile. -->
         {/each}
       </ul>
     {/if}
+    <!-- one composer for every reply target (thread root or any comment):
+         a modal dialog gives focus trapping, Esc, and a backdrop for free -->
+    <dialog
+      class="composer-dialog"
+      part="dialog"
+      bind:this={dialogElement}
+      onclose={() => (replyTarget = undefined)}
+    >
+      {#if replyTarget}
+        {#if session}
+          <form
+            class="composer"
+            part="composer"
+            onsubmit={(e) => {
+              e.preventDefault();
+              void submitReply();
+            }}
+          >
+            <p class="composer-context">
+              {#if replyTarget.handle}
+                Replying to <strong>@{replyTarget.handle}</strong>
+              {:else}
+                Replying to the post
+              {/if}
+            </p>
+            <textarea
+              part="composer-input"
+              bind:value={draft}
+              rows="3"
+              placeholder="Write a reply…"
+              disabled={posting}
+            ></textarea>
+            <p class="composer-notice">
+              Posting publicly as <strong>@{session.handle ?? "you"}</strong> from
+              your Bluesky account.
+            </p>
+            {#if postError}
+              <p class="composer-error" part="error">{postError}</p>
+            {/if}
+            <div class="composer-actions">
+              <span class="counter" class:over={remaining < 0}>{remaining}</span>
+              <button
+                type="button"
+                class="link-button muted"
+                onclick={closeComposer}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="post-button"
+                disabled={posting || draft.trim().length === 0 || remaining < 0}
+              >
+                {posting ? "Posting…" : "Post reply"}
+              </button>
+            </div>
+          </form>
+        {:else}
+          <div class="composer signin-prompt" part="composer">
+            <p class="composer-notice">
+              {#if replyTarget.handle}
+                Sign in with Bluesky to reply to
+                <strong>@{replyTarget.handle}</strong>.
+              {:else}
+                Sign in with Bluesky to join the conversation.
+              {/if}
+            </p>
+            {#if postError}
+              <p class="composer-error" part="error">{postError}</p>
+            {/if}
+            <div class="composer-actions">
+              <button
+                type="button"
+                class="link-button muted"
+                onclick={closeComposer}
+              >
+                Cancel
+              </button>
+              <button type="button" class="signin-button" onclick={signIn}>
+                Sign in with Bluesky
+              </button>
+            </div>
+          </div>
+        {/if}
+      {/if}
+    </dialog>
   {:else if errorMessage}
     <p class="error" part="error">
       Could not load comments: {errorMessage}
@@ -524,13 +654,35 @@ the option (and neutralizes $host()) before its plain-component compile. -->
   .link-button.muted {
     color: var(--atproto-comments-muted, light-dark(#666, #999));
   }
+  .composer-dialog {
+    /* the dialog inherits nothing from the page by default — restate the
+       component's typography so the composer matches the comment list */
+    font-family: inherit;
+    font-size: var(--atproto-comments-font-size, 0.9375rem);
+    color: light-dark(#1a1a1a, #ececec);
+    width: min(92vw, 32rem);
+    box-sizing: border-box;
+    padding: 1rem;
+    border: 1px solid var(--atproto-comments-border, light-dark(#e0e0e0, #333));
+    border-radius: var(--atproto-comments-radius, 8px);
+    background: light-dark(#fff, #1c1c1e);
+    box-shadow: 0 12px 40px light-dark(rgb(0 0 0 / 0.18), rgb(0 0 0 / 0.6));
+  }
+  .composer-dialog::backdrop {
+    background: light-dark(rgb(0 0 0 / 0.3), rgb(0 0 0 / 0.55));
+  }
   .composer {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    padding-block: 0.75rem;
-    border-bottom: 1px solid
-      var(--atproto-comments-border, light-dark(#e0e0e0, #333));
+  }
+  .composer-context {
+    margin: 0;
+    font-size: 0.875em;
+    color: var(--atproto-comments-muted, light-dark(#666, #999));
+  }
+  .composer-context strong {
+    color: inherit;
   }
   .composer textarea {
     font: inherit;

@@ -81,14 +81,42 @@ test("hydrated component stays reactive", async ({ page }) => {
   await page.goto("/", { waitUntil: "networkidle" });
   await page.waitForTimeout(1500);
 
-  // the root stats header links out to the thread on Bluesky
-  const replyLink = page
-    .locator("atproto-comments")
-    .locator('a[part="reply-button"]')
+  // this app configures a service, so comments carry an in-page Reply
+  // button; clicking one opens the modal composer dialog with the target
+  // comment's author — proof the hydrated component handles events
+  const component = page.locator("atproto-comments");
+  const replyButton = component
+    .locator('li[part="comment"] button[part="reply-button"]')
     .first();
-  await expect(replyLink).toHaveText("Reply on Bluesky");
-  await expect(replyLink).toHaveAttribute(
-    "href",
-    /https:\/\/bsky\.app\/profile\/.+\/post\/.+/,
-  );
+  await expect(replyButton).toHaveText("Reply");
+  await replyButton.click();
+
+  const dialogState = await page.evaluate(() => {
+    const shadow = document.querySelector("atproto-comments")?.shadowRoot;
+    const dialog = shadow?.querySelector("dialog");
+    return {
+      open: dialog?.open ?? false,
+      modal: dialog?.matches(":modal") ?? false,
+      // signed out in this test → the dialog shows the sign-in prompt
+      hasSigninPrompt: Boolean(shadow?.querySelector("dialog .signin-prompt")),
+    };
+  });
+  expect(dialogState).toEqual({
+    open: true,
+    modal: true,
+    hasSigninPrompt: true,
+  });
+
+  // Esc closes it and the component stays healthy
+  await page.keyboard.press("Escape");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document
+            .querySelector("atproto-comments")
+            ?.shadowRoot?.querySelector("dialog")?.open ?? true,
+      ),
+    )
+    .toBe(false);
 });
