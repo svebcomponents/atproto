@@ -71,7 +71,7 @@ export const callbackPage = ({
   return page(
     "Signed in",
     `<h1>✓ Signed in</h1>
-<p class="hint">You can close this tab and return to the page you were on — it will pick up your session automatically.</p>
+<p class="hint">This window should close by itself. If it doesn't, close it and return to the page you were on — it picks up your session automatically.</p>
 <script>
   (function () {
     var data = ${json};
@@ -81,9 +81,20 @@ export const callbackPage = ({
     try {
       if (window.opener) {
         window.opener.postMessage(data, ${JSON.stringify(origin).replaceAll("<", "\\u003C")});
-        window.close();
       }
     } catch (e) {}
+    // Close this window unconditionally — NOT gated on window.opener: the
+    // COOP swap that severs the opener reference does not stop a
+    // script-opened window from closing itself, and the session claim was
+    // stored server-side before this page was served, so the opener recovers
+    // it by polling whether or not this tab sticks around. Brief delay so
+    // the success state paints and any postMessage lands; the hint text
+    // stays as the fallback where the browser refuses the close.
+    setTimeout(function () {
+      try {
+        window.close();
+      } catch (e) {}
+    }, 500);
   })();
 </script>`,
   );

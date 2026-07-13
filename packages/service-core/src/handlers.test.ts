@@ -185,6 +185,22 @@ describe("service handlers", () => {
     expect(authorizeState.claim).toBe(CLAIM);
   });
 
+  it("callback page closes itself without requiring window.opener", async () => {
+    // regression: the OAuth provider's COOP swap severs window.opener, so a
+    // self-close gated on the opener never runs and the tab lingers. The
+    // close must be unconditional (after the best-effort postMessage).
+    const res = await service.fetch(
+      new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=xyz`),
+    );
+    const html = await res!.text();
+    const openerGuard = html.indexOf("if (window.opener)");
+    const openerGuardEnd = html.indexOf("catch (e) {}", openerGuard);
+    const selfClose = html.indexOf("window.close()");
+    expect(openerGuard).toBeGreaterThan(-1);
+    expect(selfClose).toBeGreaterThan(openerGuardEnd);
+    expect(html).toContain("setTimeout");
+  });
+
   it("hands off the session by claim nonce (COOP-safe path)", async () => {
     // callback carries a claim nonce in state
     vi.mocked(fakeOAuthClient.callback).mockResolvedValueOnce({

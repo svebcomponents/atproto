@@ -134,6 +134,16 @@ export class ServiceClient {
         if (settled) return;
         settled = true;
         cleanup();
+        // best-effort: the callback page also closes itself, but when the
+        // session arrives while the popup is still open (postMessage fast
+        // path, or polling picking up a claim early) close it from here too.
+        // COOP from the OAuth provider usually disconnects this reference —
+        // then this is a harmless no-op and the page's self-close covers it.
+        try {
+          popup.close();
+        } catch {
+          // disconnected by COOP — the callback page closes itself
+        }
         this.#storeToken(token);
         resolve(session);
       };
