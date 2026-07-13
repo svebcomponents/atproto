@@ -137,7 +137,7 @@ describe("service handlers", () => {
       ),
     );
     expect(res!.headers.get("content-type")).toContain("text/html");
-    expect(await res!.text()).toContain("Sign in with Bluesky");
+    expect(await res!.text()).toContain("Sign in with your atmosphere account");
   });
 
   it("rejects oauth/start without a valid origin", async () => {

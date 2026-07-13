@@ -41,7 +41,7 @@ export const signInPage = ({
 }): string =>
   page(
     `Sign in — ${clientName}`,
-    `<h1>Sign in with Bluesky</h1>
+    `<h1>Sign in with your atmosphere account</h1>
 <p class="hint">${escapeHtml(clientName)} will send you to your account provider to approve posting replies on your behalf for <strong>${escapeHtml(origin)}</strong>.</p>
 ${error ? `<p class="hint" style="color:#c00">${escapeHtml(error)}</p>` : ""}
 <form method="get" action="${escapeHtml(actionUrl)}">

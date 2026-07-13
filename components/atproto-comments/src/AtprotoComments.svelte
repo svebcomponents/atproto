@@ -111,9 +111,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
   // covers the composer appearing after an in-dialog sign-in)
   $effect(() => {
     if (!replyTarget || !session) return;
-    void tick().then(() =>
-      dialogElement?.querySelector("textarea")?.focus(),
-    );
+    void tick().then(() => dialogElement?.querySelector("textarea")?.focus());
   });
 
   const rootTarget = (): ReplyTarget | undefined =>
@@ -148,8 +146,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
       emit("atproto-comments:signed-in", { session });
     } catch (error) {
       if (error instanceof ServiceError && error.code === "Cancelled") return;
-      postError =
-        error instanceof Error ? error.message : "Sign-in failed";
+      postError = error instanceof Error ? error.message : "Sign-in failed";
     }
   };
 
@@ -438,7 +435,9 @@ the option (and neutralizes $host()) before its plain-component compile. -->
     <header class="header" part="header">
       <span class="stats">
         ♡ {compactNumber.format(tree.root.likeCount)}
-        · 🔁 {compactNumber.format(tree.root.repostCount + tree.root.quoteCount)}
+        · 🔁 {compactNumber.format(
+          tree.root.repostCount + tree.root.quoteCount,
+        )}
         · 💬 {compactNumber.format(tree.root.replyCount)}
       </span>
       {#if writable && session}
@@ -459,8 +458,13 @@ the option (and neutralizes $host()) before its plain-component compile. -->
           </button>
         </span>
       {:else if writable}
-        <button type="button" class="signin-button" part="reply-button" onclick={signIn}>
-          Sign in with Bluesky to comment
+        <button
+          type="button"
+          class="signin-button"
+          part="reply-button"
+          onclick={signIn}
+        >
+          Sign in to comment
         </button>
       {:else}
         <a
@@ -520,13 +524,14 @@ the option (and neutralizes $host()) before its plain-component compile. -->
             ></textarea>
             <p class="composer-notice">
               Posting publicly as <strong>@{session.handle ?? "you"}</strong> from
-              your Bluesky account.
+              your atmosphere account.
             </p>
             {#if postError}
               <p class="composer-error" part="error">{postError}</p>
             {/if}
             <div class="composer-actions">
-              <span class="counter" class:over={remaining < 0}>{remaining}</span>
+              <span class="counter" class:over={remaining < 0}>{remaining}</span
+              >
               <button
                 type="button"
                 class="link-button muted"
@@ -547,10 +552,10 @@ the option (and neutralizes $host()) before its plain-component compile. -->
           <div class="composer signin-prompt" part="composer">
             <p class="composer-notice">
               {#if replyTarget.handle}
-                Sign in with Bluesky to reply to
+                Sign in with your atmosphere account to reply to
                 <strong>@{replyTarget.handle}</strong>.
               {:else}
-                Sign in with Bluesky to join the conversation.
+                Sign in with your atmosphere account to join the conversation.
               {/if}
             </p>
             {#if postError}
@@ -565,7 +570,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
                 Cancel
               </button>
               <button type="button" class="signin-button" onclick={signIn}>
-                Sign in with Bluesky
+                Sign in
               </button>
             </div>
           </div>

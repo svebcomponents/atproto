@@ -363,7 +363,7 @@ const postReply = async (
     return jsonError(
       401,
       "SessionExpired",
-      "Your Bluesky authorization expired — sign in again",
+      "Your atmosphere authorization expired — sign in again",
       cors,
     );
   }
