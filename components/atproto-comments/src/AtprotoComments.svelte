@@ -8,7 +8,8 @@ the option (and neutralizes $host()) before its plain-component compile. -->
   import { tick } from "svelte";
   import { BROWSER } from "esm-env";
   import {
-    bskyPostUrl,
+    viewerPostUrl,
+    viewerProfileUrl,
     fetchCommentTree,
     parseThreadRef,
     sortComments,
@@ -33,6 +34,11 @@ the option (and neutralizes $host()) before its plain-component compile. -->
     labels?: "hide" | "collapse" | "show";
     /** AppView base URL override */
     appview?: string;
+    /** web viewer base URL for outbound links (bsky.app by default) — any
+     * viewer using bsky.app's URL scheme works (e.g. deer.social). URLs in a
+     * preloaded threadData are baked at normalization: pass the same viewer
+     * to fetchCommentTree when prefetching. */
+    viewer?: string;
     /** hosted OAuth/posting bridge URL — enables in-page sign-in and replies */
     service?: string;
     /** force read-only rendering even when a service is configured */
@@ -46,6 +52,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
     sort = "oldest",
     labels = "collapse",
     appview = "",
+    viewer = "",
     service = "",
     readonly = false,
   }: Props = $props();
@@ -60,6 +67,16 @@ the option (and neutralizes $host()) before its plain-component compile. -->
   let optimistic = $state<Record<string, CommentNode[]>>({});
 
   const tree = $derived(threadData ?? fetched);
+
+  /** label for outbound links: "Bluesky" for the default viewer, else its hostname */
+  const viewerName = $derived.by(() => {
+    if (!viewer) return "Bluesky";
+    try {
+      return new URL(viewer).hostname;
+    } catch {
+      return "Bluesky";
+    }
+  });
   const comments = $derived(
     tree
       ? [
@@ -189,9 +206,10 @@ the option (and neutralizes $host()) before its plain-component compile. -->
               handle: session?.handle ?? "you",
               displayName: session?.displayName,
               avatarUrl: session?.avatarUrl,
-              profileUrl: session?.handle
-                ? `https://bsky.app/profile/${session.handle}`
-                : "https://bsky.app",
+              profileUrl: viewerProfileUrl(
+                session?.handle ?? session?.did ?? "",
+                viewer || undefined,
+              ),
             },
             text,
             segments: [{ type: "text", text }],
@@ -199,7 +217,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
             likeCount: 0,
             replyCount: 0,
             labels: [],
-            url: bskyPostUrl(posted.uri, session?.handle),
+            url: viewerPostUrl(posted.uri, session?.handle, viewer || undefined),
             replies: [],
             hasMoreReplies: false,
           },
@@ -241,6 +259,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
     fetchCommentTree(thread, {
       signal: controller.signal,
       ...(appview ? { appView: appview } : {}),
+      ...(viewer ? { viewer } : {}),
     })
       .then((result) => {
         fetched = result;
@@ -375,7 +394,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
             part="reply-button"
             href={node.url}
             target="_blank"
-            rel="noopener noreferrer">Reply on Bluesky</a
+            rel="noopener noreferrer">Reply on {viewerName}</a
           >
         {/if}
       </p>
@@ -420,7 +439,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
           {#if node.hasMoreReplies || (node.replies.length > 0 && depth >= maxDepth)}
             <p class="continue">
               <a href={node.url} target="_blank" rel="noopener noreferrer"
-                >Continue this thread on Bluesky →</a
+                >Continue this thread on {viewerName} →</a
               >
             </p>
           {/if}
@@ -472,7 +491,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
           part="reply-button"
           href={tree.root.url}
           target="_blank"
-          rel="noopener noreferrer">Reply on Bluesky</a
+          rel="noopener noreferrer">Reply on {viewerName}</a
         >
       {/if}
     </header>
@@ -480,7 +499,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
       <p class="empty" part="empty">
         No comments yet.
         <a href={tree.root.url} target="_blank" rel="noopener noreferrer"
-          >Be the first to reply on Bluesky</a
+          >Be the first to reply on {viewerName}</a
         >
       </p>
     {:else}

@@ -95,6 +95,22 @@ describe("normalizeThread", () => {
     expect(Date.parse(tree.fetchedAt)).not.toBeNaN();
   });
 
+  it("routes every outbound link through a custom viewer", () => {
+    const tree = normalizeThread(fixture, "https://deer.social/");
+    expect(tree.root.url).toBe(
+      "https://deer.social/profile/author.test/post/root",
+    );
+    expect(tree.root.author.profileUrl).toBe(
+      "https://deer.social/profile/author.test",
+    );
+    const first = tree.comments[0];
+    if (first?.kind !== "comment") throw new Error("expected a comment");
+    expect(first.url).toContain("https://deer.social/profile/");
+    expect(first.author.profileUrl).toContain("https://deer.social/profile/");
+    // nothing in the tree links to the default viewer
+    expect(JSON.stringify(tree)).not.toContain("https://bsky.app");
+  });
+
   it("normalizes nested replies preserving structure", () => {
     const tree = normalizeThread(fixture);
     expect(tree.comments).toHaveLength(4);

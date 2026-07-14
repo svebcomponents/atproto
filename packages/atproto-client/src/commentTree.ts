@@ -5,7 +5,7 @@ import type {
   ThreadViewPost,
 } from "./appviewTypes.js";
 import { segmentRichText, type RichTextSegment } from "./richText.js";
-import { bskyPostUrl, bskyProfileUrl } from "./urls.js";
+import { viewerPostUrl, viewerProfileUrl } from "./urls.js";
 
 export interface CommentAuthor {
   did: string;
@@ -28,7 +28,7 @@ export interface Comment {
   replyCount: number;
   /** moderation label values applied to the post */
   labels: string[];
-  /** bsky.app permalink */
+  /** viewer permalink (bsky.app by default) */
   url: string;
   replies: CommentNode[];
   /** replies exist beyond the fetched depth — link out to continue reading */
@@ -57,7 +57,7 @@ export interface RootSummary {
   likeCount: number;
   repostCount: number;
   quoteCount: number;
-  /** bsky.app permalink — also the "Reply on Bluesky" target */
+  /** viewer permalink (bsky.app by default) — also the reply-link target */
   url: string;
 }
 
@@ -85,41 +85,46 @@ const isPostRecord = (record: unknown): record is PostRecord =>
   "$type" in record &&
   (record as { $type: unknown }).$type === "app.bsky.feed.post";
 
-const toAuthor = (author: PostView["author"]): CommentAuthor => ({
+const toAuthor = (
+  author: PostView["author"],
+  viewer?: string,
+): CommentAuthor => ({
   did: author.did,
   handle: author.handle,
   displayName: author.displayName,
   avatarUrl: author.avatar,
-  profileUrl: bskyProfileUrl(author.handle),
+  profileUrl: viewerProfileUrl(author.handle, viewer),
 });
 
-const toComment = (node: ThreadViewPost): Comment => {
+const toComment = (node: ThreadViewPost, viewer?: string): Comment => {
   const { post } = node;
   const record = isPostRecord(post.record) ? post.record : undefined;
   const text = record?.text ?? "";
   const replyCount = post.replyCount ?? 0;
-  const replies = (node.replies ?? []).map(normalizeNode);
+  const replies = (node.replies ?? []).map((reply) =>
+    normalizeNode(reply, viewer),
+  );
   return {
     kind: "comment",
     uri: post.uri,
     cid: post.cid,
-    author: toAuthor(post.author),
+    author: toAuthor(post.author, viewer),
     text,
-    segments: segmentRichText(text, record?.facets),
+    segments: segmentRichText(text, record?.facets, viewer),
     createdAt: record?.createdAt ?? post.indexedAt ?? "",
     likeCount: post.likeCount ?? 0,
     replyCount,
     labels: (post.labels ?? []).filter((l) => !l.neg).map((l) => l.val),
-    url: bskyPostUrl(post.uri, post.author.handle),
+    url: viewerPostUrl(post.uri, post.author.handle, viewer),
     replies,
     hasMoreReplies: replyCount > replies.length,
   };
 };
 
-const normalizeNode = (node: ThreadNode): CommentNode => {
+const normalizeNode = (node: ThreadNode, viewer?: string): CommentNode => {
   switch (node.$type) {
     case "app.bsky.feed.defs#threadViewPost":
-      return toComment(node);
+      return toComment(node, viewer);
     case "app.bsky.feed.defs#blockedPost":
       return { kind: "blocked", uri: node.uri };
     case "app.bsky.feed.defs#notFoundPost":
@@ -139,7 +144,11 @@ const normalizeNode = (node: ThreadNode): CommentNode => {
  * Throws {@link ThreadUnavailableError} when the discussion root itself is
  * blocked or not found.
  */
-export const normalizeThread = (thread: ThreadNode): CommentTree => {
+export const normalizeThread = (
+  thread: ThreadNode,
+  /** web viewer base for outbound links (bsky.app by default) */
+  viewer?: string,
+): CommentTree => {
   if (thread.$type !== "app.bsky.feed.defs#threadViewPost") {
     throw new ThreadUnavailableError(
       thread.$type === "app.bsky.feed.defs#blockedPost"
@@ -153,17 +162,19 @@ export const normalizeThread = (thread: ThreadNode): CommentTree => {
   const root: RootSummary = {
     uri: post.uri,
     cid: post.cid,
-    author: toAuthor(post.author),
+    author: toAuthor(post.author, viewer),
     replyCount: post.replyCount ?? 0,
     likeCount: post.likeCount ?? 0,
     repostCount: post.repostCount ?? 0,
     quoteCount: post.quoteCount ?? 0,
-    url: bskyPostUrl(post.uri, post.author.handle),
+    url: viewerPostUrl(post.uri, post.author.handle, viewer),
   };
 
   return {
     root,
-    comments: (thread.replies ?? []).map(normalizeNode),
+    comments: (thread.replies ?? []).map((reply) =>
+      normalizeNode(reply, viewer),
+    ),
     fetchedAt: new Date().toISOString(),
   };
 };

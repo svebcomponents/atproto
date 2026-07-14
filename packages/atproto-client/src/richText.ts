@@ -1,5 +1,5 @@
 import type { Facet } from "./appviewTypes.js";
-import { bskyProfileUrl, bskyTagUrl } from "./urls.js";
+import { viewerProfileUrl, viewerTagUrl } from "./urls.js";
 
 export type RichTextSegment =
   | { type: "text"; text: string }
@@ -21,6 +21,8 @@ const decoder = new TextDecoder();
 export const segmentRichText = (
   text: string,
   facets: Facet[] | undefined,
+  /** web viewer base for mention/tag links (bsky.app by default) */
+  viewer?: string,
 ): RichTextSegment[] => {
   const bytes = encoder.encode(text);
   if (!facets || facets.length === 0) {
@@ -53,7 +55,7 @@ export const segmentRichText = (
     }
 
     const facetText = decoder.decode(bytes.subarray(byteStart, byteEnd));
-    const segment = toSegment(facetText, facet);
+    const segment = toSegment(facetText, facet, viewer);
     if (!segment) {
       continue;
     }
@@ -67,7 +69,11 @@ export const segmentRichText = (
   return segments;
 };
 
-const toSegment = (text: string, facet: Facet): RichTextSegment | null => {
+const toSegment = (
+  text: string,
+  facet: Facet,
+  viewer?: string,
+): RichTextSegment | null => {
   for (const feature of facet.features) {
     switch (feature.$type) {
       case "app.bsky.richtext.facet#link":
@@ -81,7 +87,7 @@ const toSegment = (text: string, facet: Facet): RichTextSegment | null => {
             type: "mention",
             text,
             did: feature.did,
-            href: bskyProfileUrl(feature.did),
+            href: viewerProfileUrl(feature.did, viewer),
           };
         }
         break;
@@ -91,7 +97,7 @@ const toSegment = (text: string, facet: Facet): RichTextSegment | null => {
             type: "tag",
             text,
             tag: feature.tag,
-            href: bskyTagUrl(feature.tag),
+            href: viewerTagUrl(feature.tag, viewer),
           };
         }
         break;

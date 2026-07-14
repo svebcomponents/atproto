@@ -101,6 +101,11 @@ export const resolveThreadUri = async (
   return `at://${did}/${ref.collection}/${ref.rkey}`;
 };
 
+export interface FetchCommentTreeOptions extends GetPostThreadOptions {
+  /** web viewer base for outbound links in the tree (bsky.app by default) */
+  viewer?: string;
+}
+
 /**
  * One-call convenience: parse a thread identifier (at:// URI or bsky.app
  * URL), resolve handles, fetch the thread from the AppView, and normalize it
@@ -108,7 +113,7 @@ export const resolveThreadUri = async (
  */
 export const fetchCommentTree = async (
   thread: string | ThreadRef,
-  options: GetPostThreadOptions = {},
+  options: FetchCommentTreeOptions = {},
 ): Promise<CommentTree> => {
   const ref = typeof thread === "string" ? parseThreadRef(thread) : thread;
   if (!ref) {
@@ -118,5 +123,5 @@ export const fetchCommentTree = async (
   }
   const uri = await resolveThreadUri(ref, options);
   const { thread: rawThread } = await getPostThread(uri, options);
-  return normalizeThread(rawThread);
+  return normalizeThread(rawThread, options.viewer);
 };

@@ -19,10 +19,16 @@ export {
   resolveHandle,
   resolveThreadUri,
   type AppViewRequestOptions,
+  type FetchCommentTreeOptions,
   type GetPostThreadOptions,
 } from "./fetchThread.js";
 export { sortComments, type CommentSort } from "./sort.js";
-export { bskyPostUrl, bskyProfileUrl, bskyTagUrl } from "./urls.js";
+export {
+  DEFAULT_VIEWER,
+  viewerPostUrl,
+  viewerProfileUrl,
+  viewerTagUrl,
+} from "./urls.js";
 export {
   ServiceClient,
   ServiceError,
