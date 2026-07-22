@@ -1,6 +1,6 @@
 {
   "name": "@svebcomponents/atproto.client",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "description": "Isomorphic ATProto read utilities and service client for atproto-comments",
   "license": "MIT",
