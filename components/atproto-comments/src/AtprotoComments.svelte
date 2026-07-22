@@ -394,7 +394,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
             part="reply-button"
             href={node.url}
             target="_blank"
-            rel="noopener noreferrer">Reply on {viewerName}</a
+            rel="noopener noreferrer">Reply</a
           >
         {/if}
       </p>
@@ -659,7 +659,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
     border-radius: var(--atproto-comments-radius, 8px);
     border: none;
     background: var(--atproto-comments-accent, #2864ff);
-    color: #fff;
+    color: var(--atproto-comments-on-accent, #fff);
     cursor: pointer;
   }
   .signin-button:disabled,
@@ -683,13 +683,13 @@ the option (and neutralizes $host()) before its plain-component compile. -->
        component's typography so the composer matches the comment list */
     font-family: inherit;
     font-size: var(--atproto-comments-font-size, 0.9375rem);
-    color: light-dark(#1a1a1a, #ececec);
+    color: var(--atproto-comments-fg, light-dark(#1a1a1a, #ececec));
     width: min(92vw, 32rem);
     box-sizing: border-box;
     padding: 1rem;
     border: 1px solid var(--atproto-comments-border, light-dark(#e0e0e0, #333));
     border-radius: var(--atproto-comments-radius, 8px);
-    background: light-dark(#fff, #1c1c1e);
+    background: var(--atproto-comments-bg, light-dark(#fff, #1c1c1e));
     box-shadow: 0 12px 40px light-dark(rgb(0 0 0 / 0.18), rgb(0 0 0 / 0.6));
   }
   .composer-dialog::backdrop {
@@ -727,7 +727,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
   .composer-error {
     margin: 0;
     font-size: 0.8125em;
-    color: #c0392b;
+    color: var(--atproto-comments-error, #c0392b);
   }
   .composer-actions {
     display: flex;
@@ -742,7 +742,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
     font-variant-numeric: tabular-nums;
   }
   .counter.over {
-    color: #c0392b;
+    color: var(--atproto-comments-error, #c0392b);
   }
   ul {
     list-style: none;
