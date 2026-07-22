@@ -1,4 +1,4 @@
-import { parseThreadRef } from "@atproto-comments/client";
+import { parseThreadRef } from "@svebcomponents/atproto.client";
 
 /** Bluesky's post length limit, counted in graphemes */
 export const MAX_REPLY_GRAPHEMES = 300;

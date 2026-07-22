@@ -11,7 +11,7 @@ import type {
   NodeSavedStateStore,
   ServiceSession,
   ServiceSessionStore,
-} from "@atproto-comments/service-core";
+} from "@svebcomponents/atproto.bridge";
 
 /**
  * SQLite-backed store drivers for the service, using Node's built-in

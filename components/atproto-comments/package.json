@@ -1,5 +1,5 @@
 {
-  "name": "atproto-comments",
+  "name": "@svebcomponents/atproto.comments",
   "version": "0.0.0",
   "type": "module",
   "private": true,
@@ -18,7 +18,7 @@
     "check": "svelte-check"
   },
   "devDependencies": {
-    "@atproto-comments/client": "workspace:*",
+    "@svebcomponents/atproto.client": "workspace:*",
     "@svebcomponents/build": "catalog:",
     "@svebcomponents/eslint-config": "workspace:*",
     "@svebcomponents/prettier-config": "workspace:*",

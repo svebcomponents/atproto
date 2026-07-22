@@ -19,7 +19,7 @@ the option (and neutralizes $host()) before its plain-component compile. -->
     type CommentSort,
     type CommentTree,
     type ServiceSessionInfo,
-  } from "@atproto-comments/client";
+  } from "@svebcomponents/atproto.client";
 
   interface Props {
     /** AT URI (at://…) or bsky.app post URL of the discussion root */

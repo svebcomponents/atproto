@@ -19,10 +19,10 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@atproto-comments/client": "workspace:*",
-    "@atproto-comments/service-core": "workspace:*",
+    "@svebcomponents/atproto.bridge": "workspace:*",
+    "@svebcomponents/atproto.client": "workspace:*",
+    "@svebcomponents/atproto.comments": "workspace:*",
     "@svebcomponents/ssr": "catalog:",
-    "atproto-comments": "workspace:*",
     "valibot": "1.4.2"
   },
   "devDependencies": {

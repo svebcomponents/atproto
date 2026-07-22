@@ -1,5 +1,5 @@
 {
-  "name": "@atproto-comments/service-core",
+  "name": "@svebcomponents/atproto.bridge",
   "version": "0.0.0",
   "type": "module",
   "private": true,
@@ -27,7 +27,7 @@
     "test:dev": "vitest --watch"
   },
   "dependencies": {
-    "@atproto-comments/client": "workspace:*",
+    "@svebcomponents/atproto.client": "workspace:*",
     "@atproto/jwk-jose": "^0.2.3",
     "@atproto/oauth-client-node": "^0.4.6",
     "jose": "^6.2.3"

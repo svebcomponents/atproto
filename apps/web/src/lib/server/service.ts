@@ -2,7 +2,7 @@ import { env } from "$env/dynamic/private";
 import {
   createAtprotoCommentsService,
   type AtprotoCommentsService,
-} from "@atproto-comments/service-core";
+} from "@svebcomponents/atproto.bridge";
 
 import { createSqliteStores } from "./sqliteStores.js";
 

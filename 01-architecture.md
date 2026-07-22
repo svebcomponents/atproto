@@ -138,7 +138,7 @@ Host apps register renderers once (template pattern):
 ```ts
 // hooks.server.ts
 import { ElementRendererRegistry } from "@svebcomponents/ssr";
-import AtprotoCommentsRenderer from "@yourscope/atproto-comments/ssr";
+import AtprotoCommentsRenderer from "@svebcomponents/atproto.comments/ssr";
 ElementRendererRegistry.set("atproto-comments", AtprotoCommentsRenderer);
 ```
 

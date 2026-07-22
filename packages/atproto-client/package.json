@@ -1,5 +1,5 @@
 {
-  "name": "@atproto-comments/client",
+  "name": "@svebcomponents/atproto.client",
   "version": "0.0.0",
   "type": "module",
   "private": true,

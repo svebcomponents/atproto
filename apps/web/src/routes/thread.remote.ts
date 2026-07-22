@@ -1,6 +1,6 @@
 import { query } from "$app/server";
 import * as v from "valibot";
-import { fetchCommentTree, type CommentTree } from "@atproto-comments/client";
+import { fetchCommentTree, type CommentTree } from "@svebcomponents/atproto.client";
 
 /**
  * Server-side thread prefetch as a SvelteKit remote function. Called during

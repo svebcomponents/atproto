@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from "$app/state";
-  import "atproto-comments";
+  import "@svebcomponents/atproto.comments";
   import { getThread } from "./thread.remote";
 
   // @bsky.app's v1.125 announcement — a lively thread. Override with

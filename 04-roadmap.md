@@ -15,7 +15,7 @@ Deliverable: green build/check/lint/test on the renamed skeleton. **This step al
 
 ### ✅ Step 0 done (2026-07-06)
 
-Scaffold is committed and the full loop (dev SSR + adapter-node production SSR with declarative shadow DOM) is verified. Version reality: published latest is `@svebcomponents/build@0.0.9` / `ssr@0.0.8`, which matches local svebcomponents main — nothing needs releasing. Naming: **`atproto-comments` is unclaimed on npm** and is now the component package name; support packages use the `@atproto-comments/*` scope (org still to be created on npm).
+Scaffold is committed and the full loop (dev SSR + adapter-node production SSR with declarative shadow DOM) is verified. Version reality: published latest is `@svebcomponents/build@0.0.9` / `ssr@0.0.8`, which matches local svebcomponents main — nothing needs releasing. Naming: **updated 2026-07-22** — the project joined the `@svebcomponents` org instead of minting its own `@atproto-comments` scope. Packages are `@svebcomponents/atproto.comments` (component), `@svebcomponents/atproto.bridge` (OAuth + posting backend, formerly `service-core`), and `@svebcomponents/atproto.client` (isomorphic read/data client). The `<atproto-comments>` custom element tag is unaffected.
 
 Upstream issues found while scaffolding (details in [01-architecture.md](./01-architecture.md#findings-from-the-scaffold-2026-07-06-verified-against-real-builds)):
 
@@ -45,7 +45,7 @@ Follow-ups tied to the fixes:
 - Showcase (`apps/web`): server-side prefetch of a live thread (`?thread=` override), SSR verified in adapter-node prod.
 - **Verified via browser automation**: on a static/non-svelte host the SSR'd DOM is hydrated in place (same-node identity, zero client refetch — rich props travel via the new serialized-props channel in svebcomponents PR #105).
 - ~~Known limitation: hydrating SvelteKit hosts re-created the element~~ **Fixed upstream (PR #105, wrapper symmetry)**: SvelteKit hosts now claim the SSR'd element — verified same-node identity + zero refetch in the adapter-node showcase. **Both halves of the exit criterion are met.**
-- Still open from the Phase 1 list: npm publish (user action; `@atproto-comments` org needed), async-SSR demo page, Tier 2 JSON child.
+- Still open from the Phase 1 list: npm publish (packages ship under the existing `@svebcomponents` org — see naming update above, no new org needed), async-SSR demo page, Tier 2 JSON child.
 
 ## Phase 2 — hosted auth & posting (the killer feature)
 
@@ -104,7 +104,7 @@ Article rendering from `site.standard.document`. Decide `content` union coverage
 
 | Question | Recommendation |
 | --- | --- |
-| npm scope / naming | New scope (e.g. `@atproto-comments/*` or a product name); components are a product, not part of `@svebcomponents/*` infra. **Check name availability early.** Keep `<atproto-comments>` as the tag. `<bsky-comments>` at most as a documented alias — two registered tags for one element is doc noise; skip unless there's SEO value. |
+| npm scope / naming | **Resolved 2026-07-22**: joined the `@svebcomponents` org rather than minting a new scope — `@svebcomponents/atproto.comments` / `atproto.bridge` / `atproto.client`. Keep `<atproto-comments>` as the tag. `<bsky-comments>` at most as a documented alias — two registered tags for one element is doc noise; skip unless there's SEO value. |
 | AppView vs direct repo reads | AppView for threads (aggregation is the whole point — you can't assemble a thread from one repo); direct PDS reads only for Standard.site records. Revisit only if AppView dependence becomes a values problem. |
 | Minimal OAuth scope | `atproto` + `repo:app.bsky.feed.post?action=create`; try dropping the `getProfile` rpc scope by reading profiles from the public AppView. Adopt a permission set when a fitting one exists. |
 | Reply ordering | Default `oldest` (blog-native reading), `sort` attribute for the rest. |
