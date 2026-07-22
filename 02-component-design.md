@@ -11,7 +11,8 @@ Date: 2026-07-06
   thread="at://did:plc:…/app.bsky.feed.post/…"  <!-- or https://bsky.app/profile/…/post/… -->
   service="https://comments.example.com"        <!-- enables sign-in + posting -->
   max-depth="4"
-  sort="oldest"                                  <!-- oldest | newest | likes | bluesky -->
+  sort="oldest"                                  <!-- oldest | newest | likes -->
+  viewer="https://deer.social"                   <!-- outbound-link viewer; defaults to bsky.app -->
   readonly                                       <!-- force read-only even with service -->
   revalidate                                     <!-- background-refresh preloaded data -->
   appview="https://public.api.bsky.app"          <!-- escape hatch, defaults to public AppView -->
@@ -28,7 +29,8 @@ Design notes:
 
 - Accept both AT URIs and bsky.app URLs in `thread` — huge ergonomic win for blog authors who just paste the post URL.
 - Attribute→prop conversion comes free via `@svebcomponents/auto-options`; keep prop types simple (string/number/boolean) at the attribute boundary.
-- `sort="bluesky"` preserves AppView reply order; `oldest` is the bloggy default.
+- `sort` is `oldest | newest | likes`; `oldest` is the bloggy default.
+- `viewer` rewrites outbound post/profile links to any viewer that shares bsky.app's URL scheme (e.g. deer.social); the header stats and permalinks follow it. When passing preloaded `threadData`, bake links with the same viewer at normalization time.
 
 ### Rendering states (each one designed, not incidental)
 
@@ -36,7 +38,7 @@ Design notes:
 | --- | --- |
 | Loading | Skeleton rows (not spinner) — avoids layout shift, reads "comments are coming" |
 | No thread attr & no discovery | Render nothing + console warn (don't break the page) |
-| Empty thread | "No comments yet — be the first" + Reply on Bluesky / sign-in CTA |
+| Empty thread | "No comments yet." + sign-in CTA ("Sign in with your atmosphere account to join the conversation") |
 | Comment | avatar, display name, handle (link to profile), timestamp (permalink to post), rich text body, like count, reply affordance |
 | Deleted / not-found | Tombstone row: "comment deleted" — children still render (context preservation) |
 | Blocked | Tombstone: "unavailable" — do not leak author info |
@@ -51,9 +53,9 @@ Render from **facets** (byte-offset segments — handled in `atproto-client`): l
 
 ### Write UX (when `service` is set and not `readonly`)
 
-1. Signed out: "Sign in with Bluesky to comment" button per thread + per reply affordance.
+1. Signed out: "Sign in to comment" button per thread + a "Sign in with your atmosphere account to reply" affordance per comment.
 2. Click → popup to `service/oauth/start` (flow in [03-oauth-service.md](./03-oauth-service.md)); on success component receives session, shows composer.
-3. Composer: plain textarea, char counter (300 graphemes — Bluesky limit), clear notice: **"Posting publicly as @handle from your Bluesky account"**. No draft persistence in v1.
+3. Composer: plain textarea, char counter (300 graphemes — the post limit), clear notice: **"Posting publicly as @handle from your atmosphere account"**. A modal composer dialog handles replies to any comment in the tree. No draft persistence in v1.
 4. Submit → optimistic append (pending style) → service confirms `{uri, cid}` → solidify; on failure, restore composer with error.
 5. Signed in chrome: small "@handle · sign out" affordance.
 
@@ -78,9 +80,14 @@ Custom events, `composed: true`, prefixed to avoid collisions.
 ```css
 atproto-comments {
   --atproto-comments-accent: #2864ff;
+  --atproto-comments-on-accent: #fff;
+  --atproto-comments-bg: light-dark(#fff, #1c1c1e);
+  --atproto-comments-fg: light-dark(#1a1a1a, #ececec);
   --atproto-comments-border: light-dark(#ddd, #333);
   --atproto-comments-muted: light-dark(#666, #999);
+  --atproto-comments-error: #c0392b;
   --atproto-comments-radius: 8px;
+  --atproto-comments-font-size: 0.9375rem;
 }
 ```
 

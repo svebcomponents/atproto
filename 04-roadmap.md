@@ -74,6 +74,17 @@ Server side **done and running**; component write UX is the remaining piece.
 
 Node bumped to 24 (`.nvmrc`): `@atproto/oauth-client-node` → undici 8 requires node ≥22.19; also unlocks built-in `node:sqlite`.
 
+### ✅ Phase 2 write UX done (2026-07-22)
+
+Component write UX is **built and merged**; the OAuth/posting bridge runs end-to-end locally.
+
+- ✅ `atproto-client` gained a `ServiceClient` (session mint/refresh/logout + reply); the component grew a signed-out sign-in button, a COOP-safe popup + **nonce-claim** handshake (poll on focus/visibility rather than relying on `window.opener`, which cross-origin isolation blocks), a composer with an `Intl.Segmenter` grapheme counter, optimistic append, and signed-in `@handle · sign out` chrome.
+- ✅ **Reply to any comment** via a modal composer dialog (not just the root); optimistic replies key off the target post's URI.
+- ✅ `viewer` prop routes every outbound post/profile link through any bsky.app-scheme viewer (e.g. deer.social); default stays bsky.app.
+- ✅ User-facing copy says **atmosphere**, not Bluesky; the OAuth callback tab now closes itself.
+- ✅ Element registered via `defineElement` from `@svebcomponents/utils`; events emitted through `$host()`; the web app prefetches via a SvelteKit **remote function** (`thread.remote.ts`) awaited during async SSR — the manual async-wrapper flag is gone (svebcomponents auto-detects it).
+- ⏳ Still open: interactive OAuth against a real test account for a full e2e pass, deploy the bridge to a public domain, and a security review — all prerequisites for announcing.
+
 ## Phase 3 — Standard.site discovery
 
 - `atproto-client`: DID→PDS resolution, `com.atproto.repo.getRecord`, `site.standard.document` parsing → `bskyPostRef`.

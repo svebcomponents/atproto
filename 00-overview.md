@@ -1,7 +1,7 @@
 # ATProto Blog Components — Planning Overview
 
-Date: 2026-07-06
-Status: proposal (pre-implementation)
+Date: 2026-07-06 (planning snapshot)
+Status: Phases 1–2 built — read-only rendering + in-page sign-in & posting work end-to-end; not yet published/deployed. Live status lives in [04-roadmap.md](./04-roadmap.md); this doc is kept as the original planning snapshot.
 
 This directory contains the planning docs for a set of SSR-able web components (built with [svebcomponents](https://svebcomponents.dev)) that bring ATProto/Bluesky-native comments and post rendering to any blog, plus a hosted OAuth/posting service.
 

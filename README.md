@@ -1,28 +1,37 @@
 # atproto-comments
 
 > [!WARNING]
-> Alpha: the read-only component works end-to-end (Phase 1); not yet published to npm.
+> Alpha: read-only rendering **and** in-page sign-in + posting work end-to-end (Phases 1–2); not yet published to npm, and the hosted bridge is not yet deployed to a public domain.
 
-Drop-in Bluesky/ATProto comments for any blog, built as SSR-able, **hydratable** web components with [svebcomponents](https://svebcomponents.dev). Readers sign in with their ATProto account; comments live in the social web, not in our database.
+Drop-in atmosphere/ATProto comments for any blog, built as SSR-able, **hydratable** web components with [svebcomponents](https://svebcomponents.dev). Readers sign in with their ATProto account and reply from the page; comments live in commenters' own repos on the social web, not in our database.
 
 ## Status
 
-- ✅ **Phase 1 — read-only `<atproto-comments>`**: fetches and renders a Bluesky thread (nested replies, tombstones for deleted/blocked posts, moderation-label collapse, depth capping, rich text from facets, root like/repost stats, "Reply on Bluesky" links). Self-contained bundle ~26 KB gz.
+- ✅ **Phase 1 — read-only `<atproto-comments>`**: fetches and renders a thread (nested replies, tombstones for deleted/blocked posts, moderation-label collapse, depth capping, rich text from facets, root like/repost stats, permalinks to the post). Self-contained bundle ~26 KB gz.
 - ✅ **SSR + hydration**: server-rendered declarative shadow DOM is adopted in place on the client — verified by e2e (same-node identity, zero client refetch), including inside a hydrating SvelteKit host.
-- 🔜 Phase 2: Standard.site auto-discovery · Phase 3: hosted OAuth posting bridge — see the [roadmap](./04-roadmap.md).
+- ✅ **Phase 2 — in-page sign-in & posting**: set a `service` and readers sign in with their atmosphere account (OAuth popup + COOP-safe nonce-claim handshake), then reply to the thread or to any comment via a modal composer with a grapheme counter and optimistic append. The hosted bridge is `packages/service-core` (framework-agnostic OAuth/posting; ATProto tokens stay server-side), mounted in `apps/web` at `/atproto`. A `viewer` prop routes outbound links through any atmosphere viewer (bsky.app default, e.g. deer.social).
+- 🔜 Phase 3: Standard.site auto-discovery. Also pending before announcing: deploy the bridge to a real domain + a security pass. See the [roadmap](./04-roadmap.md).
 
 ## Usage sketch
 
 ```html
 <script type="module" src=".../atproto-comments/dist/client/index.js"></script>
 
+<!-- read-only -->
 <atproto-comments
   thread="https://bsky.app/profile/bsky.app/post/…"
+></atproto-comments>
+
+<!-- with sign-in + posting: point service at a deployed bridge -->
+<atproto-comments
+  thread="https://bsky.app/profile/bsky.app/post/…"
+  service="https://comments.example.com"
 ></atproto-comments>
 ```
 
 SvelteKit blogs can prefetch server-side and pass `threadData` for flash-free,
-refetch-free SSR — see [`apps/web/src/routes/+page.server.ts`](./apps/web/src/routes/+page.server.ts).
+refetch-free SSR — see the remote function in [`apps/web/src/routes/thread.remote.ts`](./apps/web/src/routes/thread.remote.ts)
+and its use in [`+page.svelte`](./apps/web/src/routes/+page.svelte).
 
 ## Planning docs
 
