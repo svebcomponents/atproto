@@ -55,7 +55,9 @@ configs/*                   shared eslint/prettier/tsconfig presets
 The publishable packages are named `@svebcomponents/atproto.comments`,
 `@svebcomponents/atproto.client`, and `@svebcomponents/atproto.bridge`.
 Changesets manages their versions and the release workflow publishes them to
-npm with provenance after its release PR is merged.
+npm with provenance after its release PR is merged. See
+[`RELEASING.md`](./RELEASING.md) for the token-free trusted-publishing setup and
+the one-time initial package bootstrap.
 
 ## Development
 
