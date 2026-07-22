@@ -26,5 +26,5 @@ const response = await service.fetch(request);
 
 Production deployments must use HTTPS, persistent OAuth/session stores, and
 secure secret management. See the
-[self-hosting documentation](https://github.com/svebcomponents/atproto-comments/blob/main/03-oauth-service.md#self-hosting)
+[self-hosting documentation](https://github.com/svebcomponents/atproto/blob/main/03-oauth-service.md#self-hosting)
 for the complete configuration.

@@ -6,11 +6,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/svebcomponents/atproto-comments.git",
+    "url": "git+https://github.com/svebcomponents/atproto.git",
     "directory": "packages/service-core"
   },
-  "homepage": "https://github.com/svebcomponents/atproto-comments#readme",
-  "bugs": "https://github.com/svebcomponents/atproto-comments/issues",
+  "homepage": "https://github.com/svebcomponents/atproto#readme",
+  "bugs": "https://github.com/svebcomponents/atproto/issues",
   "keywords": [
     "atproto",
     "bluesky",

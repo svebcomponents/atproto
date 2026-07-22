@@ -28,5 +28,5 @@ register it with your host's svebcomponents integration. During asynchronous
 SSR the component fetches the thread itself and serializes it for hydration.
 Passing a `threadData` property skips that server fetch.
 
-See the [repository](https://github.com/svebcomponents/atproto-comments) for
+See the [repository](https://github.com/svebcomponents/atproto) for
 complete SvelteKit and service examples.

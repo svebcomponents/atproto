@@ -17,5 +17,5 @@ const tree = await fetchCommentTree(
 );
 ```
 
-See the [repository](https://github.com/svebcomponents/atproto-comments) for
+See the [repository](https://github.com/svebcomponents/atproto) for
 the full API and examples.
