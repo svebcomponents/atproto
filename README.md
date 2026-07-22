@@ -29,9 +29,10 @@ Drop-in atmosphere/ATProto comments for any blog, built as SSR-able, **hydratabl
 ></atproto-comments>
 ```
 
-SvelteKit blogs can prefetch server-side and pass `threadData` for flash-free,
-refetch-free SSR — see the remote function in [`apps/web/src/routes/thread.remote.ts`](./apps/web/src/routes/thread.remote.ts)
-and its use in [`+page.svelte`](./apps/web/src/routes/+page.svelte).
+With svebcomponents SSR, the component fetches its thread on the server and
+serializes `threadData` for flash-free, refetch-free hydration. Hosts can still
+pass `threadData` explicitly to skip the server fetch. Browser-only consumers
+fall back to the same component-owned fetch after connection.
 
 ## Planning docs
 
@@ -47,12 +48,14 @@ and its use in [`+page.svelte`](./apps/web/src/routes/+page.svelte).
 apps/web                    showcase site + (later) hosted OAuth/posting service (SvelteKit)
 components/atproto-comments <atproto-comments> web component
 packages/atproto-client     isomorphic ATProto read utilities + service client
+packages/service-core       framework-neutral OAuth and posting bridge
 configs/*                   shared eslint/prettier/tsconfig presets
 ```
 
-> [!NOTE]
-> Until the pending svebcomponents release ships, `pnpm-workspace.yaml` links
-> `@svebcomponents/*` from a local checkout (see the comment there).
+The publishable packages are named `@svebcomponents/atproto.comments`,
+`@svebcomponents/atproto.client`, and `@svebcomponents/atproto.bridge`.
+Changesets manages their versions and the release workflow publishes them to
+npm with provenance after its release PR is merged.
 
 ## Development
 

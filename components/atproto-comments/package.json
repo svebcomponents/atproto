@@ -2,20 +2,49 @@
   "name": "@svebcomponents/atproto.comments",
   "version": "0.0.0",
   "type": "module",
-  "private": true,
   "description": "Web component rendering ATProto/Bluesky threads as blog comments",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/svebcomponents/atproto-comments.git",
+    "directory": "components/atproto-comments"
+  },
+  "homepage": "https://github.com/svebcomponents/atproto-comments#readme",
+  "bugs": "https://github.com/svebcomponents/atproto-comments/issues",
+  "keywords": [
+    "atproto",
+    "bluesky",
+    "comments",
+    "custom-element",
+    "web-component",
+    "svelte"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "exports": {
     ".": {
+      "types": "./dist/client/index.d.ts",
       "import": "./dist/client/index.js"
     },
     "./ssr": {
+      "types": "./dist/server/ssr.d.ts",
       "import": "./dist/server/ssr.js"
     }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "build": "svebcomponents",
     "lint": "eslint .",
-    "check": "svelte-check"
+    "check": "svelte-check",
+    "test": "vitest run",
+    "test:dev": "vitest --watch"
   },
   "devDependencies": {
     "@svebcomponents/atproto.client": "workspace:*",
@@ -27,9 +56,18 @@
     "esm-env": "^1.2.0",
     "svelte": "catalog:",
     "svelte-check": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "dependencies": {
     "@svebcomponents/utils": "catalog:"
+  },
+  "peerDependencies": {
+    "@svebcomponents/ssr": "^0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@svebcomponents/ssr": {
+      "optional": true
+    }
   }
 }

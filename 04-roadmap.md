@@ -82,7 +82,7 @@ Component write UX is **built and merged**; the OAuth/posting bridge runs end-to
 - ✅ **Reply to any comment** via a modal composer dialog (not just the root); optimistic replies key off the target post's URI.
 - ✅ `viewer` prop routes every outbound post/profile link through any bsky.app-scheme viewer (e.g. deer.social); default stays bsky.app.
 - ✅ User-facing copy says **atmosphere**, not Bluesky; the OAuth callback tab now closes itself.
-- ✅ Element registered via `defineElement` from `@svebcomponents/utils`; events emitted through `$host()`; the web app prefetches via a SvelteKit **remote function** (`thread.remote.ts`) awaited during async SSR — the manual async-wrapper flag is gone (svebcomponents auto-detects it).
+- ✅ Element registered via `defineElement` from `@svebcomponents/utils`; events emitted through `$host()`; an adjacent `index.ssr.ts` hook now performs component-owned server prefetch and serializes `threadData` for hydration. Hosts may pass `threadData` to bypass it synchronously.
 - ⏳ Still open: interactive OAuth against a real test account for a full e2e pass, deploy the bridge to a public domain, and a security review — all prerequisites for announcing.
 
 ## Phase 3 — Standard.site discovery
@@ -102,18 +102,18 @@ Article rendering from `site.standard.document`. Decide `content` union coverage
 
 ## Open questions & recommendations
 
-| Question | Recommendation |
-| --- | --- |
-| npm scope / naming | **Resolved 2026-07-22**: joined the `@svebcomponents` org rather than minting a new scope — `@svebcomponents/atproto.comments` / `atproto.bridge` / `atproto.client`. Keep `<atproto-comments>` as the tag. `<bsky-comments>` at most as a documented alias — two registered tags for one element is doc noise; skip unless there's SEO value. |
-| AppView vs direct repo reads | AppView for threads (aggregation is the whole point — you can't assemble a thread from one repo); direct PDS reads only for Standard.site records. Revisit only if AppView dependence becomes a values problem. |
-| Minimal OAuth scope | `atproto` + `repo:app.bsky.feed.post?action=create`; try dropping the `getProfile` rpc scope by reading profiles from the public AppView. Adopt a permission set when a fitting one exists. |
-| Reply ordering | Default `oldest` (blog-native reading), `sort` attribute for the rest. |
-| Quote posts of the root | Out of scope for the thread list v1; a "mentions elsewhere" section later. |
-| Service caches thread reads? | Not in MVP (client → public AppView directly). Add proxy caching in Phase 4 only if rate limits or privacy concerns demand it. |
-| Custom domains for auth callbacks | No — one canonical service origin keeps the OAuth client_id story simple. Self-hosters run the whole service (it's OSS) and become their own client. |
-| Mirror Bluesky moderation by default? | Respect labels with `collapse` default + site-owner override in Phase 4. Full label-service subscription mirroring is overkill for v1. |
-| Where do sessions live client-side | localStorage per (service, origin), short-TTL JWT — rationale in [03-oauth-service.md](./03-oauth-service.md). |
-| Standard.site rendering in initial product | No — Phase 5. Comments are the sharp wedge. |
+| Question                                   | Recommendation                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| npm scope / naming                         | **Resolved 2026-07-22**: joined the `@svebcomponents` org rather than minting a new scope — `@svebcomponents/atproto.comments` / `atproto.bridge` / `atproto.client`. Keep `<atproto-comments>` as the tag. `<bsky-comments>` at most as a documented alias — two registered tags for one element is doc noise; skip unless there's SEO value. |
+| AppView vs direct repo reads               | AppView for threads (aggregation is the whole point — you can't assemble a thread from one repo); direct PDS reads only for Standard.site records. Revisit only if AppView dependence becomes a values problem.                                                                                                                                |
+| Minimal OAuth scope                        | `atproto` + `repo:app.bsky.feed.post?action=create`; try dropping the `getProfile` rpc scope by reading profiles from the public AppView. Adopt a permission set when a fitting one exists.                                                                                                                                                    |
+| Reply ordering                             | Default `oldest` (blog-native reading), `sort` attribute for the rest.                                                                                                                                                                                                                                                                         |
+| Quote posts of the root                    | Out of scope for the thread list v1; a "mentions elsewhere" section later.                                                                                                                                                                                                                                                                     |
+| Service caches thread reads?               | Not in MVP (client → public AppView directly). Add proxy caching in Phase 4 only if rate limits or privacy concerns demand it.                                                                                                                                                                                                                 |
+| Custom domains for auth callbacks          | No — one canonical service origin keeps the OAuth client_id story simple. Self-hosters run the whole service (it's OSS) and become their own client.                                                                                                                                                                                           |
+| Mirror Bluesky moderation by default?      | Respect labels with `collapse` default + site-owner override in Phase 4. Full label-service subscription mirroring is overkill for v1.                                                                                                                                                                                                         |
+| Where do sessions live client-side         | localStorage per (service, origin), short-TTL JWT — rationale in [03-oauth-service.md](./03-oauth-service.md).                                                                                                                                                                                                                                 |
+| Standard.site rendering in initial product | No — Phase 5. Comments are the sharp wedge.                                                                                                                                                                                                                                                                                                    |
 
 ## Risks
 

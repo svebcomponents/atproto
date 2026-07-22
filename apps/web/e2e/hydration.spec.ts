@@ -73,7 +73,7 @@ test("SSR'd comments hydrate in place with zero client refetch", async ({
   expect(result.transportScriptConsumed).toBe(true);
   expect(
     appviewRequests,
-    "preloaded threadData must prevent client refetches",
+    "SSR-prepared threadData must prevent client refetches",
   ).toHaveLength(0);
 });
 

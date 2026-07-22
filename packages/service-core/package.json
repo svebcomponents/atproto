@@ -2,8 +2,24 @@
   "name": "@svebcomponents/atproto.bridge",
   "version": "0.0.0",
   "type": "module",
-  "private": true,
   "description": "Framework-agnostic ATProto OAuth + posting bridge: fetch handlers mountable in any Request/Response server",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/svebcomponents/atproto-comments.git",
+    "directory": "packages/service-core"
+  },
+  "homepage": "https://github.com/svebcomponents/atproto-comments#readme",
+  "bugs": "https://github.com/svebcomponents/atproto-comments/issues",
+  "keywords": [
+    "atproto",
+    "bluesky",
+    "oauth",
+    "comments"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -14,6 +30,10 @@
     "dist",
     "!dist/**/*.test.*"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\" && tsc",
     "check": "tsc --noEmit",

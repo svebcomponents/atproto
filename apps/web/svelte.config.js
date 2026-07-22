@@ -6,8 +6,8 @@ const config = {
   preprocess: vitePreprocess(),
 
   compilerOptions: {
-    // required for `await`ing remote functions in components, and for the
-    // svebcomponents async SSR wrapper
+    // required for the svebcomponents async SSR wrapper, which awaits the
+    // component package's server prepare hook
     experimental: { async: true },
   },
 
@@ -15,10 +15,6 @@ const config = {
     // adapter-node: the app doubles as the hosted OAuth/posting service,
     // which needs a persistent Node process + disk (SQLite session store).
     adapter: adapter(),
-    experimental: {
-      // server data via `query`/`command` remote functions (.remote.ts)
-      remoteFunctions: true,
-    },
   },
 };
 

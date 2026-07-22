@@ -9,7 +9,7 @@ export default defineConfig({
   server: { host: "127.0.0.1" },
   plugins: [
     // the SSR wrapper variant (sync/async) is auto-detected from svelte's
-    // compilerOptions.experimental.async (enabled here for remote functions)
+    // compilerOptions.experimental.async (enabled for the server prepare hook)
     svebcomponents(),
     sveltekit(),
   ],

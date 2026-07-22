@@ -4,8 +4,9 @@ packages:
   - packages/*
   - configs/*
 catalog:
-  "@svebcomponents/build": 0.1.0
-  "@svebcomponents/ssr": 0.1.0
+  "@changesets/cli": 2.31.1
+  "@svebcomponents/build": 0.2.0
+  "@svebcomponents/ssr": 0.2.0
   "@svebcomponents/utils": 0.1.0
   "@sveltejs/adapter-node": 5.5.7
   "@sveltejs/kit": 2.69.1
@@ -19,6 +20,7 @@ catalog:
   globals: 16.5.0
   prettier: 3.9.4
   prettier-plugin-svelte: 3.5.2
+  publint: 0.3.21
   svelte: 5.56.4
   svelte-check: 4.7.1
   turbo: 2.10.3

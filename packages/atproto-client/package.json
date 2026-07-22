@@ -2,8 +2,23 @@
   "name": "@svebcomponents/atproto.client",
   "version": "0.0.0",
   "type": "module",
-  "private": true,
   "description": "Isomorphic ATProto read utilities and service client for atproto-comments",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/svebcomponents/atproto-comments.git",
+    "directory": "packages/atproto-client"
+  },
+  "homepage": "https://github.com/svebcomponents/atproto-comments#readme",
+  "bugs": "https://github.com/svebcomponents/atproto-comments/issues",
+  "keywords": [
+    "atproto",
+    "bluesky",
+    "comments"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -14,6 +29,10 @@
     "dist",
     "!dist/**/*.test.*"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\" && tsc",
     "check": "tsc --noEmit",

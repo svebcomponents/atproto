@@ -11,21 +11,21 @@ jobs:
 
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           run_install: false
 
       - name: install node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: "pnpm"
 
       - name: install deps
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: type check
         run: pnpm check
@@ -35,3 +35,9 @@ jobs:
 
       - name: build
         run: pnpm build
+
+      - name: test
+        run: pnpm test
+
+      - name: validate packages
+        run: pnpm lint:packages

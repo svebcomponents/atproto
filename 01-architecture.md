@@ -48,7 +48,7 @@ Update `pnpm-workspace.yaml` packages to `apps/*`, `components/*`, `packages/*`,
 
 ### Why one app for showcase + service
 
-The template's SvelteKit app already exists to consume/SSR the components; the OAuth service is a handful of server routes plus persistent storage. Splitting them into two deployables now adds coordination cost with no benefit — the showcase *is* the best integration test for the service. If the hosted product grows real traffic, `packages/service-core` is the seam along which to extract a dedicated service later; keep route handlers thin from day one.
+The template's SvelteKit app already exists to consume/SSR the components; the OAuth service is a handful of server routes plus persistent storage. Splitting them into two deployables now adds coordination cost with no benefit — the showcase _is_ the best integration test for the service. If the hosted product grows real traffic, `packages/service-core` is the seam along which to extract a dedicated service later; keep route handlers thin from day one.
 
 The same seam is the **self-hosting story**: `service-core` exposes framework-agnostic `Request → Response` fetch handlers, so a blog can mount the entire bridge into its own SvelteKit/Astro/Hono app with one catch-all route — becoming its own first-party OAuth client — while `apps/web` is merely the reference mount. Details in [03-oauth-service.md](./03-oauth-service.md#self-hosting).
 
@@ -87,12 +87,12 @@ Thin wrapper: discover `<link rel="site.standard.document">` in the light DOM/do
 This is the subtle part. Constraints observed from `@svebcomponents/ssr`:
 
 1. SSR goes through Lit Labs SSR: the registered `ElementRenderer` renders the component's shadow DOM into **declarative shadow DOM** in the HTML payload.
-2. `renderShadow()` supports promise results — so with Svelte's async SSR, a component may `await` network calls during server rendering.
-3. **Svelte custom elements do not hydrate.** When the client bundle loads and the element upgrades, Svelte instantiates the component fresh and replaces the declaratively-rendered shadow content. Server-rendered DOM buys first paint and SEO, not state.
+2. An adjacent `src/index.ssr.ts` prepare hook may return a promise, allowing the component package to fetch before `renderShadow()` without putting server dependencies in its browser bundle.
+3. Rich properties written by the hook are serialized into the declarative shadow root. The custom element hydrates that DOM in place and receives the same values, avoiding a client refetch.
 
-Consequence: if the component's only data source is "fetch on mount", SSR'd pages will paint the full thread, then blank/reflash while the client refetches. Unacceptable. So data acquisition is designed as a **three-tier fallback**, checked in order at client init *and* at SSR time:
+Data acquisition follows this fallback order:
 
-### Tier 1 — `threadData` property (SvelteKit / JS-framework hosts)
+### Tier 1 — explicit `threadData` property
 
 ```svelte
 <script>
@@ -102,24 +102,16 @@ Consequence: if the component's only data source is "fetch on mount", SSR'd page
 <atproto-comments thread={data.threadUri} threadData={data.thread}></atproto-comments>
 ```
 
-Server-side, the svebcomponents wrapper routes rich values through `setProperty` → the SSR render uses it (no network on the component's part). Client-side, Svelte sets the property on the upgraded element → the client render uses the same data. No double fetch, no flash, works without async SSR. **This is the default path for the showcase app.**
+Server-side, the svebcomponents wrapper routes rich values through `setProperty` → the SSR render uses it with no component-owned network request. Client-side, the value is restored for hydration. The adjacent prepare hook returns synchronously when this property exists, so hosts retain full control and do not require async SSR for that render.
 
-### Tier 2 — embedded JSON child (any SSG / SSR framework)
+### Tier 2 — component-owned SSR fetch
 
-```html
-<atproto-comments thread="at://…">
-  <script type="application/json" data-atproto-comments>
-    {"thread": …normalized tree…}
-  </script>
-</atproto-comments>
-```
+When `thread` is present and `threadData` is absent, `src/index.ssr.ts` calls `fetchCommentTree` before rendering. The resulting tree is assigned through the renderer's `setProperty`, which both renders it immediately and serializes it for hydration. `appview` and `viewer` overrides are forwarded. Fetch failures do not fail the host request; they leave Tier 3 available.
 
-Static site generators (Astro, Eleventy, Hugo with a build step) can prefetch the thread at build time and inline it. The component reads the light-DOM script on connect before considering a fetch. Same mechanism doubles as a cache-priming channel for the async-SSR path below. (Light-DOM children survive in HTML regardless of shadow DOM; a `data-` marker keeps it unambiguous.)
+### Tier 3 — browser self-fetch
 
-### Tier 3 — self-fetch
-
-- **Client**: fetch on connect (spinner → thread). The zero-config CDN path.
-- **Server (async SSR)**: when the host app opts into Svelte async SSR, the component awaits the fetch during `renderShadow()`. The catch: without Tier 1/2 data on the client, the upgrade still refetches. So async SSR mode should *also* serialize what it fetched into the Tier-2 JSON child — the SSR wrapper renders light-DOM children, making the server-fetched data readable by the upgraded client element. If that serialization proves awkward in practice, async-SSR-without-preload degrades to "SEO-perfect HTML + one client refetch", which is still fine for a v1.
+- Browser-only/CDN usage fetches on connection (skeleton → thread).
+- If the server prepare fetch fails, hydration follows the same path and exposes the component's normal error/retry behavior.
 
 Freshness: when preloaded data is present, optionally revalidate in the background (`revalidate` attribute) and morph in changes — important after the user posts a comment, where we locally append the new reply optimistically, then refetch.
 
@@ -129,7 +121,7 @@ Both upstream bugs found here are now **fixed and released in svebcomponents** (
 
 1. ~~The async wrapper is mandatory with current Svelte~~ **Fixed.** Since svelte ~5.36, `render()` results are always thenable, which made `renderShadow` treat every component as async and killed the sync wrapper (`collectResultSync` threw for everything). The renderer now uses the `RenderOutput`'s lazy sync getters and only falls back to the promise path for genuinely async components (svelte's `await_invalid` signal). `async: true` + `experimental.async` is only needed once components actually `await` during SSR (we'll enable it in Phase 1 for async thread fetching).
 2. ~~Never statically import the component's client build in SSR'd app code~~ **Fixed.** The generated `dist/server/ssr.js` now installs the DOM shim via `@svebcomponents/ssr/shim` first and dynamically imports the client bundle, which is chunk-order-proof. Static imports in pages are safe again (page chunks evaluate after server init). Root cause for the record: svelte's `SvelteElement` is captured at module-eval time (`typeof HTMLElement === 'function'` at module scope), and rollup code-splitting could evaluate the client bundle in a shared chunk before the shim side effect ran — prod-only (`adapter-node`), dev unaffected.
-3. Watch-out for Tier 1: framework-set *properties* on a not-yet-upgraded element is the classic pre-upgrade-property CE gotcha — verify Svelte's CE wrapper handles pre-upgrade property shadowing when implementing `threadData`.
+3. **Released in ≥0.2.0.** Adjacent `.ssr.ts` prepare hooks let a library own asynchronous SSR data acquisition. Values set through `setProperty` are included in rich-prop hydration transport, while explicit preloaded data keeps rendering synchronous.
 
 ### SSR registration ergonomics
 
@@ -146,9 +138,9 @@ Docs must cover: SvelteKit (full support), other Vite SSR frameworks (via `@sveb
 
 ## Distribution
 
-- **npm**: each component package, standard svebcomponents exports (`.` + `./ssr`). Scope TBD (see open questions in [04-roadmap.md](./04-roadmap.md)).
-- **CDN**: `https://cdn.jsdelivr.net/npm/@scope/atproto-comments/dist/client/index.js` — works because the client build bundles Svelte. Verify the bundle is single-file (or that chunk imports resolve on jsdelivr) and track bundle size; Svelte 5's CE runtime keeps this in the tens-of-KB range, worth a size budget in CI.
-- **Versioning**: changesets (already wired in the template's release script).
+- **npm**: `@svebcomponents/atproto.comments`, `@svebcomponents/atproto.client`, and `@svebcomponents/atproto.bridge`. The component exposes its browser bundle at `.` and renderer at `./ssr`.
+- **CDN**: `https://cdn.jsdelivr.net/npm/@svebcomponents/atproto.comments/dist/client/index.js` — the client build bundles Svelte while leaving the small `@svebcomponents/utils` runtime external.
+- **Versioning**: Changesets creates release PRs; merging one builds and publishes public packages with npm provenance.
 
 ## Dependencies policy
 
