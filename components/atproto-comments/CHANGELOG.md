@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- fa00081: Rebuilt against `@svebcomponents/build` 0.3.1, whose client build bundles `@svebcomponents/ssr`'s `HydrationHost` instead of importing it as raw `.svelte` at runtime. Consuming SvelteKit apps no longer need a per-component `ssr.noExternal: ['@svebcomponents/atproto.comments']` entry for SSR — the `@svebcomponents/ssr/vite` plugin's own auto-`noExternal` now covers everything. No API or behavior change.
+- fa00081: Rebuilt against `@svebcomponents/build` 0.3.1, whose client build bundles `@svebcomponents/ssr`'s `HydrationHost` instead of importing it as raw `.svelte` at runtime. This removes the raw-`.svelte` reason for a per-component `ssr.noExternal` entry. With `@svebcomponents/ssr` 0.3.1 or newer, which also recognizes renderers across bundled and external module instances, consuming SvelteKit apps can remove `ssr.noExternal: ['@svebcomponents/atproto.comments']` entirely. No API or behavior change.
 
 ## 0.1.1
 

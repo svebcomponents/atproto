@@ -6,7 +6,7 @@ packages:
 catalog:
   "@changesets/cli": 2.31.1
   "@svebcomponents/build": 0.3.1
-  "@svebcomponents/ssr": 0.3.0
+  "@svebcomponents/ssr": 0.3.1
   "@svebcomponents/utils": 0.1.0
   "@sveltejs/adapter-node": 5.5.7
   "@sveltejs/kit": 2.69.1
