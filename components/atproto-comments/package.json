@@ -1,6 +1,6 @@
 {
   "name": "@svebcomponents/atproto.comments",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Web component rendering ATProto/Bluesky threads as blog comments",
   "license": "MIT",
