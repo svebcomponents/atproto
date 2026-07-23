@@ -13,11 +13,11 @@ catalogs:
       specifier: 9.39.4
       version: 9.39.4
     '@svebcomponents/build':
-      specifier: 0.2.0
-      version: 0.2.0
+      specifier: 0.3.0
+      version: 0.3.0
     '@svebcomponents/ssr':
-      specifier: 0.2.0
-      version: 0.2.0
+      specifier: 0.3.0
+      version: 0.3.0
     '@svebcomponents/utils':
       specifier: 0.1.0
       version: 0.1.0
@@ -112,7 +112,7 @@ importers:
         version: link:../../components/atproto-comments
       '@svebcomponents/ssr':
         specifier: 'catalog:'
-        version: 0.2.0(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))
+        version: 0.3.0(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))
       valibot:
         specifier: 1.4.2
         version: 1.4.2(typescript@5.9.3)
@@ -168,7 +168,7 @@ importers:
         version: link:../../packages/atproto-client
       '@svebcomponents/build':
         specifier: 'catalog:'
-        version: 0.2.0(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(typescript@5.9.3)(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))
+        version: 0.3.0(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))
       '@svebcomponents/eslint-config':
         specifier: workspace:*
         version: link:../../configs/eslint-config
@@ -177,7 +177,7 @@ importers:
         version: link:../../configs/prettier-config
       '@svebcomponents/ssr':
         specifier: 'catalog:'
-        version: 0.2.0(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))
+        version: 0.3.0(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))
       '@svebcomponents/typescript-config':
         specifier: workspace:*
         version: link:../../configs/typescript-config
@@ -1051,25 +1051,27 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@svebcomponents/auto-options@0.1.0':
-    resolution: {integrity: sha512-fzSXlsy4Pn9Il3UfIrCkD9oNyk6kEjapfdf6xpABqhxkWrzFyvLQiiRWr426aL+C+ECt5+ZXUJPeepOOzkQxmg==}
+  '@svebcomponents/auto-options@0.2.0':
+    resolution: {integrity: sha512-MKkPZmPosijKgfwj8MWyMAZ2dwzNklNHjwfgS6fFnHdS48G5uzkQEP8MHkkAJvWvdF6Ld+aeRLfg52bOi0vANQ==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       svelte: ^5.0.0
 
-  '@svebcomponents/build@0.2.0':
-    resolution: {integrity: sha512-ESQOdkrR49Qo+wArkJocrQfdE/PxObhsXOGGLMjfMNQ+DCuZpe/pHyU5rGwV96YWKiT+iT3F2hrQU54BVTqvNQ==}
+  '@svebcomponents/build@0.3.0':
+    resolution: {integrity: sha512-tiDehDnKulORgHlGdHSuaOlUBBEqOY4HXKuOl8EZmx/m1Rj2S6hDcxYAHr5/Y0mOWVnoOlkytAmbxo4QcTi6ig==}
     engines: {node: '>=20.19.0'}
     hasBin: true
+    peerDependencies:
+      tsdown: '>=0.15.0'
 
-  '@svebcomponents/ssr@0.2.0':
-    resolution: {integrity: sha512-4aei9/GtfkSPfNv1WJSb4mhKhoH+Vgxgzlg6pAYHj293+fJsptyWpBkO0iU/PwolInW71DQ2+3DOda9O6rO2kw==}
+  '@svebcomponents/ssr@0.3.0':
+    resolution: {integrity: sha512-/KFZ6/6MHuSuketIHBNAcrz+shogHbbZZSHbjXhUN0a60vJauOQLBuOd63uQGMBI2+TzhBFb1mrtO+L4u7kNBg==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       rolldown: '>=1.0.0-beta.0'
       svelte: ^5.0.0
       tsdown: '>=0.15.0'
-      vite: ^6.0.0 || ^7.0.0
+      vite: ^6.0.0 || ^7.0.0 || ^8.0.0
     peerDependenciesMeta:
       rolldown:
         optional: true
@@ -3285,41 +3287,29 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@svebcomponents/auto-options@0.1.0(svelte@5.56.4(@typescript-eslint/types@8.62.1))':
+  '@svebcomponents/auto-options@0.2.0(svelte@5.56.4(@typescript-eslint/types@8.62.1))':
     dependencies:
       '@svebcomponents/utils': 0.1.0
       magic-string: 0.30.17
       svelte: 5.56.4(@typescript-eslint/types@8.62.1)
       zimmerframe: 1.1.2
 
-  '@svebcomponents/build@0.2.0(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(typescript@5.9.3)(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))':
+  '@svebcomponents/build@0.3.0(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))':
     dependencies:
-      '@svebcomponents/auto-options': 0.1.0(svelte@5.56.4(@typescript-eslint/types@8.62.1))
-      '@svebcomponents/ssr': 0.2.0(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))
+      '@svebcomponents/auto-options': 0.2.0(svelte@5.56.4(@typescript-eslint/types@8.62.1))
+      '@svebcomponents/ssr': 0.3.0(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))
       '@sveltejs/load-config': 0.2.0
+      magic-string: 0.30.17
       rollup-plugin-svelte: 7.2.3(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))
       tsdown: 0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3)
       unconfig: 7.3.2
     transitivePeerDependencies:
-      - '@arethetypeswrong/core'
-      - '@emnapi/core'
-      - '@emnapi/runtime'
-      - '@ts-macro/tsc'
-      - '@typescript/native-preview'
-      - oxc-resolver
-      - publint
       - rolldown
       - rollup
-      - supports-color
       - svelte
-      - typescript
-      - unplugin-lightningcss
-      - unplugin-unused
-      - unrun
       - vite
-      - vue-tsc
 
-  '@svebcomponents/ssr@0.2.0(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))':
+  '@svebcomponents/ssr@0.3.0(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))':
     dependencies:
       '@lit-labs/ssr': 3.3.1
       '@lit-labs/ssr-dom-shim': 1.3.0

@@ -1,8 +1,4 @@
-<!-- The tag is declared here (not only in the build) so svelte's tooling
-compiles this as a custom element — required for $host() below to pass
-svelte-check. auto-options merges the inferred props in; the SSR build strips
-the option (and neutralizes $host()) before its plain-component compile. -->
-<svelte:options customElement={{ tag: "atproto-comments" }} />
+<svelte:options customElement="atproto-comments" />
 
 <script lang="ts">
   import { tick } from "svelte";

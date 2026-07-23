@@ -62,7 +62,7 @@
     "@svebcomponents/utils": "catalog:"
   },
   "peerDependencies": {
-    "@svebcomponents/ssr": "^0.2.0"
+    "@svebcomponents/ssr": "^0.3.0"
   },
   "peerDependenciesMeta": {
     "@svebcomponents/ssr": {
