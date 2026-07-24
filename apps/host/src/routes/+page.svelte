@@ -133,6 +133,7 @@ import "@svebcomponents/atproto.comments";`;
     <span>svebcomponents<span class="brand-muted">/atproto</span></span>
   </a>
   <nav aria-label="Main navigation">
+    <a href="#tiers">Get started</a>
     <a href="#start">Quickstart</a>
     <a href="#reference">Reference</a>
     <a href="#self-host">Self-host</a>
@@ -170,11 +171,13 @@ import "@svebcomponents/atproto.comments";`;
         <small>article.html</small>
       </div>
       <pre><code
-          ><span class="code-muted">&lt;!-- one import --&gt;</span>
+          ><span class="code-muted"
+            >&lt;!-- no install, straight from jsDelivr --&gt;</span
+          >
 &lt;<span class="code-pink">script</span> <span class="code-blue">type</span
           >=<span class="code-green">"module"</span>
   <span class="code-blue">src</span>=<span class="code-green"
-            >"/atproto-comments.js"</span
+            >"https://cdn.jsdelivr.net/npm/@svebcomponents/atproto.comments"</span
           >&gt;
 &lt;/<span class="code-pink">script</span>&gt;
 
@@ -217,6 +220,68 @@ import "@svebcomponents/atproto.comments";`;
         refresh, with coalescing and retry built in.
       </p>
     </article>
+  </section>
+
+  <section id="tiers" class="section split-section">
+    <div class="section-intro">
+      <p class="kicker">Pick your depth</p>
+      <h2>Start simple.<br />Go deeper when you need to.</h2>
+      <p>
+        Every tier below talks to the same free hosted backend. Self-hosting it
+        is a separate switch — flip it from any tier, whenever you want to.
+      </p>
+    </div>
+    <div class="steps">
+      <article class="step">
+        <span class="step-number">1</span>
+        <div>
+          <h3>CDN drop-in</h3>
+          <p>
+            Two tags, no build step — paste them into any HTML page or CMS. See
+            the snippet above.
+          </p>
+        </div>
+      </article>
+      <article class="step">
+        <span class="step-number">2</span>
+        <div>
+          <h3>npm install</h3>
+          <p>
+            <code>pnpm add</code> the package and import it into your own
+            bundle.
+            <a class="text-link" href="#start">See the snippet ↓</a>
+          </p>
+        </div>
+      </article>
+      <article class="step">
+        <span class="step-number">3</span>
+        <div>
+          <h3>Server-rendered</h3>
+          <p>
+            Hydrate in place instead of flashing a loading skeleton. SvelteKit
+            is supported today — Nuxt, Astro, Next.js, and SolidStart are
+            planned.
+            <a
+              class="text-link"
+              href="https://github.com/svebcomponents/atproto/tree/main/components/atproto-comments#3-ssr-server-rendered-hydrated-in-place"
+              target="_blank"
+              rel="noreferrer">Read the SSR guide ↗</a
+            >
+          </p>
+        </div>
+      </article>
+      <article class="step">
+        <span class="step-number">4</span>
+        <div>
+          <h3>Self-hosted backend</h3>
+          <p>
+            Run OAuth, posting, and live events on your own infrastructure
+            instead of the hosted default.
+            <a class="text-link" href="#self-host">See self-hosting ↓</a>
+          </p>
+        </div>
+      </article>
+    </div>
   </section>
 
   <section id="start" class="section split-section">
@@ -722,6 +787,8 @@ import "@svebcomponents/atproto.comments";`;
     display: flex;
     align-items: center;
     padding: clamp(1.4rem, 4vw, 2.5rem);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   .code-muted {
