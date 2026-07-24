@@ -2,7 +2,11 @@
 
 Date: 2026-07-06
 
-The service is an **auth + posting bridge**: it signs users in with their ATProto identity, holds their OAuth tokens server-side, and creates `app.bsky.feed.post` replies in *their* repo on request. It stores no comment content and is never in the read path (MVP).
+The service is an **auth + posting + event bridge**: it signs users in with
+their ATProto identity, holds their OAuth tokens server-side, creates
+`app.bsky.feed.post` replies in _their_ repo on request, and proxies filtered
+Microcosm Spacedust signals to browser SSE clients. It stores no comment
+content. Public thread snapshots are still read directly from an AppView.
 
 It ships in two forms: **our hosted instance** (the convenience product) and **self-hostable OSS** (see [Self-hosting](#self-hosting) below). The design keeps both identical — the hosted instance is just a deployment of the open code.
 
@@ -10,7 +14,7 @@ It ships in two forms: **our hosted instance** (the convenience product) and **s
 
 - **Confidential client** (BFF pattern — the pattern the ATProto docs recommend for web apps): ATProto access/refresh tokens live only server-side, keyed by a session. The browser component never sees them.
 - Implementation: **`@atproto/oauth-client-node`**. Do not hand-roll PAR + PKCE + DPoP + nonce juggling; the SDK handles it and tracks spec evolution.
-- **Client metadata document** served by the service itself (the URL *is* the `client_id`), e.g. `https://comments.example.com/oauth/client-metadata.json`:
+- **Client metadata document** served by the service itself (the URL _is_ the `client_id`), e.g. `https://atproto.svebcomponents.dev/atproto/oauth/client-metadata.json`:
   - `client_id`, `redirect_uris` (`…/oauth/callback`), `grant_types`, `scope`,
   - `token_endpoint_auth_method: "private_key_jwt"` + `jwks_uri` (ES256 signing key → confidential client → longer-lived refresh grants),
   - `dpop_bound_access_tokens: true`.
@@ -31,12 +35,15 @@ rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview
 
 ## The embedded-auth problem (the crux)
 
-The component runs on `someblog.com`; the service is `comments.example.com`. Browsers block third-party cookies, so a service session cookie is invisible to `fetch()` from the blog page. Cookie-based BFF alone does not work for an embedded widget.
+The component runs on `someblog.com`; the hosted service is
+`atproto.svebcomponents.dev`. Browsers block third-party cookies, so a service
+session cookie is invisible to `fetch()` from the blog page. Cookie-based BFF
+alone does not work for a cross-origin embedded widget.
 
 ### Chosen design: popup + postMessage + service session token
 
 ```
-[blog page]                         [popup: comments.example.com]
+[blog page]                 [popup: atproto.svebcomponents.dev]
 component ── window.open ──────────► /oauth/start?origin=https://someblog.com
                                        │  resolve handle → PDS, PAR, redirect
                                        ▼
@@ -55,9 +62,9 @@ component ◄─ postMessage({token}) ── success page (targetOrigin = origin
 
 Design details:
 
-- **`origin` is a first-class parameter**: validated at `/oauth/start`, carried through OAuth `state`, and used as the *exact* `targetOrigin` in `postMessage`. The token is **bound to that origin** (claim in the JWT); a token minted for `someblog.com` is rejected if replayed with `Origin: evil.com`. CORS on the API echoes only the token's bound origin.
+- **`origin` is a first-class parameter**: validated at `/oauth/start`, carried through OAuth `state`, and used as the _exact_ `targetOrigin` in `postMessage`. The token is **bound to that origin** (claim in the JWT); a token minted for `someblog.com` is rejected if replayed with `Origin: evil.com`. CORS on the API echoes only the token's bound origin.
 - **Session JWT contents**: `sub` (DID), `aud` (service), `origin`, `sid` (server session id), short `exp` (~1h). Refresh: `POST /api/session/refresh` rotates it while the server-side ATProto session (refresh token) stays valid. Server session revocable at any time (delete row).
-- **Why bearer-in-localStorage is acceptable here**: the threat is XSS on the *host blog*. Mitigations: the token only permits "post a reply as this user via our service" (not ATProto account access), short TTL, origin binding, server-side revocation, and rate limits. The alternative (iframe + Storage Access API) has worse UX and browser variance; partitioned cookies (CHIPS) don't give the component readable auth state. Popup+postMessage is what the industry converged on for embedded auth.
+- **Why bearer-in-localStorage is acceptable here**: the threat is XSS on the _host blog_. Mitigations: the token only permits "post a reply as this user via our service" (not ATProto account access), short TTL, origin binding, server-side revocation, and rate limits. The alternative (iframe + Storage Access API) has worse UX and browser variance; partitioned cookies (CHIPS) don't give the component readable auth state. Popup+postMessage is what the industry converged on for embedded auth.
 - **Popup-blocked fallback**: full-page redirect flow with `returnTo` back to the blog URL + `#fragment` token handoff (fragment never hits servers/logs), component picks it up on load and removes it from history. Slightly worse; only a fallback.
 - `GET /api/session` returns `{ did, handle, avatar }` for valid tokens → component chrome.
 
@@ -76,6 +83,7 @@ GET  /api/session                   bearer → { did, handle, avatar } | 401
 POST /api/session/refresh           rotate session JWT
 POST /api/session/logout            revoke server session
 POST /api/reply                     bearer → create reply post
+GET  /api/comments/stream?thread=…  public SSE reply signals
 ```
 
 `POST /api/reply` body/response (matches the notes' sketch):
@@ -113,7 +121,7 @@ The oauth-client-node store interfaces are tiny; wrapping SQLite takes an aftern
 ## Abuse & safety
 
 - **Rate limits**: per-DID (e.g. 10 replies/10min) and per-IP on auth start (popup spam). 429 with `Retry-After`; component surfaces it politely.
-- **No open relay**: v1 only creates *reply* posts (root+parent required) — the service cannot be used to spam top-level posts.
+- **No open relay**: v1 only creates _reply_ posts (root+parent required) — the service cannot be used to spam top-level posts.
 - **Origin policy**: MVP allows any origin (token-bound, rate-limited); Phase 4 adds per-site registration/allowlists if abuse appears. Registration also unlocks site-owner moderation prefs.
 - **UX honesty**: composer states the comment becomes a public Bluesky post from the user's account — repeated in the consent screen language.
 - **Privacy**: log DIDs + timestamps for rate limiting only; never log comment text bodies; no analytics on commenters.
@@ -121,13 +129,20 @@ The oauth-client-node store interfaces are tiny; wrapping SQLite takes an aftern
 
 ## Self-hosting
 
-Self-hosting is a first-class goal, and it shapes one architectural rule: **all service logic lives in `packages/service-core`; `apps/web` only mounts it.** Then there are three self-host tiers, cheapest first:
+Self-hosting is a first-class goal, and it shapes one architectural rule: **all service logic lives in `packages/service-core`; `apps/host` only mounts it.** Then there are three self-host tiers, cheapest first:
 
 1. **Mount into your own SvelteKit app** (the sweet spot): `service-core` exposes its endpoints as standard **`(request: Request) => Response` fetch handlers** plus a small config object (signing keys, DB path, service origin). A SvelteKit blog adds one catch-all route (`src/routes/atproto/[...path]/+server.ts`) that delegates to `service-core`. Because fetch handlers are framework-agnostic, the same mount works in Astro endpoints, Hono, Express (via adapter), Bun — anywhere Request/Response exists and the storage driver runs.
-2. **Deploy the reference app**: run `apps/web` (or a stripped `apps/service` variant if demand appears) on Fly/Railway/VPS. Full service, no code written.
-3. **Use our hosted instance**: set `service="https://comments.example.com"` and done.
+2. **Deploy the reference app**: run `apps/host` (or a stripped `apps/service` variant if demand appears) on a long-lived VM or Node host. Full service, no code written.
+3. **Use our hosted instance**: omit `service` and the component uses
+   `https://atproto.svebcomponents.dev/atproto`.
 
-Why tier 1 matters beyond convenience: a blog that mounts the service **on its own origin** makes the whole auth flow first-party — no cross-origin token handoff needed, though the popup+token flow still works unchanged and keeps the component logic uniform. Each self-hosted deployment serves its own `client-metadata.json` under its own origin, so it *is* its own ATProto OAuth client automatically — decentralized client registration is exactly what atproto OAuth was designed for. Users' consent screens then show the blog's domain rather than a third party, which is arguably the best trust story of all.
+Why tier 1 matters beyond convenience: a blog that mounts the service **on its
+own origin** makes the whole auth flow first-party. Configure
+`sessionMode: "cookie"` and the browser session becomes an opaque HttpOnly,
+SameSite cookie rather than a browser-readable JWT. The component still uses
+the same APIs with `credentials: "include"`. Each self-hosted deployment serves
+its own `client-metadata.json` under its own origin, so it is its own ATProto
+OAuth client automatically.
 
 Implications for `service-core`'s design (cheap to honor from day one):
 
@@ -136,9 +151,32 @@ Implications for `service-core`'s design (cheap to honor from day one):
 - Keys/secrets passed in as config, not read from env inside the package.
 - The component's `service` attribute accepts any base URL, including a same-origin path like `service="/atproto"`.
 
+## Live events and resource model
+
+`GET /api/comments/stream` accepts an AT URI or bsky.app URL. The process
+normalizes it to the root post URI and subscribes to Spacedust links whose
+source is `app.bsky.feed.post:reply.root.uri`.
+
+One bridge process opens at most one Spacedust WebSocket. Active root URIs are
+multiplexed through `options_update`, and matching events fan out to local SSE
+viewers. The upstream exists only while at least one viewer is connected.
+Reconnect uses jittered exponential backoff, and the official component closes
+its SSE while the document is hidden.
+
+The safety defaults—5,000 threads, 10,000 total SSE viewers, and 1,000 viewers
+per thread—are ceilings rather than a capacity promise. Tune them below the
+host's memory and file-descriptor limits, add per-IP admission at the reverse
+proxy, and use a long-lived streaming process. Spacedust v0 has no cursor
+replay, so every upstream connection/reconnection emits a status event that
+clients treat as a prompt to fetch a current AppView snapshot.
+
 ## Deployment
 
-- SvelteKit `adapter-node` (replace template's `adapter-auto`) on a persistent-disk host (Fly.io / Railway / small VPS) — SQLite needs a disk, OAuth needs stable HTTPS origin. Netlify (used by the svebcomponents docs) is fine for docs but wrong for this service (functions + no disk).
+- SvelteKit `adapter-node` on a persistent-disk, long-lived host (Fly.io,
+  Railway, a small VPS, or equivalent). SQLite needs a disk, OAuth needs a
+  stable HTTPS origin, and SSE/WebSocket fan-out needs streaming connections.
+  Request-duration-limited functions are the wrong runtime for the combined
+  service.
 - Single instance is plenty for MVP; the session model doesn't preclude horizontal scaling later (SQLite → libsql server / Postgres).
 - Local dev: ATProto OAuth requires a public HTTPS client_id in production but supports a **`http://localhost` loopback client mode** for development — document the dev loop (also useful for component contributors without service credentials).
 

@@ -1,4 +1,15 @@
 import {
+  parseThreadRef,
+  resolveThreadUri,
+} from "@svebcomponents/atproto.client";
+
+import {
+  CommentStreamCapacityError,
+  createCommentStreamBroker,
+  type CommentStreamBroker,
+  type WebSocketFactory,
+} from "./commentStream.js";
+import {
   resolveConfig,
   type ServiceConfig,
   type ResolvedServiceConfig,
@@ -11,6 +22,7 @@ import {
 } from "./replyValidation.js";
 import {
   createSessionTokenIssuer,
+  type SessionTokenClaims,
   type SessionTokenIssuer,
 } from "./sessionToken.js";
 
@@ -28,10 +40,10 @@ const json = (body: unknown, status = 200, headers?: HeadersInit): Response =>
     headers: { "content-type": "application/json", ...headers },
   });
 
-const html = (body: string, status = 200): Response =>
+const html = (body: string, status = 200, headers?: HeadersInit): Response =>
   new Response(body, {
     status,
-    headers: { "content-type": "text/html; charset=utf-8" },
+    headers: { "content-type": "text/html; charset=utf-8", ...headers },
   });
 
 const jsonError = (
@@ -53,6 +65,57 @@ const parseOrigin = (value: string | null): string | null => {
   }
 };
 
+const readCookie = (request: Request, name: string): string | undefined => {
+  for (const part of (request.headers.get("cookie") ?? "").split(";")) {
+    const [rawName, ...rawValue] = part.trim().split("=");
+    if (rawName !== name) continue;
+    try {
+      return decodeURIComponent(rawValue.join("="));
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+};
+
+const sessionCookie = (
+  config: ResolvedServiceConfig,
+  value: string,
+  maxAge: number,
+): string =>
+  [
+    `${config.sessionCookieName}=${encodeURIComponent(value)}`,
+    `Path=${config.basePath}`,
+    `Max-Age=${maxAge}`,
+    "HttpOnly",
+    "SameSite=Lax",
+    ...(config.isLoopback ? [] : ["Secure"]),
+  ].join("; ");
+
+const clearSessionCookie = (config: ResolvedServiceConfig): string =>
+  sessionCookie(config, "", 0);
+
+const authenticateCookie = async (
+  request: Request,
+  requestOrigin: string | null,
+  config: ResolvedServiceConfig,
+): Promise<SessionTokenClaims | null> => {
+  const sid = readCookie(request, config.sessionCookieName);
+  if (!sid) return null;
+  const session = await config.serviceSessionStore.get(sid);
+  if (!session) return null;
+  const createdAt = Date.parse(session.createdAt);
+  if (
+    Number.isNaN(createdAt) ||
+    Date.now() - createdAt > config.sessionTtlSeconds * 1_000
+  ) {
+    await config.serviceSessionStore.del(sid);
+    return null;
+  }
+  if (requestOrigin !== null && requestOrigin !== session.origin) return null;
+  return { did: session.did, origin: session.origin, sid };
+};
+
 interface AuthorizeState {
   origin: string;
   /** CSRF nonce */
@@ -64,6 +127,10 @@ interface AuthorizeState {
 export interface CreateServiceOptions {
   /** test seam: bypasses NodeOAuthClient construction */
   oauthClient?: OAuthBridgeClient;
+  /** test/runtime seam for the Spacedust websocket transport */
+  webSocketFactory?: WebSocketFactory;
+  /** test seam: bypasses the default shared per-thread stream broker */
+  commentStreamBroker?: CommentStreamBroker;
 }
 
 export const createAtprotoCommentsService = (
@@ -81,6 +148,9 @@ export const createAtprotoCommentsService = (
     ttlSeconds: config.sessionTtlSeconds,
     serviceSessionStore: config.serviceSessionStore,
   });
+  const commentStreams =
+    options.commentStreamBroker ??
+    createCommentStreamBroker(config.commentStream, options.webSocketFactory);
 
   return {
     async fetch(request) {
@@ -95,7 +165,14 @@ export const createAtprotoCommentsService = (
 
       // the component calls /api/* cross-origin from embedding sites
       if (route.startsWith("/api/")) {
-        return handleApi(request, route, config, tokens, clientPromise);
+        return handleApi(
+          request,
+          route,
+          config,
+          tokens,
+          clientPromise,
+          commentStreams,
+        );
       }
 
       switch (`${request.method} ${route}`) {
@@ -200,20 +277,34 @@ const handleCallback = async (
     createdAt: new Date().toISOString(),
     ...profile,
   });
-  const token = await tokens.mint({ did, origin, sid });
+  const token =
+    config.sessionMode === "bearer"
+      ? await tokens.mint({ did, origin, sid })
+      : undefined;
+  const handoff = {
+    ...(token ? { token } : {}),
+    did,
+    ...profile,
+  };
 
   // Primary handoff: stash the claim for the opener to poll. OAuth providers
   // set COOP which severs window.opener, so postMessage (below) can't be
   // relied on — it's kept only as a same-origin fast path.
   if (claimNonce) {
-    await config.authClaimStore.set(claimNonce, { token, did, ...profile });
+    await config.authClaimStore.set(claimNonce, handoff);
   }
 
   return html(
     callbackPage({
       origin,
-      payload: { token, did, ...profile },
+      payload: handoff,
     }),
+    200,
+    config.sessionMode === "cookie"
+      ? {
+          "set-cookie": sessionCookie(config, sid, config.sessionTtlSeconds),
+        }
+      : undefined,
   );
 };
 
@@ -244,6 +335,7 @@ const fetchProfile = async (
 
 const corsHeaders = (origin: string): HeadersInit => ({
   "access-control-allow-origin": origin,
+  "access-control-allow-credentials": "true",
   vary: "origin",
 });
 
@@ -253,6 +345,7 @@ const handleApi = async (
   config: ResolvedServiceConfig,
   tokens: SessionTokenIssuer,
   clientPromise: Promise<OAuthBridgeClient>,
+  commentStreams: CommentStreamBroker,
 ): Promise<Response> => {
   const requestOrigin = parseOrigin(request.headers.get("origin"));
 
@@ -282,16 +375,30 @@ const handleApi = async (
     return json(claim, 200, cors);
   }
 
+  // Watching public replies does not require an account. Spacedust only
+  // supplies the record URI; clients can refetch the thread from their
+  // AppView when a `comment` event arrives.
+  if (request.method === "GET" && route === "/api/comments/stream") {
+    return handleCommentStream(request, config, commentStreams);
+  }
+
   const authorization = request.headers.get("authorization") ?? "";
   const bearer = authorization.startsWith("Bearer ")
     ? authorization.slice("Bearer ".length)
     : null;
-  const claims = bearer ? await tokens.verify(bearer, requestOrigin) : null;
+  const claims =
+    config.sessionMode === "cookie"
+      ? request.method === "POST" && requestOrigin === null
+        ? null
+        : await authenticateCookie(request, requestOrigin, config)
+      : bearer
+        ? await tokens.verify(bearer, requestOrigin)
+        : null;
   if (!claims) {
     return jsonError(
       401,
       "InvalidSession",
-      "Missing, expired, or origin-mismatched session token",
+      "Missing, expired, or origin-mismatched session",
       requestOrigin ? corsHeaders(requestOrigin) : {},
     );
   }
@@ -313,13 +420,37 @@ const handleApi = async (
     }
 
     case "POST /api/session/refresh": {
+      if (config.sessionMode === "cookie") {
+        const session = await config.serviceSessionStore.get(claims.sid);
+        if (!session) {
+          return jsonError(401, "InvalidSession", "Session expired", cors);
+        }
+        await config.serviceSessionStore.set(claims.sid, {
+          ...session,
+          createdAt: new Date().toISOString(),
+        });
+        return json({ ok: true }, 200, {
+          ...cors,
+          "set-cookie": sessionCookie(
+            config,
+            claims.sid,
+            config.sessionTtlSeconds,
+          ),
+        });
+      }
       const token = await tokens.mint(claims);
       return json({ token }, 200, cors);
     }
 
     case "POST /api/session/logout": {
       await config.serviceSessionStore.del(claims.sid);
-      return json({ ok: true }, 200, cors);
+      return json(
+        { ok: true },
+        200,
+        config.sessionMode === "cookie"
+          ? { ...cors, "set-cookie": clearSessionCookie(config) }
+          : cors,
+      );
     }
 
     case "POST /api/reply": {
@@ -346,6 +477,57 @@ const handleApi = async (
 
     default:
       return jsonError(404, "NotFound", "Unknown route", cors);
+  }
+};
+
+const handleCommentStream = async (
+  request: Request,
+  config: ResolvedServiceConfig,
+  commentStreams: CommentStreamBroker,
+): Promise<Response> => {
+  const input = new URL(request.url).searchParams.get("thread") ?? "";
+  const ref = parseThreadRef(input);
+  if (!ref || ref.collection !== "app.bsky.feed.post") {
+    return jsonError(
+      400,
+      "InvalidThread",
+      "thread must be an AT URI or bsky.app post URL",
+      { "access-control-allow-origin": "*" },
+    );
+  }
+
+  let threadUri: string;
+  try {
+    threadUri = await resolveThreadUri(ref, {
+      appView: config.appView,
+      fetch: config.fetch,
+      signal: request.signal,
+    });
+  } catch {
+    return jsonError(400, "InvalidThread", "Could not resolve the thread", {
+      "access-control-allow-origin": "*",
+    });
+  }
+
+  try {
+    const stream = commentStreams.subscribe(threadUri, request.signal);
+    return new Response(stream, {
+      headers: {
+        "access-control-allow-origin": "*",
+        "cache-control": "no-cache, no-transform",
+        connection: "keep-alive",
+        "content-type": "text/event-stream; charset=utf-8",
+        "x-accel-buffering": "no",
+      },
+    });
+  } catch (error) {
+    if (error instanceof CommentStreamCapacityError) {
+      return jsonError(503, "StreamCapacity", error.message, {
+        "access-control-allow-origin": "*",
+        "retry-after": "30",
+      });
+    }
+    throw error;
   }
 };
 

@@ -10,6 +10,7 @@ import {
   createAtprotoCommentsService,
   type AtprotoCommentsService,
 } from "./handlers.js";
+import type { CommentStreamBroker } from "./commentStream.js";
 import type { OAuthBridgeClient, OAuthPdsSession } from "./oauthClient.js";
 
 const ORIGIN = "https://blog.example";
@@ -240,6 +241,70 @@ describe("service handlers", () => {
     expect(second!.status).toBe(404);
   });
 
+  it("supports same-origin HttpOnly cookie sessions without returning a JWT", async () => {
+    vi.mocked(fakeOAuthClient.callback).mockResolvedValueOnce({
+      session: { did: DID } as OAuthPdsSession,
+      state: JSON.stringify({
+        origin: ORIGIN,
+        nonce: "csrf",
+        claim: "cookie-claim",
+      }),
+    });
+    service = createAtprotoCommentsService(
+      { ...baseConfig(store), sessionMode: "cookie" },
+      { oauthClient: fakeOAuthClient },
+    );
+
+    const callback = await service.fetch(
+      new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=xyz`),
+    );
+    const cookie = callback!.headers.get("set-cookie");
+    expect(cookie).toContain("atproto_comments_session=");
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("SameSite=Lax");
+    expect(await callback!.text()).not.toContain('"token":');
+
+    const claim = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session/claim?nonce=cookie-claim`, {
+        headers: { origin: ORIGIN },
+      }),
+    );
+    expect(claim!.headers.get("access-control-allow-credentials")).toBe("true");
+    expect(await claim!.json()).toMatchObject({ did: DID });
+
+    const sessionCookie = cookie!.split(";")[0]!;
+    const session = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session`, {
+        headers: { cookie: sessionCookie },
+      }),
+    );
+    expect(session!.status).toBe(200);
+    expect(await session!.json()).toMatchObject({ did: DID });
+
+    const reply = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/reply`, {
+        method: "POST",
+        headers: {
+          cookie: sessionCookie,
+          origin: ORIGIN,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          root: {
+            uri: `at://${DID}/app.bsky.feed.post/root`,
+            cid: "bafyroot234567",
+          },
+          parent: {
+            uri: `at://${DID}/app.bsky.feed.post/root`,
+            cid: "bafyroot234567",
+          },
+          text: "cookie session reply",
+        }),
+      }),
+    );
+    expect(reply!.status).toBe(200);
+  });
+
   it("returns 404 for an unknown claim nonce", async () => {
     const res = await service.fetch(
       new Request(`${SERVICE}/atproto/api/session/claim?nonce=nope`),
@@ -292,6 +357,56 @@ describe("service handlers", () => {
       }),
     );
     expect(res!.status).toBe(401);
+  });
+
+  it("streams public comment events for a canonical thread", async () => {
+    const subscribed: string[] = [];
+    const commentStreamBroker: CommentStreamBroker = {
+      subscribe(threadUri) {
+        subscribed.push(threadUri);
+        return new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(
+                `event: ready\ndata: {"thread":"${threadUri}"}\n\n`,
+              ),
+            );
+            controller.close();
+          },
+        });
+      },
+      stats: () => ({
+        threads: 0,
+        subscribers: 0,
+        upstreamConnections: 0,
+      }),
+    };
+    service = createAtprotoCommentsService(baseConfig(store), {
+      oauthClient: fakeOAuthClient,
+      commentStreamBroker,
+    });
+    const thread = `at://${DID}/app.bsky.feed.post/root`;
+    const res = await service.fetch(
+      new Request(
+        `${SERVICE}/atproto/api/comments/stream?thread=${encodeURIComponent(thread)}`,
+      ),
+    );
+
+    expect(res!.status).toBe(200);
+    expect(res!.headers.get("content-type")).toContain("text/event-stream");
+    expect(res!.headers.get("access-control-allow-origin")).toBe("*");
+    expect(await res!.text()).toContain("event: ready");
+    expect(subscribed).toEqual([thread]);
+  });
+
+  it("rejects an invalid comment-stream thread", async () => {
+    const res = await service.fetch(
+      new Request(
+        `${SERVICE}/atproto/api/comments/stream?thread=${encodeURIComponent("https://example.com/not-a-post")}`,
+      ),
+    );
+    expect(res!.status).toBe(400);
+    expect(await res!.json()).toMatchObject({ error: "InvalidThread" });
   });
 
   it("creates a reply post via the user's PDS session", async () => {

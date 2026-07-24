@@ -6,7 +6,7 @@ Date: 2026-07-06
 
 1. `pnpx degit svebcomponents/template` into this repo; `git init`.
 2. **Bump the dependency catalog** (template is on mid-2025 versions): svelte → latest 5.x (needed for the async-SSR path `@svebcomponents/ssr` supports), vite → 7.x, @sveltejs/kit → latest, svelte-check/eslint/prettier/turbo accordingly. Check npm for latest `@svebcomponents/build` + `@svebcomponents/ssr` (template catalog says 0.0.9/0.0.8; the local monorepo working copy shows 0.0.8/0.0.7 in package.json — confirm what's actually published, and whether anything needs releasing from the svebcomponents repo first).
-3. Rename `apps/svelte-kit` → `apps/web`; swap `adapter-auto` → `adapter-node`.
+3. Rename `apps/svelte-kit` → `apps/host`; swap `adapter-auto` → `adapter-node`.
 4. Add `packages/` to the workspace; scaffold `packages/atproto-client`.
 5. Rename example component → `components/atproto-comments`; verify the full loop still works: `pnpm build` → SSR'd page shows declarative shadow DOM → client upgrade works.
 6. Renovate config already ships in the template — keep it so deps don't rot again.
@@ -32,8 +32,8 @@ Follow-ups tied to the fixes:
 
 - `atproto-client`: AT-URI/bsky-URL parsing, `getPostThread` fetch, thread normalization with all edge variants, facet segmentation. Fixture-based unit tests.
 - Component: states per [02-component-design.md](./02-component-design.md) (skeleton/empty/comment/tombstones/labels/depth-cap), root stats header (likes/reposts via Bluesky — the "likes shown via Bluesky" feature), "Reply on Bluesky" links, CSS custom props + parts, events.
-- SSR: Tier 1 (`threadData` property) + Tier 3 (client self-fetch) working; async-SSR demo page in `apps/web`; Tier 2 (JSON child) if it falls out naturally, else Phase 2.
-- `apps/web`: showcase page SSR-rendering the component against a real thread (dogfood: use the Bluesky post of one of your own blog articles).
+- SSR: Tier 1 (`threadData` property) + Tier 3 (client self-fetch) working; async-SSR demo page in `apps/host`; Tier 2 (JSON child) if it falls out naturally, else Phase 2.
+- `apps/host`: showcase page SSR-rendering the component against a real thread (dogfood: use the Bluesky post of one of your own blog articles).
 - Publish to npm + verify the jsdelivr CDN drop-in on a plain HTML page.
 
 **Exit criterion**: a random blog can paste two lines of HTML and get rendered comments, and a SvelteKit blog gets flash-free SSR.
@@ -42,7 +42,7 @@ Follow-ups tied to the fixes:
 
 - `atproto-client`: parsing, `getPostThread`, handle resolution, normalization (tombstones/truncation/labels), UTF-8 facet segmentation, sorting, URL helpers — 36 unit tests, wire types grounded against real AppView responses.
 - `<atproto-comments>`: all rendering states, root stats header, Reply-on-Bluesky links, rich text, relative timestamps, custom props + parts, `atproto-comments:*` events, Tier 1 (`threadData`) + Tier 3 (self-fetch). Self-contained bundle **25.8 KB gz** (under the 40 KB budget; svebcomponents client builds now minified + svelte-deduped upstream).
-- Showcase (`apps/web`): server-side prefetch of a live thread (`?thread=` override), SSR verified in adapter-node prod.
+- Showcase (`apps/host`): server-side prefetch of a live thread (`?thread=` override), SSR verified in adapter-node prod.
 - **Verified via browser automation**: on a static/non-svelte host the SSR'd DOM is hydrated in place (same-node identity, zero client refetch — rich props travel via the new serialized-props channel in svebcomponents PR #105).
 - ~~Known limitation: hydrating SvelteKit hosts re-created the element~~ **Fixed upstream (PR #105, wrapper symmetry)**: SvelteKit hosts now claim the SSR'd element — verified same-node identity + zero refetch in the adapter-node showcase. **Both halves of the exit criterion are met.**
 - Still open from the Phase 1 list: npm publish (packages ship under the existing `@svebcomponents` org — see naming update above, no new org needed), async-SSR demo page, Tier 2 JSON child.
@@ -55,7 +55,7 @@ Follow-ups tied to the fixes:
 
 The big one; see [03-oauth-service.md](./03-oauth-service.md).
 
-- `packages/service-core` + routes in `apps/web`: client metadata, jwks, start/callback, session mint/refresh/logout, `/api/reply`, SQLite stores, rate limiter.
+- `packages/service-core` + routes in `apps/host`: client metadata, jwks, start/callback, session mint/refresh/logout, `/api/reply`, SQLite stores, rate limiter.
 - Component write UX: sign-in button, popup flow + postMessage handshake, composer, optimistic append, signed-in chrome.
 - `atproto-client`: service API client.
 - Deploy service to Fly/Railway under a real domain; staging test account e2e.
@@ -68,7 +68,7 @@ The big one; see [03-oauth-service.md](./03-oauth-service.md).
 Server side **done and running**; component write UX is the remaining piece.
 
 - ✅ `packages/service-core`: framework-agnostic `fetch(Request) → Response` bridge — origin-bound HS256 session JWTs (BFF; ATProto tokens stay server-side), `client-metadata.json`/`jwks.json`, `oauth/start` (handle page + PDS redirect), `oauth/callback` (postMessage to the exact embedding origin), `api/session|refresh|logout|reply`. Narrow scope `atproto repo:app.bsky.feed.post?action=create`. Loopback client mode for keyless local dev. **39 tests** (token binding/expiry/revocation, reply validation, full handler flow vs. injected fake OAuth client + fake PDS).
-- ✅ Mounted in `apps/web` via a `/atproto/[...path]` catch-all + `node:sqlite` stores (built-in, no native rebuild). Verified on the running adapter-node server: valid loopback metadata, correct 401/400 guards, sign-in page renders.
+- ✅ Mounted in `apps/host` via a `/atproto/[...path]` catch-all + `node:sqlite` stores (built-in, no native rebuild). Verified on the running adapter-node server: valid loopback metadata, correct 401/400 guards, sign-in page renders.
 - ⏳ **Remaining — component write UX** (`atproto-client` service client + component: sign-in button, popup + postMessage handshake, composer with grapheme counter, optimistic append, signed-in chrome). Needs interactive OAuth against a real test account to verify end-to-end — the natural next working session.
 - ⏳ Deploy to Fly/Railway under a real domain (needs an ES256 keypair for `private_key_jwt`); security pass before announcing.
 
