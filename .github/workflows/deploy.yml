@@ -37,6 +37,16 @@ jobs:
       - name: install deps
         run: pnpm install --frozen-lockfile
 
+      # Build first: `check`/`test` resolve workspace deps (atproto.client,
+      # atproto.bridge, atproto.comments) through their built dist/, not raw
+      # source. `pnpm --filter` runs each package's script directly and
+      # doesn't see turbo.json's dependsOn — only `build` itself walks the
+      # dependency graph correctly, so it has to come first or check/test
+      # fail on a fresh checkout with "Cannot find module" even though
+      # nothing is actually wrong.
+      - name: build
+        run: pnpm --filter atproto-host... build
+
       # exe-deploy's deploy.sh only installs + builds on the VM, it doesn't
       # run tests — fail here, before ever triggering a deploy, if the host
       # or anything it depends on is broken.
@@ -45,9 +55,6 @@ jobs:
 
       - name: test
         run: pnpm --filter atproto-host... test
-
-      - name: build
-        run: pnpm --filter atproto-host... build
 
       # https://github.com/Theo-Steiner/exe-deploy — no SSH key, no infra
       # creds in this repo. The token is scoped to one VM and revocable
