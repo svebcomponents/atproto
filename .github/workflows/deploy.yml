@@ -1,0 +1,64 @@
+name: Deploy host
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/host/**"
+      - "packages/**"
+      - "components/**"
+      - "configs/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-host
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: install node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: "pnpm"
+
+      - name: install deps
+        run: pnpm install --frozen-lockfile
+
+      # exe-deploy's deploy.sh only installs + builds on the VM, it doesn't
+      # run tests — fail here, before ever triggering a deploy, if the host
+      # or anything it depends on is broken.
+      - name: check
+        run: pnpm --filter atproto-host... check
+
+      - name: test
+        run: pnpm --filter atproto-host... test
+
+      - name: build
+        run: pnpm --filter atproto-host... build
+
+      # https://github.com/Theo-Steiner/exe-deploy — no SSH key, no infra
+      # creds in this repo. The token is scoped to one VM and revocable
+      # (ssh exe.dev ssh-key generate-api-key --vm=<vm> --label=deploy-atproto-host),
+      # and the exe.dev proxy validates it before the request ever reaches
+      # the deploy listener on the VM.
+      - name: deploy
+        env:
+          DEPLOY_URL: ${{ secrets.EXE_DEPLOY_URL }}
+          DEPLOY_TOKEN: ${{ secrets.EXE_DEPLOY_TOKEN }}
+        run: |
+          curl -sS --fail-with-body --max-time 600 \
+            -X POST "$DEPLOY_URL" \
+            -H "X-Exedev-Authorization: Bearer $DEPLOY_TOKEN"
