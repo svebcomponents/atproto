@@ -1,6 +1,6 @@
 {
   "name": "@svebcomponents/atproto.bridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Framework-agnostic ATProto OAuth + posting bridge: fetch handlers mountable in any Request/Response server",
   "license": "MIT",
