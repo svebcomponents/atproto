@@ -16,8 +16,15 @@ SERVICE_DB_PATH=/data/service.db
 ```
 
 Also provide a stable 32+ character `SESSION_SECRET` and one or more
-newline-separated PKCS#8 keys in `OAUTH_PRIVATE_KEYS`. Mount `/data` as a
-persistent volume.
+newline-separated PKCS#8 keys in `OAUTH_PRIVATE_KEYS` — each key must be a
+single line (internal PEM newlines stripped), since the app splits this value
+on `\n` to support multiple keys. Generate both with:
+
+```sh
+apps/host/deploy/generate-secrets.sh
+```
+
+Mount `/data` as a persistent volume.
 
 Build and run the long-lived Node server:
 
