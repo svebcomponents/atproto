@@ -12,6 +12,7 @@
     sortComments,
     ServiceClient,
     ServiceError,
+    type Comment,
     type CommentNode,
     type CommentSort,
     type CommentTree,
@@ -47,6 +48,10 @@
     service?: string;
     /** force read-only rendering even when a service is configured */
     readonly?: boolean;
+    /** render the discussion root's own text above the replies — useful
+     * standalone (e.g. a landing page demo), redundant when the host page
+     * already displays that post's content itself */
+    showRoot?: boolean;
   }
 
   let {
@@ -59,6 +64,7 @@
     viewer = "",
     service = DEFAULT_SERVICE_URL,
     readonly = false,
+    showRoot = false,
   }: Props = $props();
 
   let fetched = $state<CommentTree | undefined>(undefined);
@@ -83,6 +89,30 @@
       return "Bluesky";
     }
   });
+  // Reuses commentBody's rendering: same avatar/author/rich-text/likes
+  // treatment as any reply, so the root reads as part of the same
+  // conversation rather than a bespoke header. Not subject to the labels
+  // hide/collapse policy — that governs replies, and this is the host page's
+  // own post, shown only when it opts in via `showRoot`.
+  const rootAsComment = $derived.by((): Comment | undefined =>
+    tree
+      ? {
+          kind: "comment",
+          uri: tree.root.uri,
+          cid: tree.root.cid,
+          author: tree.root.author,
+          text: tree.root.text,
+          segments: tree.root.segments,
+          createdAt: tree.root.createdAt,
+          likeCount: tree.root.likeCount,
+          replyCount: tree.root.replyCount,
+          labels: [],
+          url: tree.root.url,
+          replies: [],
+          hasMoreReplies: false,
+        }
+      : undefined,
+  );
   const comments = $derived(
     tree
       ? [
@@ -593,6 +623,11 @@
 
 <section class="container" part="container">
   {#if tree}
+    {#if showRoot && rootAsComment}
+      <div class="root-post" part="root-post">
+        {@render commentBody(rootAsComment)}
+      </div>
+    {/if}
     <header class="header" part="header">
       <span class="stats">
         ♡ {compactNumber.format(tree.root.likeCount)}
@@ -899,6 +934,11 @@
   }
   .comment {
     margin-block: 1rem;
+  }
+  .root-post {
+    padding-block: 1rem;
+    border-bottom: 1px solid
+      var(--atproto-comments-border, light-dark(#e0e0e0, #333));
   }
   .comment-main {
     display: flex;

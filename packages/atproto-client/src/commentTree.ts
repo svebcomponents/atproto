@@ -53,6 +53,10 @@ export interface RootSummary {
   uri: string;
   cid: string;
   author: CommentAuthor;
+  text: string;
+  segments: RichTextSegment[];
+  /** ISO datetime from the record (author-asserted) */
+  createdAt: string;
   replyCount: number;
   likeCount: number;
   repostCount: number;
@@ -96,10 +100,21 @@ const toAuthor = (
   profileUrl: viewerProfileUrl(author.handle, viewer),
 });
 
-const toComment = (node: ThreadViewPost, viewer?: string): Comment => {
-  const { post } = node;
+const toPostContent = (
+  post: ThreadViewPost["post"],
+  viewer?: string,
+): Pick<Comment, "text" | "segments" | "createdAt"> => {
   const record = isPostRecord(post.record) ? post.record : undefined;
   const text = record?.text ?? "";
+  return {
+    text,
+    segments: segmentRichText(text, record?.facets, viewer),
+    createdAt: record?.createdAt ?? post.indexedAt ?? "",
+  };
+};
+
+const toComment = (node: ThreadViewPost, viewer?: string): Comment => {
+  const { post } = node;
   const replyCount = post.replyCount ?? 0;
   const replies = (node.replies ?? []).map((reply) =>
     normalizeNode(reply, viewer),
@@ -109,9 +124,7 @@ const toComment = (node: ThreadViewPost, viewer?: string): Comment => {
     uri: post.uri,
     cid: post.cid,
     author: toAuthor(post.author, viewer),
-    text,
-    segments: segmentRichText(text, record?.facets, viewer),
-    createdAt: record?.createdAt ?? post.indexedAt ?? "",
+    ...toPostContent(post, viewer),
     likeCount: post.likeCount ?? 0,
     replyCount,
     labels: (post.labels ?? []).filter((l) => !l.neg).map((l) => l.val),
@@ -163,6 +176,7 @@ export const normalizeThread = (
     uri: post.uri,
     cid: post.cid,
     author: toAuthor(post.author, viewer),
+    ...toPostContent(post, viewer),
     replyCount: post.replyCount ?? 0,
     likeCount: post.likeCount ?? 0,
     repostCount: post.repostCount ?? 0,

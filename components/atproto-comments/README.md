@@ -63,6 +63,7 @@ live updates.
 | `thread`    | —              | AT URI or bsky.app post URL        |
 | `service`   | hosted         | OAuth, posting, and SSE bridge URL |
 | `readonly`  | `false`        | hide sign-in and in-page replies   |
+| `show-root` | `false`        | render the discussion root's own post above the replies |
 | `max-depth` | `6`            | maximum nested depth               |
 | `sort`      | `oldest`       | `oldest`, `newest`, or `likes`     |
 | `labels`    | `collapse`     | `hide`, `collapse`, or `show`      |

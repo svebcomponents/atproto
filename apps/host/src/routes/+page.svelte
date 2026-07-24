@@ -280,6 +280,7 @@ import "@svebcomponents/atproto.comments";`;
           thread={threadUri}
           threadData={data.threadData}
           service="/atproto"
+          showRoot
         ></atproto-comments>
       {:else}
         <p class="demo-unavailable">

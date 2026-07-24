@@ -95,6 +95,15 @@ describe("normalizeThread", () => {
     expect(Date.parse(tree.fetchedAt)).not.toBeNaN();
   });
 
+  it("includes the root post's own content, not just its stats", () => {
+    const tree = normalizeThread(fixture);
+    expect(tree.root.text).toBe("the blog post announcement");
+    expect(tree.root.segments).toEqual([
+      { type: "text", text: "the blog post announcement" },
+    ]);
+    expect(tree.root.createdAt).toBe("2026-07-01T12:00:00.000Z");
+  });
+
   it("routes every outbound link through a custom viewer", () => {
     const tree = normalizeThread(fixture, "https://deer.social/");
     expect(tree.root.url).toBe(
