@@ -152,9 +152,8 @@ import "@svebcomponents/atproto.comments";`;
       <div class="eyebrow"><span></span> Open social comments</div>
       <h1>Your post.<br /><em>Their voices.</em></h1>
       <p class="lede">
-        Turn any ATProto thread into a native comment section. Readers reply
-        with their own accounts, posts stay in their own repos, and your site
-        stays refreshingly database-free.
+        Any ATProto thread, as a native comment section — no database, no
+        lock-in.
       </p>
       <div class="hero-actions">
         <a class="button primary" href="#start">Add to your site</a>
@@ -177,7 +176,8 @@ import "@svebcomponents/atproto.comments";`;
 &lt;<span class="code-pink">script</span> <span class="code-blue">type</span
           >=<span class="code-green">"module"</span>
   <span class="code-blue">src</span>=<span class="code-green"
-            >"https://cdn.jsdelivr.net/npm/@svebcomponents/atproto.comments"</span
+            >"https://cdn.jsdelivr.net/npm/<wbr />@svebcomponents/<wbr
+            />atproto.comments"</span
           >&gt;
 &lt;/<span class="code-pink">script</span>&gt;
 
@@ -631,9 +631,9 @@ import "@svebcomponents/atproto.comments";`;
   .hero {
     min-height: 670px;
     display: grid;
-    grid-template-columns: 1.02fr 0.98fr;
+    grid-template-columns: 0.72fr 1.28fr;
     align-items: center;
-    gap: clamp(3rem, 8vw, 7rem);
+    gap: clamp(2rem, 6vw, 4rem);
     padding: 5.5rem 0 6.5rem;
   }
 
@@ -669,8 +669,8 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   h1 {
-    max-width: 700px;
-    font-size: clamp(4rem, 7.2vw, 6.5rem);
+    max-width: 420px;
+    font-size: clamp(2.75rem, 4.6vw, 4.25rem);
   }
 
   h1 em {
@@ -683,11 +683,11 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .lede {
-    max-width: 590px;
-    margin: 2rem 0 0;
+    max-width: 420px;
+    margin: 1.5rem 0 0;
     color: #514e49;
-    font-size: clamp(1.08rem, 1.8vw, 1.3rem);
-    line-height: 1.62;
+    font-size: clamp(1rem, 1.4vw, 1.1rem);
+    line-height: 1.55;
   }
 
   .hero-actions {
@@ -776,7 +776,7 @@ import "@svebcomponents/atproto.comments";`;
     background: #202025;
     color: #f7f5f0;
     font:
-      0.84rem/1.75 ui-monospace,
+      0.95rem/1.75 ui-monospace,
       SFMono-Regular,
       Menlo,
       monospace;
