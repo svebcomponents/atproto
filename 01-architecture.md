@@ -10,7 +10,7 @@ Date: 2026-07-06
 │        │ read (public, CORS)                │ auth + write (bearer)       │
 └────────┼────────────────────────────────────┼──────────────────────────────┘
          ▼                                    ▼
-  public.api.bsky.app                 hosted service (apps/web)
+  public.api.bsky.app                 hosted service (apps/host)
   app.bsky.feed.getPostThread         ├─ ATProto OAuth (confidential client)
   app.bsky.feed.getLikes              ├─ session store (SQLite)
          │                            └─ com.atproto.repo.createRecord
@@ -50,7 +50,7 @@ Update `pnpm-workspace.yaml` packages to `apps/*`, `components/*`, `packages/*`,
 
 The template's SvelteKit app already exists to consume/SSR the components; the OAuth service is a handful of server routes plus persistent storage. Splitting them into two deployables now adds coordination cost with no benefit — the showcase _is_ the best integration test for the service. If the hosted product grows real traffic, `packages/service-core` is the seam along which to extract a dedicated service later; keep route handlers thin from day one.
 
-The same seam is the **self-hosting story**: `service-core` exposes framework-agnostic `Request → Response` fetch handlers, so a blog can mount the entire bridge into its own SvelteKit/Astro/Hono app with one catch-all route — becoming its own first-party OAuth client — while `apps/web` is merely the reference mount. Details in [03-oauth-service.md](./03-oauth-service.md#self-hosting).
+The same seam is the **self-hosting story**: `service-core` exposes framework-agnostic `Request → Response` fetch handlers, so a blog can mount the entire bridge into its own SvelteKit/Astro/Hono app with one catch-all route — becoming its own first-party OAuth client — while `apps/host` is merely the reference mount. Details in [03-oauth-service.md](./03-oauth-service.md#self-hosting).
 
 ## Package boundaries
 
@@ -113,7 +113,12 @@ When `thread` is present and `threadData` is absent, `src/index.ssr.ts` calls `f
 - Browser-only/CDN usage fetches on connection (skeleton → thread).
 - If the server prepare fetch fails, hydration follows the same path and exposes the component's normal error/retry behavior.
 
-Freshness: when preloaded data is present, optionally revalidate in the background (`revalidate` attribute) and morph in changes — important after the user posts a comment, where we locally append the new reply optimistically, then refetch.
+Freshness is event-driven rather than time-based. The preloaded snapshot renders
+immediately; an SSE `connected` status triggers one background sync, and a
+Spacedust reply signal triggers a coalesced AppView refresh with a short
+indexing retry. Reconnect and visibility resume are additional correctness
+boundaries. Locally posted replies remain optimistically overlaid until their
+URI appears in an AppView snapshot.
 
 ### Findings from the scaffold (2026-07-06, verified against real builds)
 
@@ -145,5 +150,5 @@ Docs must cover: SvelteKit (full support), other Vite SSR frameworks (via `@sveb
 ## Dependencies policy
 
 - `atproto-client`: prefer zero runtime deps; hand-roll the ~4 XRPC calls over `fetch` rather than pulling `@atproto/api` (which is large and drags in rich-text/moderation machinery we reimplement leanly). Use `@atproto/api` **types** as a dev dependency for fidelity if helpful.
-- `apps/web` (service): `@atproto/oauth-client-node` is the right tool — do not hand-roll DPoP/PAR/PKCE (see [03-oauth-service.md](./03-oauth-service.md)).
+- `apps/host` (service): `@atproto/oauth-client-node` is the right tool — do not hand-roll DPoP/PAR/PKCE (see [03-oauth-service.md](./03-oauth-service.md)).
 - Components: only `atproto-client` + svelte peer tooling from the template.

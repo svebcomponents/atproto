@@ -1,9 +1,10 @@
 <svelte:options customElement="atproto-comments" />
 
 <script lang="ts">
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
   import { BROWSER } from "esm-env";
   import {
+    DEFAULT_SERVICE_URL,
     viewerPostUrl,
     viewerProfileUrl,
     fetchCommentTree,
@@ -16,11 +17,17 @@
     type CommentTree,
     type ServiceSessionInfo,
   } from "@svebcomponents/atproto.client";
+  import {
+    LiveRefreshScheduler,
+    reconcileOptimisticReplies,
+    RefreshCoordinator,
+    type OptimisticReplies,
+  } from "./revalidation.js";
 
   interface Props {
     /** AT URI (at://…) or bsky.app post URL of the discussion root */
     thread?: string;
-    /** preloaded thread (SSR / build-time prefetch) — skips client fetching */
+    /** preloaded thread (SSR / build-time prefetch) — used as the initial snapshot */
     threadData?: CommentTree | undefined;
     /** maximum nested reply depth to render */
     maxDepth?: number;
@@ -35,7 +42,8 @@
      * preloaded threadData are baked at normalization: pass the same viewer
      * to fetchCommentTree when prefetching. */
     viewer?: string;
-    /** hosted OAuth/posting bridge URL — enables in-page sign-in and replies */
+    /** OAuth, posting, and live-event backend. Defaults to the free hosted
+     * service; set one URL here to self-host both auth and live updates. */
     service?: string;
     /** force read-only rendering even when a service is configured */
     readonly?: boolean;
@@ -49,7 +57,7 @@
     labels = "collapse",
     appview = "",
     viewer = "",
-    service = "",
+    service = DEFAULT_SERVICE_URL,
     readonly = false,
   }: Props = $props();
 
@@ -60,9 +68,11 @@
   let revealedLabeled = $state<string[]>([]);
   /** locally posted replies not yet reflected in a refetched thread, keyed
    * by the uri of the post they reply to (the thread root or any comment) */
-  let optimistic = $state<Record<string, CommentNode[]>>({});
+  let optimistic = $state<OptimisticReplies>({});
+  const refreshes = new RefreshCoordinator<CommentTree>();
+  let optimisticThread = "";
 
-  const tree = $derived(threadData ?? fetched);
+  const tree = $derived(fetched ?? threadData);
 
   /** label for outbound links: "Bluesky" for the default viewer, else its hostname */
   const viewerName = $derived.by(() => {
@@ -213,7 +223,11 @@
             likeCount: 0,
             replyCount: 0,
             labels: [],
-            url: viewerPostUrl(posted.uri, session?.handle, viewer || undefined),
+            url: viewerPostUrl(
+              posted.uri,
+              session?.handle,
+              viewer || undefined,
+            ),
             replies: [],
             hasMoreReplies: false,
           },
@@ -226,6 +240,7 @@
         cid: posted.cid,
         parent: parent.uri,
       });
+      liveRefreshes.synchronize(posted.uri);
     } catch (error) {
       postError =
         error instanceof Error ? error.message : "Could not post your reply";
@@ -241,36 +256,167 @@
     $host()?.dispatchEvent(new CustomEvent(type, { detail, bubbles: true }));
   };
 
+  const requestKey = (): string => JSON.stringify([thread, appview, viewer]);
+
+  const refreshThread = (): Promise<CommentTree | undefined> => {
+    if (!BROWSER || !thread) return Promise.resolve(undefined);
+
+    const existing = fetched ?? threadData;
+    const background = existing !== undefined;
+    if (!parseThreadRef(thread)) {
+      const error = new Error(
+        `Not a valid AT URI or bsky.app post URL: ${thread}`,
+      );
+      if (!background) errorMessage = error.message;
+      emit("atproto-comments:error", {
+        message: error.message,
+        background,
+      });
+      return Promise.reject(error);
+    }
+
+    if (!background) loading = true;
+    errorMessage = undefined;
+
+    return refreshes.run(
+      requestKey(),
+      (signal) =>
+        fetchCommentTree(thread, {
+          signal,
+          ...(appview ? { appView: appview } : {}),
+          ...(viewer ? { viewer } : {}),
+        }),
+      {
+        resolved: (result) => {
+          optimistic = reconcileOptimisticReplies(result, optimistic);
+          fetched = result;
+          errorMessage = undefined;
+          emit(
+            background
+              ? "atproto-comments:revalidated"
+              : "atproto-comments:loaded",
+            { tree: result },
+          );
+        },
+        rejected: (error) => {
+          const message =
+            error instanceof Error ? error.message : "Failed to load comments";
+          if (!background) errorMessage = message;
+          emit("atproto-comments:error", { message, background });
+        },
+        settled: () => {
+          if (!background) loading = false;
+        },
+      },
+    );
+  };
+
+  /** Refresh the current public thread directly from the configured AppView. */
+  export function revalidate(): Promise<CommentTree | undefined> {
+    return refreshThread();
+  }
+
+  const liveRefreshes = new LiveRefreshScheduler(revalidate);
+
   $effect(() => {
+    // Capture every input that identifies or configures the public fetch.
+    const currentThread = thread;
+    const snapshot = threadData;
+    void appview;
+    void viewer;
     // reference so the retry button can re-trigger this effect
     void retryToken;
-    if (!BROWSER || threadData || !thread) return;
-    if (!parseThreadRef(thread)) {
-      errorMessage = `Not a valid AT URI or bsky.app post URL: ${thread}`;
-      return;
-    }
-    const controller = new AbortController();
-    loading = true;
+
+    if (!BROWSER) return;
+
+    refreshes.cancel();
+    liveRefreshes.cancel();
+    fetched = undefined;
+    loading = false;
     errorMessage = undefined;
-    fetchCommentTree(thread, {
-      signal: controller.signal,
-      ...(appview ? { appView: appview } : {}),
-      ...(viewer ? { viewer } : {}),
-    })
-      .then((result) => {
-        fetched = result;
-        emit("atproto-comments:loaded", { tree: result });
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        errorMessage =
-          error instanceof Error ? error.message : "Failed to load comments";
-        emit("atproto-comments:error", { message: errorMessage });
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) loading = false;
+
+    if (optimisticThread !== currentThread) {
+      optimisticThread = currentThread;
+      optimistic = {};
+    }
+
+    if (!currentThread) return;
+    // A serialized SSR snapshot renders immediately. The live connection's
+    // `connected` status is the freshness boundary and triggers one sync;
+    // without a snapshot, fetch immediately so the component never waits on
+    // the event service for its initial content.
+    if (snapshot === undefined) {
+      void untrack(refreshThread).catch(() => {
+        // State and the public error event are handled by refreshThread.
       });
-    return () => controller.abort();
+    }
+
+    return () => {
+      refreshes.cancel();
+      liveRefreshes.cancel();
+    };
+  });
+
+  $effect(() => {
+    const currentThread = thread;
+    const currentService = service;
+    if (
+      !BROWSER ||
+      !currentThread ||
+      !currentService ||
+      !parseThreadRef(currentThread)
+    )
+      return;
+
+    let source: EventSource | undefined;
+    const streamClient = new ServiceClient(currentService);
+
+    const close = () => {
+      source?.close();
+      source = undefined;
+    };
+
+    const connect = () => {
+      if (source || document.hidden) return;
+      source = new EventSource(streamClient.commentsStreamUrl(currentThread));
+
+      source.addEventListener("status", (event) => {
+        let upstream: string | undefined;
+        try {
+          upstream = (JSON.parse(event.data) as { upstream?: string }).upstream;
+        } catch {
+          return;
+        }
+        emit("atproto-comments:live-status", { upstream });
+        if (upstream === "connected") liveRefreshes.synchronize();
+      });
+
+      source.addEventListener("comment", (event) => {
+        try {
+          const detail = JSON.parse(event.data) as {
+            uri?: string;
+            thread?: string;
+          };
+          if (!detail.uri) return;
+          emit("atproto-comments:comment", detail);
+          liveRefreshes.synchronize(detail.uri);
+        } catch {
+          // Ignore malformed events; EventSource remains connected.
+        }
+      });
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) close();
+      else connect();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    connect();
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      close();
+    };
   });
 
   const compactNumber = new Intl.NumberFormat(undefined, {

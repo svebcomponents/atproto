@@ -5,10 +5,23 @@ export {
   type AuthClaim,
   type AuthClaimStore,
   type RateLimiter,
+  type SessionMode,
   type ServiceConfig,
   type ServiceSession,
   type ServiceSessionStore,
 } from "./config.js";
+export {
+  COMMENT_SOURCE,
+  CommentStreamCapacityError,
+  createCommentStreamBroker,
+  resolveCommentStreamConfig,
+  type CommentStreamBroker,
+  type CommentStreamConfig,
+  type CommentStreamStats,
+  type ResolvedCommentStreamConfig,
+  type WebSocketFactory,
+  type WebSocketLike,
+} from "./commentStream.js";
 export {
   createAtprotoCommentsService,
   type AtprotoCommentsService,

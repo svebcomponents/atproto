@@ -28,6 +28,7 @@ export class ServiceError extends Error {
 }
 
 const SESSION_STORAGE_PREFIX = "atproto-comments:token:";
+export const DEFAULT_SERVICE_URL = "https://atproto.svebcomponents.dev/atproto";
 
 /**
  * Browser-side client for the hosted OAuth/posting bridge. Holds the
@@ -39,7 +40,10 @@ export class ServiceClient {
   private readonly fetchImpl: typeof globalThis.fetch;
   private readonly serviceUrl: string;
 
-  constructor(serviceUrl: string, fetchImpl?: typeof globalThis.fetch) {
+  constructor(
+    serviceUrl = DEFAULT_SERVICE_URL,
+    fetchImpl?: typeof globalThis.fetch,
+  ) {
     // Wrap (rather than store `globalThis.fetch` directly): the browser's
     // `fetch` throws "Illegal invocation" when called with any receiver other
     // than the global object, and `this.fetchImpl(...)` would set the receiver
@@ -78,11 +82,23 @@ export class ServiceClient {
     return this.#token !== null;
   }
 
+  #headers(extra: Record<string, string> = {}): Record<string, string> {
+    return {
+      ...(this.#token ? { authorization: `Bearer ${this.#token}` } : {}),
+      ...extra,
+    };
+  }
+
+  /** Public SSE URL for newly-created descendants of a thread. */
+  commentsStreamUrl(thread: string): string {
+    return `${this.serviceUrl}/api/comments/stream?thread=${encodeURIComponent(thread)}`;
+  }
+
   /** current session, or null if signed out / token no longer valid */
   async getSession(): Promise<ServiceSessionInfo | null> {
-    if (!this.#token) return null;
     const response = await this.fetchImpl(`${this.serviceUrl}/api/session`, {
-      headers: { authorization: `Bearer ${this.#token}` },
+      credentials: "include",
+      headers: this.#headers(),
     });
     if (response.status === 401) {
       this.#storeToken(null);
@@ -130,7 +146,7 @@ export class ServiceClient {
     const serviceOrigin = new URL(this.serviceUrl).origin;
     return new Promise<ServiceSessionInfo>((resolve, reject) => {
       let settled = false;
-      const finish = (session: ServiceSessionInfo, token: string) => {
+      const finish = (session: ServiceSessionInfo, token?: string) => {
         if (settled) return;
         settled = true;
         cleanup();
@@ -144,7 +160,7 @@ export class ServiceClient {
         } catch {
           // disconnected by COOP — the callback page closes itself
         }
-        this.#storeToken(token);
+        this.#storeToken(token ?? null);
         resolve(session);
       };
       const fail = (error: ServiceError) => {
@@ -177,7 +193,7 @@ export class ServiceClient {
           displayName?: string;
           avatarUrl?: string;
         };
-        if (data?.type !== "atproto-comments:session" || !data.token) return;
+        if (data?.type !== "atproto-comments:session" || !data.did) return;
         finish(toSession(data), data.token);
       };
       globalThis.addEventListener("message", onMessage);
@@ -185,11 +201,11 @@ export class ServiceClient {
       // Mechanism 2: poll the claim endpoint for the session.
       const claimUrl = `${this.serviceUrl}/api/session/claim?nonce=${encodeURIComponent(nonce)}`;
       const pollOnce = () => {
-        void this.fetchImpl(claimUrl)
+        void this.fetchImpl(claimUrl, { credentials: "include" })
           .then(async (response) => {
             if (response.status !== 200) return;
             const claim = (await response.json()) as {
-              token: string;
+              token?: string;
               did: string;
               handle?: string;
               displayName?: string;
@@ -230,14 +246,13 @@ export class ServiceClient {
   }
 
   async signOut(): Promise<void> {
-    if (this.#token) {
-      await this.fetchImpl(`${this.serviceUrl}/api/session/logout`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${this.#token}` },
-      }).catch(() => {
-        // best-effort; clear locally regardless
-      });
-    }
+    await this.fetchImpl(`${this.serviceUrl}/api/session/logout`, {
+      method: "POST",
+      credentials: "include",
+      headers: this.#headers(),
+    }).catch(() => {
+      // best-effort; clear locally regardless
+    });
     this.#storeToken(null);
   }
 
@@ -247,15 +262,12 @@ export class ServiceClient {
     text: string;
     langs?: string[];
   }): Promise<PostedReply> {
-    if (!this.#token) {
-      throw new ServiceError("Not signed in", 401, "NoSession");
-    }
     const response = await this.fetchImpl(`${this.serviceUrl}/api/reply`, {
       method: "POST",
-      headers: {
-        authorization: `Bearer ${this.#token}`,
+      credentials: "include",
+      headers: this.#headers({
         "content-type": "application/json",
-      },
+      }),
       body: JSON.stringify(input),
     });
     if (response.status === 401) {

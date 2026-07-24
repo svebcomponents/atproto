@@ -78,14 +78,32 @@ describe("ServiceClient", () => {
     expect(store.has(TOKEN_KEY)).toBe(false);
   });
 
-  it("returns null without a network call when there is no token", async () => {
-    const fetchImpl = vi.fn();
+  it("checks for a cookie session when there is no bearer token", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 401 }));
     const client = new ServiceClient(
       "/atproto",
       fetchImpl as unknown as typeof fetch,
     );
     expect(await client.getSession()).toBeNull();
-    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://blog.example/atproto/api/session",
+      expect.objectContaining({ credentials: "include", headers: {} }),
+    );
+  });
+
+  it("uses an HttpOnly cookie session without exposing a token", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ did: "did:plc:cookie" }));
+    const client = new ServiceClient(
+      "/atproto",
+      fetchImpl as unknown as typeof fetch,
+    );
+
+    expect(await client.getSession()).toEqual({ did: "did:plc:cookie" });
+    expect(store.has(TOKEN_KEY)).toBe(false);
   });
 
   it("posts a reply with the bearer token and returns the created ref", async () => {
@@ -114,15 +132,19 @@ describe("ServiceClient", () => {
     const [url, init] = fetchImpl.mock.calls[0]!;
     expect(url).toBe("https://blog.example/atproto/api/reply");
     expect((init as RequestInit).method).toBe("POST");
+    expect((init as RequestInit).credentials).toBe("include");
     expect((init as RequestInit).headers).toMatchObject({
       authorization: "Bearer tok",
     });
   });
 
   it("throws when posting without a session", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 401 }));
     const client = new ServiceClient(
       "/atproto",
-      vi.fn() as unknown as typeof fetch,
+      fetchImpl as unknown as typeof fetch,
     );
     await expect(
       client.postReply({
@@ -131,5 +153,8 @@ describe("ServiceClient", () => {
         text: "hi",
       }),
     ).rejects.toBeInstanceOf(ServiceError);
+    expect((fetchImpl.mock.calls[0]![1] as RequestInit).headers).toEqual({
+      "content-type": "application/json",
+    });
   });
 });

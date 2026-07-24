@@ -30,6 +30,7 @@ export {
   viewerTagUrl,
 } from "./urls.js";
 export {
+  DEFAULT_SERVICE_URL,
   ServiceClient,
   ServiceError,
   type PostedReply,

@@ -99,7 +99,7 @@ importers:
         specifier: 'catalog:'
         version: 2.10.3
 
-  apps/web:
+  apps/host:
     dependencies:
       '@svebcomponents/atproto.bridge':
         specifier: workspace:*

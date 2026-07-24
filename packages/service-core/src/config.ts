@@ -2,6 +2,11 @@ import type {
   NodeSavedSessionStore,
   NodeSavedStateStore,
 } from "@atproto/oauth-client-node";
+import {
+  resolveCommentStreamConfig,
+  type CommentStreamConfig,
+  type ResolvedCommentStreamConfig,
+} from "./commentStream.js";
 
 /** one browser sign-in on one site — the unit the bearer token refers to */
 export interface ServiceSession {
@@ -27,6 +32,7 @@ export interface ServiceSessionStore {
 
 /** returns true when the action is allowed, false when rate-limited */
 export type RateLimiter = (key: string) => Promise<boolean> | boolean;
+export type SessionMode = "bearer" | "cookie";
 
 /**
  * A freshly-minted session waiting to be claimed by the tab that started
@@ -36,7 +42,8 @@ export type RateLimiter = (key: string) => Promise<boolean> | boolean;
  * reliably `postMessage` back. The opener polls for the claim instead.
  */
 export interface AuthClaim {
-  token: string;
+  /** Present for cross-origin bearer sessions; omitted for cookie sessions. */
+  token?: string;
   did: string;
   handle?: string;
   displayName?: string;
@@ -53,7 +60,7 @@ export interface AuthClaimStore {
 export interface ServiceConfig {
   /**
    * Public base URL the service is reachable at, e.g.
-   * `https://comments.example.com`. `http://localhost[:port]` /
+   * `https://atproto.example.com`. `http://localhost[:port]` /
    * `http://127.0.0.1[:port]` switches to atproto's loopback client mode for
    * local development (no keys required).
    */
@@ -66,6 +73,13 @@ export interface ServiceConfig {
   sessionSecret: string;
   /** bearer token lifetime in seconds (default: 3600) */
   sessionTtlSeconds?: number;
+  /**
+   * Browser session transport. Bearer tokens work cross-origin; cookie mode
+   * is intended for a same-origin self-hosted backend.
+   */
+  sessionMode?: SessionMode;
+  /** HttpOnly cookie name used by cookie session mode. */
+  sessionCookieName?: string;
   /**
    * OAuth scopes requested from the user's PDS. Default is the narrowest
    * posting grant: `atproto repo:app.bsky.feed.post?action=create`.
@@ -93,6 +107,11 @@ export interface ServiceConfig {
   replyRateLimiter?: RateLimiter;
   /** AppView for unauthenticated profile lookups */
   appView?: string;
+  /**
+   * Live-comment stream limits and Spacedust upstream. The broker opens no
+   * connection until a client requests `/api/comments/stream`.
+   */
+  commentStream?: CommentStreamConfig;
   /** injectable for tests */
   fetch?: typeof globalThis.fetch;
 }
@@ -101,8 +120,11 @@ export interface ResolvedServiceConfig extends ServiceConfig {
   basePath: string;
   clientName: string;
   sessionTtlSeconds: number;
+  sessionMode: SessionMode;
+  sessionCookieName: string;
   scope: string;
   appView: string;
+  commentStream: ResolvedCommentStreamConfig;
   authClaimStore: AuthClaimStore;
   replyRateLimiter: RateLimiter;
   fetch: typeof globalThis.fetch;
@@ -124,6 +146,11 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
   if (config.sessionSecret.length < 32) {
     throw new Error("sessionSecret must be at least 32 characters");
   }
+  const sessionCookieName =
+    config.sessionCookieName ?? "atproto_comments_session";
+  if (!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(sessionCookieName)) {
+    throw new Error("sessionCookieName contains invalid characters");
+  }
   // Key presence is enforced in buildOAuthClient (where they're actually
   // used), not here — so an injected OAuth client can skip them entirely.
   return {
@@ -132,8 +159,11 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     basePath: config.basePath ?? "/atproto",
     clientName: config.clientName ?? "atproto-comments",
     sessionTtlSeconds: config.sessionTtlSeconds ?? 3600,
+    sessionMode: config.sessionMode ?? "bearer",
+    sessionCookieName,
     scope: config.scope ?? "atproto repo:app.bsky.feed.post?action=create",
     appView: config.appView ?? "https://public.api.bsky.app",
+    commentStream: resolveCommentStreamConfig(config.commentStream),
     authClaimStore:
       config.authClaimStore ?? createMemoryAuthClaimStore(120_000),
     replyRateLimiter:

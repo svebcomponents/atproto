@@ -9,12 +9,11 @@ Date: 2026-07-06
 ```html
 <atproto-comments
   thread="at://did:plc:…/app.bsky.feed.post/…"  <!-- or https://bsky.app/profile/…/post/… -->
-  service="https://comments.example.com"        <!-- enables sign-in + posting -->
+  service="/atproto"                             <!-- one override for auth, posting, and SSE -->
   max-depth="4"
   sort="oldest"                                  <!-- oldest | newest | likes -->
   viewer="https://deer.social"                   <!-- outbound-link viewer; defaults to bsky.app -->
   readonly                                       <!-- force read-only even with service -->
-  revalidate                                     <!-- background-refresh preloaded data -->
   appview="https://public.api.bsky.app"          <!-- escape hatch, defaults to public AppView -->
   labels="hide"                                  <!-- hide | collapse | show : labeled-content policy -->
 ></atproto-comments>
@@ -31,21 +30,38 @@ Design notes:
 - Attribute→prop conversion comes free via `@svebcomponents/auto-options`; keep prop types simple (string/number/boolean) at the attribute boundary.
 - `sort` is `oldest | newest | likes`; `oldest` is the bloggy default.
 - `viewer` rewrites outbound post/profile links to any viewer that shares bsky.app's URL scheme (e.g. deer.social); the header stats and permalinks follow it. When passing preloaded `threadData`, bake links with the same viewer at normalization time.
+- `service` defaults to `https://atproto.svebcomponents.dev/atproto`. It is the
+  only backend setting: changing it moves OAuth, posting, and live events
+  together. `service=""` disables those hosted features; `readonly` only
+  disables writing.
+
+### Freshness model
+
+There is no timer or `staleAfter` property. A serialized snapshot renders
+immediately, then the proxied Spacedust stream supplies freshness boundaries:
+
+1. an upstream `connected` status triggers one synchronization fetch;
+2. a `comment` event triggers a coalesced fetch and short AppView-indexing
+   retry keyed by the new post URI;
+3. reconnect and visibility resume repeat the synchronization fetch.
+
+`revalidate()` remains available for applications with their own knowledge of
+external changes. A failed background refresh never replaces visible data.
 
 ### Rendering states (each one designed, not incidental)
 
-| State | Treatment |
-| --- | --- |
-| Loading | Skeleton rows (not spinner) — avoids layout shift, reads "comments are coming" |
-| No thread attr & no discovery | Render nothing + console warn (don't break the page) |
-| Empty thread | "No comments yet." + sign-in CTA ("Sign in with your atmosphere account to join the conversation") |
-| Comment | avatar, display name, handle (link to profile), timestamp (permalink to post), rich text body, like count, reply affordance |
-| Deleted / not-found | Tombstone row: "comment deleted" — children still render (context preservation) |
-| Blocked | Tombstone: "unavailable" — do not leak author info |
-| Labeled (moderation) | Per `labels` policy; default `collapse`: body hidden behind "show anyway" with label name |
-| Depth-capped | "→ continue this thread on Bluesky" permalink |
-| Root stats header | ❤ n likes · 🔁 n reposts · n comments — links to post on bsky.app (this is the "likes via Bluesky" feature; counts come free on `getPostThread`'s root post view) |
-| Error / rate-limited | Quiet inline error + retry button; never blank the whole component after data was shown |
+| State                         | Treatment                                                                                                                                                         |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Loading                       | Skeleton rows (not spinner) — avoids layout shift, reads "comments are coming"                                                                                    |
+| No thread attr & no discovery | Render nothing + console warn (don't break the page)                                                                                                              |
+| Empty thread                  | "No comments yet." + sign-in CTA ("Sign in with your atmosphere account to join the conversation")                                                                |
+| Comment                       | avatar, display name, handle (link to profile), timestamp (permalink to post), rich text body, like count, reply affordance                                       |
+| Deleted / not-found           | Tombstone row: "comment deleted" — children still render (context preservation)                                                                                   |
+| Blocked                       | Tombstone: "unavailable" — do not leak author info                                                                                                                |
+| Labeled (moderation)          | Per `labels` policy; default `collapse`: body hidden behind "show anyway" with label name                                                                         |
+| Depth-capped                  | "→ continue this thread on Bluesky" permalink                                                                                                                     |
+| Root stats header             | ❤ n likes · 🔁 n reposts · n comments — links to post on bsky.app (this is the "likes via Bluesky" feature; counts come free on `getPostThread`'s root post view) |
+| Error / rate-limited          | Quiet inline error + retry button; never blank the whole component after data was shown                                                                           |
 
 ### Rich text
 
@@ -65,9 +81,18 @@ Grapheme counting note: Bluesky counts graphemes, not code units — use `Intl.S
 
 ```js
 el.addEventListener("atproto-comments:loaded", (e) => e.detail.thread);
+el.addEventListener("atproto-comments:revalidated", (e) => e.detail.tree);
+el.addEventListener("atproto-comments:comment", (e) => e.detail.uri);
+el.addEventListener("atproto-comments:live-status", (e) => e.detail.upstream);
 el.addEventListener("atproto-comments:error", (e) => e.detail.error);
-el.addEventListener("atproto-comments:signed-in", (e) => e.detail.session /* did, handle */);
-el.addEventListener("atproto-comments:posted", (e) => e.detail /* { uri, cid } */);
+el.addEventListener(
+  "atproto-comments:signed-in",
+  (e) => e.detail.session /* did, handle */,
+);
+el.addEventListener(
+  "atproto-comments:posted",
+  (e) => e.detail /* { uri, cid } */,
+);
 ```
 
 Custom events, `composed: true`, prefixed to avoid collisions.
@@ -104,7 +129,7 @@ atproto-comments {
 ## `<standard-site-comments>` — auto-discovery wrapper
 
 ```html
-<standard-site-comments service="https://comments.example.com"></standard-site-comments>
+<standard-site-comments></standard-site-comments>
 ```
 
 Behavior:
@@ -115,7 +140,7 @@ Behavior:
 4. Render an internal `<atproto-comments>` with that URI, forwarding all pass-through attributes (`service`, `sort`, `max-depth`, …) and re-dispatching its events.
 5. No `bskyPostRef` on the record → render the empty/CTA state with a "discussion not linked" console warning.
 
-SSR: discovery requires the *host document*, which the component can't see server-side. For SSR'd usage, hosts should pass `document-link` explicitly or preload via `threadData`; document that clearly. Client-only usage gets full magic.
+SSR: discovery requires the _host document_, which the component can't see server-side. For SSR'd usage, hosts should pass `document-link` explicitly or preload via `threadData`; document that clearly. Client-only usage gets full magic.
 
 ## `<standard-site-post>` — deferred (Phase 5)
 

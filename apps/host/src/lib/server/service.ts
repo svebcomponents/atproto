@@ -15,6 +15,8 @@ let cached: AtprotoCommentsService | undefined;
  *   SESSION_SECRET   — HS256 secret for browser session tokens
  *   OAUTH_PRIVATE_KEYS — newline-separated PKCS#8 PEM keys (https deploys only)
  *   SERVICE_DB_PATH  — sqlite file (default ./.data/service.db)
+ *   SESSION_MODE     — bearer (cross-origin hosted default) or cookie
+ *   SPACEDUST_URL    — optional self-hosted Spacedust websocket origin
  *
  * Note: the origin var is deliberately NOT named with a `PUBLIC_` prefix —
  * SvelteKit reserves that prefix for client-exposed vars, so `$env/dynamic/
@@ -47,6 +49,28 @@ export const getService = (): AtprotoCommentsService => {
   cached = createAtprotoCommentsService({
     publicUrl: serviceUrl,
     sessionSecret,
+    sessionMode: env["SESSION_MODE"] === "cookie" ? "cookie" : "bearer",
+    commentStream: {
+      ...(env["SPACEDUST_URL"] ? { spacedustUrl: env["SPACEDUST_URL"] } : {}),
+      ...(env["COMMENT_STREAM_MAX_THREADS"]
+        ? { maxThreads: Number(env["COMMENT_STREAM_MAX_THREADS"]) }
+        : {}),
+      ...(env["COMMENT_STREAM_MAX_SUBSCRIBERS"]
+        ? {
+            maxSubscribers: Number(env["COMMENT_STREAM_MAX_SUBSCRIBERS"]),
+          }
+        : {}),
+      ...(env["COMMENT_STREAM_MAX_SUBSCRIBERS_PER_THREAD"]
+        ? {
+            maxSubscribersPerThread: Number(
+              env["COMMENT_STREAM_MAX_SUBSCRIBERS_PER_THREAD"],
+            ),
+          }
+        : {}),
+      ...(env["COMMENT_STREAM_HEARTBEAT_MS"]
+        ? { heartbeatMs: Number(env["COMMENT_STREAM_HEARTBEAT_MS"]) }
+        : {}),
+    },
     ...(keys ? { keys: keys.split("\n").filter(Boolean) } : {}),
     ...stores,
   });
