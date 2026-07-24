@@ -270,7 +270,7 @@ import "@svebcomponents/atproto.comments";`;
       <div class="demo-toolbar">
         <span><i></i> Live ATProto thread</span>
         <a
-          href="https://bsky.app/profile/bsky.app/post/3mojb23vtt22c"
+          href="https://bsky.app/profile/theosteiner.de/post/3mreni33v7k2c"
           target="_blank"
           rel="noreferrer">Open original ↗</a
         >
