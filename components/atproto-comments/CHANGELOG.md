@@ -1,5 +1,18 @@
 # @svebcomponents/atproto.comments
 
+## 0.2.0
+
+### Minor Changes
+
+- 10bf336: Make the hosted auth and live-update backend the component default. Add a
+  public SSE endpoint backed by one multiplexed Microcosm Spacedust connection,
+  event-driven thread revalidation, and same-origin cookie sessions for
+  self-hosters.
+
+### Patch Changes
+
+- 2426db4: Require `@svebcomponents/ssr` 0.3.1 or newer for SSR consumers. This runtime recognizes component renderers across the bundled and external module instances that Vite can create, allowing SvelteKit apps to use the component without a package-specific `ssr.noExternal` entry.
+
 ## 0.1.2
 
 ### Patch Changes
