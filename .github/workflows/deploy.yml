@@ -19,6 +19,11 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # EXE_DEPLOY_URL/EXE_DEPLOY_TOKEN are environment secrets (Settings ->
+    # Environments -> main), not repo-level secrets — without this the job
+    # gets empty values for both and curl fails with "Malformed input to a
+    # URL function" rather than an auth error.
+    environment: main
     steps:
       - name: checkout
         uses: actions/checkout@v6
