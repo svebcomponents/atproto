@@ -30,6 +30,15 @@ export interface Stores {
 /** pending auth claims live at most this long */
 const CLAIM_TTL_MS = 120_000;
 
+/**
+ * Pending OAuth authorization state (the PKCE verifier + issuer, keyed by the
+ * `state` param) lives at most this long. A user who starts the sign-in flow
+ * and never completes it — closes the tab, backs out — would otherwise leave
+ * this row behind forever; unlike auth_claim and service_session, nothing in
+ * @atproto/oauth-client ever sweeps abandoned state on its own.
+ */
+const STATE_TTL_MS = 10 * 60_000;
+
 export const createSqliteStores = (path: string): Stores => {
   if (path !== ":memory:") {
     mkdirSync(dirname(path), { recursive: true });
@@ -37,11 +46,19 @@ export const createSqliteStores = (path: string): Stores => {
   const db = new DatabaseSync(path);
   db.exec("PRAGMA journal_mode = WAL");
   db.exec(`
-    CREATE TABLE IF NOT EXISTS oauth_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS oauth_state (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS oauth_session (did TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS service_session (sid TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS auth_claim (nonce TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);
   `);
+  // Pre-existing databases created before expires_at existed on oauth_state.
+  try {
+    db.exec(
+      "ALTER TABLE oauth_state ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0",
+    );
+  } catch {
+    // column already present
+  }
 
   const kv = <T>(table: string, keyColumn: string) => {
     const setStmt = db.prepare(
@@ -93,8 +110,35 @@ export const createSqliteStores = (path: string): Stores => {
     },
   };
 
+  const stateSetStmt = db.prepare(
+    `INSERT INTO oauth_state (key, value, expires_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at`,
+  );
+  const stateGetStmt = db.prepare(
+    `SELECT value, expires_at FROM oauth_state WHERE key = ?`,
+  );
+  const stateDelStmt = db.prepare(`DELETE FROM oauth_state WHERE key = ?`);
+  const stateSweepStmt = db.prepare(
+    `DELETE FROM oauth_state WHERE expires_at <= ?`,
+  );
+  const stateStore: NodeSavedStateStore = {
+    async set(key, value) {
+      stateSweepStmt.run(Date.now());
+      stateSetStmt.run(key, JSON.stringify(value), Date.now() + STATE_TTL_MS);
+    },
+    async get(key) {
+      const row = stateGetStmt.get(key) as
+        { value: string; expires_at: number } | undefined;
+      if (!row || row.expires_at <= Date.now()) return undefined;
+      return JSON.parse(row.value) as NodeSavedState;
+    },
+    async del(key) {
+      stateDelStmt.run(key);
+    },
+  };
+
   return {
-    stateStore: kv<NodeSavedState>("oauth_state", "key"),
+    stateStore,
     // oauth-client-node keys sessions by `sub` (the DID)
     sessionStore: kv<NodeSavedSession>("oauth_session", "did"),
     serviceSessionStore: kv<ServiceSession>("service_session", "sid"),
