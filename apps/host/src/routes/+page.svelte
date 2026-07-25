@@ -151,10 +151,10 @@ import "@svebcomponents/atproto.comments";`;
   <section class="hero">
     <div class="hero-copy">
       <div class="eyebrow"><span></span> Open social comments</div>
-      <h1>Your post.<br /><em>Their voices.</em></h1>
+      <h1>Introducing<br /><em>&lt;atproto-comments&gt;</em></h1>
       <p class="lede">
-        Any ATProto thread, as a native comment section — no database, no
-        lock-in. The thread below is real, not a screenshot.
+        Comments for your site, straight from the AT Protocol — no database, no
+        lock-in. Reply to this post and watch it show up live below.
       </p>
       <div class="hero-actions">
         <a class="button primary" href="#start">Add to your site</a>
@@ -792,6 +792,10 @@ import "@svebcomponents/atproto.comments";`;
     color: #202025;
   }
 
+  .hero-demo-panel :global(atproto-comments) {
+    max-height: 320px;
+  }
+
   .hero-demo-panel .demo-unavailable {
     margin: 0;
     padding: clamp(1.4rem, 4vw, 2.5rem);
@@ -801,8 +805,10 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .hero-demo-code {
+    max-height: 320px;
     padding: clamp(1.2rem, 3.5vw, 2rem);
     border-top: 1px solid #34343a;
+    overflow-y: auto;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
