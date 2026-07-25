@@ -11,10 +11,12 @@ export interface ServiceSessionInfo {
   avatarUrl?: string;
 }
 
-export interface PostedReply {
+export interface CreatedRecord {
   uri: string;
   cid: string;
 }
+
+export type PostedReply = CreatedRecord;
 
 export class ServiceError extends Error {
   constructor(
@@ -262,13 +264,57 @@ export class ServiceClient {
     text: string;
     langs?: string[];
   }): Promise<PostedReply> {
-    const response = await this.fetchImpl(`${this.serviceUrl}/api/reply`, {
+    const response = await this.#authedRequest("/api/reply", {
       method: "POST",
-      credentials: "include",
-      headers: this.#headers({
-        "content-type": "application/json",
-      }),
+      headers: { "content-type": "application/json" },
       body: JSON.stringify(input),
+    });
+    return (await response.json()) as PostedReply;
+  }
+
+  /** creates an `app.bsky.feed.like` record; returns its own uri/cid for unliking later */
+  async like(subject: PostRef): Promise<CreatedRecord> {
+    const response = await this.#authedRequest("/api/like", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(subject),
+    });
+    return (await response.json()) as CreatedRecord;
+  }
+
+  /** deletes a previously-created like record by its own at:// uri */
+  async unlike(likeUri: string): Promise<void> {
+    await this.#authedRequest(`/api/like?uri=${encodeURIComponent(likeUri)}`, {
+      method: "DELETE",
+    });
+  }
+
+  /** creates an `app.bsky.feed.repost` record; returns its own uri/cid for undoing later */
+  async repost(subject: PostRef): Promise<CreatedRecord> {
+    const response = await this.#authedRequest("/api/repost", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(subject),
+    });
+    return (await response.json()) as CreatedRecord;
+  }
+
+  /** deletes a previously-created repost record by its own at:// uri */
+  async unrepost(repostUri: string): Promise<void> {
+    await this.#authedRequest(
+      `/api/repost?uri=${encodeURIComponent(repostUri)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async #authedRequest(
+    path: string,
+    init: { method: string; headers?: Record<string, string>; body?: string },
+  ): Promise<Response> {
+    const response = await this.fetchImpl(`${this.serviceUrl}${path}`, {
+      ...init,
+      credentials: "include",
+      headers: this.#headers(init.headers),
     });
     if (response.status === 401) {
       this.#storeToken(null);
@@ -281,7 +327,7 @@ export class ServiceClient {
     if (!response.ok) {
       throw await toServiceError(response);
     }
-    return (await response.json()) as PostedReply;
+    return response;
   }
 }
 

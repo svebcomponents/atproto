@@ -157,4 +157,107 @@ describe("ServiceClient", () => {
       "content-type": "application/json",
     });
   });
+
+  it("likes a post and returns the created like ref", async () => {
+    store.set(TOKEN_KEY, "tok");
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ uri: "at://did/app.bsky.feed.like/x", cid: "bafy" }),
+      );
+    const client = new ServiceClient(
+      "/atproto",
+      fetchImpl as unknown as typeof fetch,
+    );
+
+    const result = await client.like({
+      uri: "at://did/app.bsky.feed.post/root",
+      cid: "bafyroot",
+    });
+
+    expect(result).toEqual({
+      uri: "at://did/app.bsky.feed.like/x",
+      cid: "bafy",
+    });
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe("https://blog.example/atproto/api/like");
+    expect((init as RequestInit).method).toBe("POST");
+    expect((init as RequestInit).credentials).toBe("include");
+    expect((init as RequestInit).headers).toMatchObject({
+      authorization: "Bearer tok",
+    });
+  });
+
+  it("unlikes by deleting the like record's uri", async () => {
+    store.set(TOKEN_KEY, "tok");
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null));
+    const client = new ServiceClient(
+      "/atproto",
+      fetchImpl as unknown as typeof fetch,
+    );
+
+    await client.unlike("at://did/app.bsky.feed.like/x");
+
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe(
+      "https://blog.example/atproto/api/like?uri=at%3A%2F%2Fdid%2Fapp.bsky.feed.like%2Fx",
+    );
+    expect((init as RequestInit).method).toBe("DELETE");
+  });
+
+  it("reposts a post and returns the created repost ref", async () => {
+    store.set(TOKEN_KEY, "tok");
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ uri: "at://did/app.bsky.feed.repost/x", cid: "bafy" }),
+      );
+    const client = new ServiceClient(
+      "/atproto",
+      fetchImpl as unknown as typeof fetch,
+    );
+
+    const result = await client.repost({
+      uri: "at://did/app.bsky.feed.post/root",
+      cid: "bafyroot",
+    });
+
+    expect(result).toEqual({
+      uri: "at://did/app.bsky.feed.repost/x",
+      cid: "bafy",
+    });
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe("https://blog.example/atproto/api/repost");
+    expect((init as RequestInit).method).toBe("POST");
+  });
+
+  it("unreposts by deleting the repost record's uri", async () => {
+    store.set(TOKEN_KEY, "tok");
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null));
+    const client = new ServiceClient(
+      "/atproto",
+      fetchImpl as unknown as typeof fetch,
+    );
+
+    await client.unrepost("at://did/app.bsky.feed.repost/x");
+
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe(
+      "https://blog.example/atproto/api/repost?uri=at%3A%2F%2Fdid%2Fapp.bsky.feed.repost%2Fx",
+    );
+    expect((init as RequestInit).method).toBe("DELETE");
+  });
+
+  it("throws when liking without a session", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 401 }));
+    const client = new ServiceClient(
+      "/atproto",
+      fetchImpl as unknown as typeof fetch,
+    );
+    await expect(
+      client.like({ uri: "at://x/app.bsky.feed.post/r", cid: "c" }),
+    ).rejects.toBeInstanceOf(ServiceError);
+  });
 });

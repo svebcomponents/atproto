@@ -30,6 +30,7 @@ export const signInPage = ({
   actionUrl,
   origin,
   claim,
+  returnTo,
   error,
 }: {
   clientName: string;
@@ -37,6 +38,8 @@ export const signInPage = ({
   origin: string;
   /** claim nonce the opener polls with — must survive the form submission */
   claim?: string;
+  /** no-JS redirect flow: page to bounce back to after sign-in — must survive the form submission */
+  returnTo?: string;
   error?: string;
 }): string =>
   page(
@@ -47,6 +50,7 @@ ${error ? `<p class="hint" style="color:#c00">${escapeHtml(error)}</p>` : ""}
 <form method="get" action="${escapeHtml(actionUrl)}">
   <input type="hidden" name="origin" value="${escapeHtml(origin)}" />
   ${claim ? `<input type="hidden" name="claim" value="${escapeHtml(claim)}" />` : ""}
+  ${returnTo ? `<input type="hidden" name="return" value="${escapeHtml(returnTo)}" />` : ""}
   <label for="handle">Your handle</label>
   <input id="handle" name="handle" placeholder="you.bsky.social" autocomplete="username" required autofocus />
   <button type="submit">Continue</button>
@@ -104,4 +108,11 @@ export const errorPage = (message: string): string =>
   page(
     "Something went wrong",
     `<h1>Something went wrong</h1><p class="hint">${escapeHtml(message)}</p>`,
+  );
+
+/** shown after a no-JS form submission succeeds with no return url to bounce back to */
+export const successPage = (): string =>
+  page(
+    "Done",
+    `<h1>✓ Done</h1><p class="hint">You can close this tab and return to the page you were on.</p>`,
   );

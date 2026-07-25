@@ -1,8 +1,9 @@
 # @svebcomponents/atproto.bridge
 
 The framework-neutral backend for `@svebcomponents/atproto.comments`. It
-handles narrowly scoped ATProto OAuth, posts replies through the reader's PDS,
-and proxies live reply signals from Microcosm Spacedust to browser SSE clients.
+handles narrowly scoped ATProto OAuth, posts replies and toggles likes/reposts
+through the reader's PDS, and proxies live reply signals from Microcosm
+Spacedust to browser SSE clients.
 It never stores comment bodies.
 
 Handlers use the standard Fetch API, so they can be mounted in SvelteKit,

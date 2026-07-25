@@ -52,6 +52,14 @@
      * standalone (e.g. a landing page demo), redundant when the host page
      * already displays that post's content itself */
     showRoot?: boolean;
+    /** the embedding page's own canonical URL (e.g. `$page.url.href`).
+     * Reply/like/repost forms already work without JavaScript via a same-
+     * origin, cookie-mode service — but completing sign-in without JS also
+     * needs a page to redirect back to once it's done, and there's no way to
+     * discover that from inside the component. Omit it and everything still
+     * works with JS; a no-JS visitor's sign-in link just can't be rendered
+     * (falls back to needing JS for that one step). */
+    pageUrl?: string;
   }
 
   let {
@@ -65,6 +73,7 @@
     service = DEFAULT_SERVICE_URL,
     readonly = false,
     showRoot = false,
+    pageUrl = "",
   }: Props = $props();
 
   let fetched = $state<CommentTree | undefined>(undefined);
@@ -89,6 +98,17 @@
       return "Bluesky";
     }
   });
+
+  /** origin of `pageUrl`, for the no-JS sign-in link — empty when `pageUrl`
+   * is unset or malformed, in which case that link falls back to needing JS */
+  const pageOrigin = $derived.by(() => {
+    if (!pageUrl) return "";
+    try {
+      return new URL(pageUrl).origin;
+    } catch {
+      return "";
+    }
+  });
   // Reuses commentBody's rendering: same avatar/author/rich-text/likes
   // treatment as any reply, so the root reads as part of the same
   // conversation rather than a bespoke header. Not subject to the labels
@@ -106,6 +126,8 @@
           createdAt: tree.root.createdAt,
           likeCount: tree.root.likeCount,
           replyCount: tree.root.replyCount,
+          repostCount: tree.root.repostCount,
+          quoteCount: tree.root.quoteCount,
           labels: [],
           url: tree.root.url,
           replies: [],
@@ -137,7 +159,16 @@
   const writable = $derived(Boolean(service) && !readonly);
   let client = $state<ServiceClient | undefined>(undefined);
   let session = $state<ServiceSessionInfo | null>(null);
-  /** the post the composer dialog is replying to; undefined = dialog closed */
+  /** the viewer's own like/repost record uri for posts touched this session,
+   * keyed by post uri. The public read API never reports pre-existing viewer
+   * state, so before any click these are empty and hearts render unfilled. */
+  let liked = $state<Record<string, string>>({});
+  let reposted = $state<Record<string, string>>({});
+  /** the post the composer dialog is replying to; undefined = every dialog closed.
+   * Each comment (and the root) gets its own <dialog> — see composerDialog —
+   * so this just tracks which one currently "owns" the shared draft/posting/
+   * postError state for the JS-enhanced experience. Every dialog's <form> is
+   * independently fully functional without JS regardless of this. */
   interface ReplyTarget {
     uri: string;
     cid: string;
@@ -145,26 +176,44 @@
     handle?: string;
   }
   let replyTarget = $state<ReplyTarget | undefined>(undefined);
-  let dialogElement = $state<HTMLDialogElement | undefined>(undefined);
   let draft = $state("");
   let posting = $state(false);
   let postError = $state<string | undefined>(undefined);
 
+  /** a stable, HTML-id-safe identifier for a post's composer dialog */
+  const dialogId = (uri: string): string =>
+    `composer-${uri.replace(/[^a-zA-Z0-9]+/g, "-")}`;
+
+  const getDialog = (uri: string): HTMLDialogElement | null => {
+    const el = $host()?.shadowRoot?.getElementById(dialogId(uri));
+    return el instanceof HTMLDialogElement ? el : null;
+  };
+
   const openComposer = (target: ReplyTarget) => {
+    // only one composer open at a time in the JS-enhanced experience
+    if (replyTarget && replyTarget.uri !== target.uri) {
+      getDialog(replyTarget.uri)?.close();
+    }
     postError = undefined;
     replyTarget = target;
-    dialogElement?.showModal();
+    const dialog = getDialog(target.uri);
+    if (dialog && !dialog.open) dialog.showModal();
   };
 
   // state is cleared via the dialog's `close` event so Esc stays in sync
-  const closeComposer = () => dialogElement?.close();
+  const closeComposer = () => {
+    if (replyTarget) getDialog(replyTarget.uri)?.close();
+  };
 
   // the dialog's content renders a tick after showModal(), so the autofocus
   // attribute can't take effect — focus the textarea once it exists (also
   // covers the composer appearing after an in-dialog sign-in)
   $effect(() => {
     if (!replyTarget || !session) return;
-    void tick().then(() => dialogElement?.querySelector("textarea")?.focus());
+    const target = replyTarget;
+    void tick().then(() => {
+      getDialog(target.uri)?.querySelector("textarea")?.focus();
+    });
   });
 
   const rootTarget = (): ReplyTarget | undefined =>
@@ -185,21 +234,33 @@
       });
   });
 
-  const signIn = async () => {
-    if (!client) return;
-    postError = undefined;
+  /** signs in if needed, without any of signIn()'s composer side effects —
+   * shared by the like/repost buttons, which just need a session to act. */
+  const ensureSignedIn = async (): Promise<ServiceSessionInfo | null> => {
+    if (session) return session;
+    if (!client) return null;
     try {
       session = await client.signIn();
-      // opened from the header (no target yet): compose a top-level reply.
-      // opened from a comment's Reply button: keep that comment as target.
-      if (!replyTarget) {
-        const target = rootTarget();
-        if (target) openComposer(target);
-      }
       emit("atproto-comments:signed-in", { session });
+      return session;
     } catch (error) {
-      if (error instanceof ServiceError && error.code === "Cancelled") return;
-      postError = error instanceof Error ? error.message : "Sign-in failed";
+      if (!(error instanceof ServiceError && error.code === "Cancelled")) {
+        emit("atproto-comments:error", {
+          message: error instanceof Error ? error.message : "Sign-in failed",
+        });
+      }
+      return null;
+    }
+  };
+
+  const signIn = async () => {
+    postError = undefined;
+    if (!(await ensureSignedIn())) return;
+    // opened from the header (no target yet): compose a top-level reply.
+    // opened from a comment's Reply button: keep that comment as target.
+    if (!replyTarget) {
+      const target = rootTarget();
+      if (target) openComposer(target);
     }
   };
 
@@ -207,6 +268,63 @@
     await client?.signOut();
     session = null;
     closeComposer();
+  };
+
+  const toggleLike = async (node: { uri: string; cid: string }) => {
+    if (!(await ensureSignedIn())) return;
+    const svc = client;
+    if (!svc) return;
+    const existing = liked[node.uri];
+    if (existing) {
+      const { [node.uri]: _removed, ...rest } = liked;
+      liked = rest;
+      try {
+        await svc.unlike(existing);
+      } catch (error) {
+        liked = { ...liked, [node.uri]: existing };
+        emit("atproto-comments:error", {
+          message: error instanceof Error ? error.message : "Could not unlike",
+        });
+      }
+    } else {
+      try {
+        const created = await svc.like({ uri: node.uri, cid: node.cid });
+        liked = { ...liked, [node.uri]: created.uri };
+      } catch (error) {
+        emit("atproto-comments:error", {
+          message: error instanceof Error ? error.message : "Could not like",
+        });
+      }
+    }
+  };
+
+  const toggleRepost = async (node: { uri: string; cid: string }) => {
+    if (!(await ensureSignedIn())) return;
+    const svc = client;
+    if (!svc) return;
+    const existing = reposted[node.uri];
+    if (existing) {
+      const { [node.uri]: _removed, ...rest } = reposted;
+      reposted = rest;
+      try {
+        await svc.unrepost(existing);
+      } catch (error) {
+        reposted = { ...reposted, [node.uri]: existing };
+        emit("atproto-comments:error", {
+          message:
+            error instanceof Error ? error.message : "Could not undo repost",
+        });
+      }
+    } else {
+      try {
+        const created = await svc.repost({ uri: node.uri, cid: node.cid });
+        reposted = { ...reposted, [node.uri]: created.uri };
+      } catch (error) {
+        emit("atproto-comments:error", {
+          message: error instanceof Error ? error.message : "Could not repost",
+        });
+      }
+    }
   };
 
   const submitReply = async () => {
@@ -252,6 +370,8 @@
             createdAt: new Date().toISOString(),
             likeCount: 0,
             replyCount: 0,
+            repostCount: 0,
+            quoteCount: 0,
             labels: [],
             url: viewerPostUrl(
               posted.uri,
@@ -368,6 +488,8 @@
     if (optimisticThread !== currentThread) {
       optimisticThread = currentThread;
       optimistic = {};
+      liked = {};
+      reposted = {};
     }
 
     if (!currentThread) return;
@@ -496,7 +618,204 @@
     node.kind === "comment" && node.labels.length > 0 && labels === "hide";
 </script>
 
-{#snippet commentBody(node: Extract<CommentNode, { kind: "comment" }>)}
+{#snippet reactionButtons(node: {
+  uri: string;
+  cid: string;
+  likeCount: number;
+  repostCount: number;
+  quoteCount: number;
+})}
+  {#if writable}
+    <form class="reaction-form" method="post" action="{service}/api/like">
+      <input type="hidden" name="uri" value={node.uri} />
+      <input type="hidden" name="cid" value={node.cid} />
+      {#if pageUrl}<input type="hidden" name="return" value={pageUrl} />{/if}
+      <button
+        type="submit"
+        class="reaction-button"
+        class:active={Boolean(liked[node.uri])}
+        part="like-button"
+        aria-pressed={Boolean(liked[node.uri])}
+        aria-label={liked[node.uri] ? "Unlike" : "Like"}
+        onclick={(e) => {
+          e.preventDefault();
+          void toggleLike(node);
+        }}
+        >{liked[node.uri] ? "♥" : "♡"}
+        {compactNumber.format(
+          node.likeCount + (liked[node.uri] ? 1 : 0),
+        )}</button
+      >
+    </form>
+    ·
+    <form class="reaction-form" method="post" action="{service}/api/repost">
+      <input type="hidden" name="uri" value={node.uri} />
+      <input type="hidden" name="cid" value={node.cid} />
+      {#if pageUrl}<input type="hidden" name="return" value={pageUrl} />{/if}
+      <button
+        type="submit"
+        class="reaction-button"
+        class:active={Boolean(reposted[node.uri])}
+        part="repost-button"
+        aria-pressed={Boolean(reposted[node.uri])}
+        aria-label={reposted[node.uri] ? "Undo repost" : "Repost"}
+        onclick={(e) => {
+          e.preventDefault();
+          void toggleRepost(node);
+        }}
+        >↻ {compactNumber.format(
+          node.repostCount + node.quoteCount + (reposted[node.uri] ? 1 : 0),
+        )}</button
+      >
+    </form>
+  {:else}
+    <span class="likes">♡ {compactNumber.format(node.likeCount)}</span>
+    ·
+    <span class="reposts"
+      >↻ {compactNumber.format(node.repostCount + node.quoteCount)}</span
+    >
+  {/if}
+{/snippet}
+
+{#snippet signInLink(label: string)}
+  {#if pageUrl && pageOrigin}
+    <a
+      class="signin-button"
+      part="reply-button"
+      href="{service}/oauth/start?origin={encodeURIComponent(
+        pageOrigin,
+      )}&return={encodeURIComponent(pageUrl)}"
+      onclick={(e) => {
+        e.preventDefault();
+        void signIn();
+      }}
+    >
+      {label}
+    </a>
+  {:else}
+    <button
+      type="button"
+      class="signin-button"
+      part="reply-button"
+      onclick={signIn}
+    >
+      {label}
+    </button>
+  {/if}
+{/snippet}
+
+{#snippet composerDialog(target: { uri: string; cid: string; handle?: string })}
+  {@const id = dialogId(target.uri)}
+  {@const isActive = replyTarget?.uri === target.uri}
+  <dialog
+    {id}
+    class="composer-dialog"
+    part="dialog"
+    onclose={() => {
+      if (replyTarget?.uri === target.uri) replyTarget = undefined;
+    }}
+  >
+    {#if session}
+      <form
+        class="composer"
+        part="composer"
+        method="post"
+        action="{service}/api/reply"
+        onsubmit={(e) => {
+          e.preventDefault();
+          replyTarget = target;
+          void submitReply();
+        }}
+      >
+        <input type="hidden" name="rootUri" value={tree?.root.uri ?? ""} />
+        <input type="hidden" name="rootCid" value={tree?.root.cid ?? ""} />
+        <input type="hidden" name="parentUri" value={target.uri} />
+        <input type="hidden" name="parentCid" value={target.cid} />
+        {#if pageUrl}<input type="hidden" name="return" value={pageUrl} />{/if}
+        <p class="composer-context">
+          {#if target.handle}
+            Replying to <strong>@{target.handle}</strong>
+          {:else}
+            Replying to the post
+          {/if}
+        </p>
+        <textarea
+          name="text"
+          part="composer-input"
+          rows="3"
+          placeholder="Write a reply…"
+          maxlength={MAX_GRAPHEMES * 4}
+          value={isActive ? draft : ""}
+          oninput={(e) => {
+            replyTarget = target;
+            draft = e.currentTarget.value;
+          }}
+          disabled={isActive && posting}
+        ></textarea>
+        <p class="composer-notice">
+          Posting publicly as <strong>@{session.handle ?? "you"}</strong> from your
+          atmosphere account.
+        </p>
+        {#if isActive && postError}
+          <p class="composer-error" part="error">{postError}</p>
+        {/if}
+        <div class="composer-actions">
+          {#if isActive}
+            <span class="counter" class:over={remaining < 0}>{remaining}</span>
+          {/if}
+          <button
+            type="button"
+            class="link-button muted"
+            command="close"
+            commandfor={id}
+            onclick={closeComposer}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="post-button"
+            disabled={isActive &&
+              (posting || draft.trim().length === 0 || remaining < 0)}
+          >
+            {isActive && posting ? "Posting…" : "Post reply"}
+          </button>
+        </div>
+      </form>
+    {:else}
+      <div class="composer signin-prompt" part="composer">
+        <p class="composer-notice">
+          {#if target.handle}
+            Sign in with your atmosphere account to reply to
+            <strong>@{target.handle}</strong>.
+          {:else}
+            Sign in with your atmosphere account to join the conversation.
+          {/if}
+        </p>
+        {#if isActive && postError}
+          <p class="composer-error" part="error">{postError}</p>
+        {/if}
+        <div class="composer-actions">
+          <button
+            type="button"
+            class="link-button muted"
+            command="close"
+            commandfor={id}
+            onclick={closeComposer}
+          >
+            Cancel
+          </button>
+          {@render signInLink("Sign in")}
+        </div>
+      </div>
+    {/if}
+  </dialog>
+{/snippet}
+
+{#snippet commentBody(
+  node: Extract<CommentNode, { kind: "comment" }>,
+  showActions: boolean = true,
+)}
   <div class="comment-main">
     {#if node.author.avatarUrl}
       <img
@@ -544,32 +863,43 @@
             >{/if}
         {/each}
       </p>
-      <p class="actions" part="actions">
-        {#if node.likeCount > 0}
-          <span class="likes">♡ {compactNumber.format(node.likeCount)}</span>
-        {/if}
-        {#if writable}
-          <button
-            type="button"
-            class="reply-link link-button"
-            part="reply-button"
-            onclick={() =>
-              openComposer({
-                uri: node.uri,
-                cid: node.cid,
-                handle: node.author.handle,
-              })}>Reply</button
-          >
-        {:else}
-          <a
-            class="reply-link"
-            part="reply-button"
-            href={node.url}
-            target="_blank"
-            rel="noopener noreferrer">Reply</a
-          >
-        {/if}
-      </p>
+      {#if showActions}
+        <div class="actions" part="actions">
+          {@render reactionButtons(node)}
+          ·
+          {#if writable}
+            <button
+              type="button"
+              class="reply-link link-button"
+              part="reply-button"
+              aria-label="Reply"
+              command="show-modal"
+              commandfor={dialogId(node.uri)}
+              onclick={() =>
+                openComposer({
+                  uri: node.uri,
+                  cid: node.cid,
+                  handle: node.author.handle,
+                })}>↩ {compactNumber.format(node.replyCount)}</button
+            >
+            {@render composerDialog({
+              uri: node.uri,
+              cid: node.cid,
+              handle: node.author.handle,
+            })}
+          {:else}
+            <a
+              class="reply-link"
+              part="reply-button"
+              aria-label="Reply"
+              href={node.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              >↩ {compactNumber.format(node.replyCount)}</a
+            >
+          {/if}
+        </div>
+      {/if}
     </div>
   </div>
 {/snippet}
@@ -625,43 +955,47 @@
   {#if tree}
     {#if showRoot && rootAsComment}
       <div class="root-post" part="root-post">
-        {@render commentBody(rootAsComment)}
+        {@render commentBody(rootAsComment, false)}
       </div>
     {/if}
     <header class="header" part="header">
       <span class="stats">
-        ♡ {compactNumber.format(tree.root.likeCount)}
-        · 🔁 {compactNumber.format(
-          tree.root.repostCount + tree.root.quoteCount,
-        )}
-        · 💬 {compactNumber.format(tree.root.replyCount)}
-      </span>
-      {#if writable && session}
-        <span class="signed-in" part="signed-in">
+        {@render reactionButtons(tree.root)}
+        ·
+        {#if writable}
           <button
             type="button"
-            class="link-button"
+            class="reply-link link-button"
+            part="reply-button"
+            aria-label="Reply"
+            command="show-modal"
+            commandfor={dialogId(tree.root.uri)}
             onclick={() => {
               const target = rootTarget();
               if (target) openComposer(target);
-            }}
+            }}>↩ {compactNumber.format(tree.root.replyCount)}</button
           >
-            Reply
-          </button>
+        {:else}
+          <a
+            class="reply-link"
+            part="reply-button"
+            aria-label="Reply"
+            href={tree.root.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            >↩ {compactNumber.format(tree.root.replyCount)}</a
+          >
+        {/if}
+      </span>
+      {#if writable && session}
+        <span class="signed-in" part="signed-in">
           <span class="as-handle">@{session.handle ?? "you"}</span>
           <button type="button" class="link-button muted" onclick={signOut}>
             Sign out
           </button>
         </span>
       {:else if writable}
-        <button
-          type="button"
-          class="signin-button"
-          part="reply-button"
-          onclick={signIn}
-        >
-          Sign in to comment
-        </button>
+        {@render signInLink("Sign in to comment")}
       {:else}
         <a
           class="reply-cta"
@@ -672,6 +1006,9 @@
         >
       {/if}
     </header>
+    {#if writable}
+      {@render composerDialog({ uri: tree.root.uri, cid: tree.root.cid })}
+    {/if}
     {#if comments.length === 0}
       <p class="empty" part="empty">
         No comments yet.
@@ -686,93 +1023,6 @@
         {/each}
       </ul>
     {/if}
-    <!-- one composer for every reply target (thread root or any comment):
-         a modal dialog gives focus trapping, Esc, and a backdrop for free -->
-    <dialog
-      class="composer-dialog"
-      part="dialog"
-      bind:this={dialogElement}
-      onclose={() => (replyTarget = undefined)}
-    >
-      {#if replyTarget}
-        {#if session}
-          <form
-            class="composer"
-            part="composer"
-            onsubmit={(e) => {
-              e.preventDefault();
-              void submitReply();
-            }}
-          >
-            <p class="composer-context">
-              {#if replyTarget.handle}
-                Replying to <strong>@{replyTarget.handle}</strong>
-              {:else}
-                Replying to the post
-              {/if}
-            </p>
-            <textarea
-              part="composer-input"
-              bind:value={draft}
-              rows="3"
-              placeholder="Write a reply…"
-              disabled={posting}
-            ></textarea>
-            <p class="composer-notice">
-              Posting publicly as <strong>@{session.handle ?? "you"}</strong> from
-              your atmosphere account.
-            </p>
-            {#if postError}
-              <p class="composer-error" part="error">{postError}</p>
-            {/if}
-            <div class="composer-actions">
-              <span class="counter" class:over={remaining < 0}>{remaining}</span
-              >
-              <button
-                type="button"
-                class="link-button muted"
-                onclick={closeComposer}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                class="post-button"
-                disabled={posting || draft.trim().length === 0 || remaining < 0}
-              >
-                {posting ? "Posting…" : "Post reply"}
-              </button>
-            </div>
-          </form>
-        {:else}
-          <div class="composer signin-prompt" part="composer">
-            <p class="composer-notice">
-              {#if replyTarget.handle}
-                Sign in with your atmosphere account to reply to
-                <strong>@{replyTarget.handle}</strong>.
-              {:else}
-                Sign in with your atmosphere account to join the conversation.
-              {/if}
-            </p>
-            {#if postError}
-              <p class="composer-error" part="error">{postError}</p>
-            {/if}
-            <div class="composer-actions">
-              <button
-                type="button"
-                class="link-button muted"
-                onclick={closeComposer}
-              >
-                Cancel
-              </button>
-              <button type="button" class="signin-button" onclick={signIn}>
-                Sign in
-              </button>
-            </div>
-          </div>
-        {/if}
-      {/if}
-    </dialog>
   {:else if errorMessage}
     <p class="error" part="error">
       Could not load comments: {errorMessage}
@@ -817,6 +1067,11 @@
       var(--atproto-comments-border, light-dark(#e0e0e0, #333));
   }
   .stats {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875em;
+    line-height: 1;
     color: var(--atproto-comments-muted, light-dark(#666, #999));
   }
   .signed-in {
@@ -936,9 +1191,7 @@
     margin-block: 1rem;
   }
   .root-post {
-    padding-block: 1rem;
-    border-bottom: 1px solid
-      var(--atproto-comments-border, light-dark(#e0e0e0, #333));
+    padding-block-start: 1rem;
   }
   .comment-main {
     display: flex;
@@ -983,7 +1236,8 @@
   }
   .handle,
   .timestamp,
-  .likes {
+  .likes,
+  .reposts {
     color: var(--atproto-comments-muted, light-dark(#666, #999));
     font-size: 0.875em;
   }
@@ -993,9 +1247,32 @@
   }
   .actions {
     display: flex;
-    gap: 0.75rem;
+    align-items: center;
+    gap: 0.5rem;
     font-size: 0.875em;
+    line-height: 1;
     margin-block-start: 0.25rem;
+  }
+  .reply-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .reaction-form {
+    /* the form itself must not generate a box — its button participates
+       directly in the surrounding flex row (.stats / .actions) */
+    display: contents;
+  }
+  .reaction-button {
+    font: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--atproto-comments-muted, light-dark(#666, #999));
+  }
+  .reaction-button.active {
+    color: var(--atproto-comments-accent, #2864ff);
   }
   .tombstone {
     color: var(--atproto-comments-muted, light-dark(#666, #999));

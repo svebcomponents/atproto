@@ -25,12 +25,14 @@ It ships in two forms: **our hosted instance** (the convenience product) and **s
 ```
 atproto
 repo:app.bsky.feed.post?action=create
+repo:app.bsky.feed.like?action=create&action=delete
+repo:app.bsky.feed.repost?action=create&action=delete
 rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview
 ```
 
 - Create-only on `app.bsky.feed.post`: we can post replies but not update/delete the user's posts. The consent screen reflects exactly that — a trust win over `transition:generic`-era full access.
 - `getProfile` for handle/avatar in the signed-in chrome. (Alternative: read profile from the public AppView unauthenticated — then even this scope can be dropped. Try that first; keep the scope only if we need auth'd reads.)
-- Later, liking from the page adds `repo:app.bsky.feed.like?action=create`. Adding a scope later forces re-consent — acceptable.
+- Likes/reposts need both `create` and `delete` (unlike/undo-repost is a delete of the viewer's own record) — the multi-value `action` param is repeated, per the permission spec's array syntax (`?action=create&action=delete`), not comma-joined. Adding these scopes forced re-consent for existing sessions — acceptable, as anticipated.
 - Watch **permission sets**: when a suitable set covering "post + basic profile" exists, prefer it for a friendlier consent screen.
 
 ## The embedded-auth problem (the crux)
