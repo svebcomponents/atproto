@@ -176,8 +176,7 @@ import "@svebcomponents/atproto.comments";`;
 &lt;<span class="code-pink">script</span> <span class="code-blue">type</span
           >=<span class="code-green">"module"</span>
   <span class="code-blue">src</span>=<span class="code-green"
-            >"https://atproto.svebcomponents.dev/<wbr
-            />cdn"</span
+            >"https://atproto.svebcomponents.dev/<wbr />cdn"</span
           >&gt;
 &lt;/<span class="code-pink">script</span>&gt;
 
