@@ -80,10 +80,6 @@ export class ServiceClient {
     }
   }
 
-  get hasToken(): boolean {
-    return this.#token !== null;
-  }
-
   #headers(extra: Record<string, string> = {}): Record<string, string> {
     return {
       ...(this.#token ? { authorization: `Bearer ${this.#token}` } : {}),

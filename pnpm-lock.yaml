@@ -13,8 +13,8 @@ catalogs:
       specifier: 9.39.4
       version: 9.39.4
     '@svebcomponents/build':
-      specifier: 0.3.1
-      version: 0.3.1
+      specifier: 0.3.4
+      version: 0.3.4
     '@svebcomponents/ssr':
       specifier: 0.3.1
       version: 0.3.1
@@ -168,7 +168,7 @@ importers:
         version: link:../../packages/atproto-client
       '@svebcomponents/build':
         specifier: 'catalog:'
-        version: 0.3.1(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))
+        version: 0.3.4(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))
       '@svebcomponents/eslint-config':
         specifier: workspace:*
         version: link:../../configs/eslint-config
@@ -1057,28 +1057,12 @@ packages:
     peerDependencies:
       svelte: ^5.0.0
 
-  '@svebcomponents/build@0.3.1':
-    resolution: {integrity: sha512-hQxRFM72rSw5UkjN4ICrypzm7R3GnU/8k/XDMjxdoK5rOk4qH7bsBxsED02zyOvQQrUqwOsMtUZAVRbOImhpPg==}
+  '@svebcomponents/build@0.3.4':
+    resolution: {integrity: sha512-a88xpDUARI7THxnnX320e1/mV5SPyQWqJqrxDlg4YNvO/UzSY4dpH+8eqCAmvKykMFYWQwFwk463y9hylS3cww==}
     engines: {node: '>=20.19.0'}
     hasBin: true
     peerDependencies:
       tsdown: '>=0.15.0'
-
-  '@svebcomponents/ssr@0.3.0':
-    resolution: {integrity: sha512-/KFZ6/6MHuSuketIHBNAcrz+shogHbbZZSHbjXhUN0a60vJauOQLBuOd63uQGMBI2+TzhBFb1mrtO+L4u7kNBg==}
-    engines: {node: '>=20.19.0'}
-    peerDependencies:
-      rolldown: '>=1.0.0-beta.0'
-      svelte: ^5.0.0
-      tsdown: '>=0.15.0'
-      vite: ^6.0.0 || ^7.0.0 || ^8.0.0
-    peerDependenciesMeta:
-      rolldown:
-        optional: true
-      tsdown:
-        optional: true
-      vite:
-        optional: true
 
   '@svebcomponents/ssr@0.3.1':
     resolution: {integrity: sha512-3l2vyBcbg05zz5LKAmSSlR5YEdkUGI6PPC0xnwo60WK9P/WZb9pLeHBJNIfgoeylwPNVI2blJ4Rk9XjXH0qdew==}
@@ -3310,10 +3294,10 @@ snapshots:
       svelte: 5.56.4(@typescript-eslint/types@8.62.1)
       zimmerframe: 1.1.2
 
-  '@svebcomponents/build@0.3.1(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))':
+  '@svebcomponents/build@0.3.4(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))':
     dependencies:
       '@svebcomponents/auto-options': 0.2.0(svelte@5.56.4(@typescript-eslint/types@8.62.1))
-      '@svebcomponents/ssr': 0.3.0(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))
+      '@svebcomponents/ssr': 0.3.1(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))
       '@sveltejs/load-config': 0.2.0
       magic-string: 0.30.17
       rollup-plugin-svelte: 7.2.3(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))
@@ -3324,23 +3308,6 @@ snapshots:
       - rollup
       - svelte
       - vite
-
-  '@svebcomponents/ssr@0.3.0(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))':
-    dependencies:
-      '@lit-labs/ssr': 3.3.1
-      '@lit-labs/ssr-dom-shim': 1.3.0
-      '@svebcomponents/utils': 0.1.0
-      esm-env: 1.2.2
-      magic-string: 0.30.17
-      rollup-plugin-svelte: 7.2.3(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))
-      svelte: 5.56.4(@typescript-eslint/types@8.62.1)
-      zimmerframe: 1.1.2
-    optionalDependencies:
-      rolldown: 1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)
-      tsdown: 0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3)
-      vite: 7.3.6(@types/node@22.14.1)(jiti@2.7.0)
-    transitivePeerDependencies:
-      - rollup
 
   '@svebcomponents/ssr@0.3.1(rolldown@1.0.0-beta.45(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2))(rollup@4.62.2)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(tsdown@0.15.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(publint@0.3.21)(typescript@5.9.3))(vite@7.3.6(@types/node@22.14.1)(jiti@2.7.0))':
     dependencies:
