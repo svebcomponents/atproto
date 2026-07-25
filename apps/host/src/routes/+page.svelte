@@ -4,6 +4,7 @@
 
   let { data }: PageProps = $props();
   const threadUri = $derived(data.thread);
+  let showCode = $state(false);
 
   const quickstart = `pnpm add @svebcomponents/atproto.comments
 
@@ -153,44 +154,83 @@ import "@svebcomponents/atproto.comments";`;
       <h1>Your post.<br /><em>Their voices.</em></h1>
       <p class="lede">
         Any ATProto thread, as a native comment section — no database, no
-        lock-in.
+        lock-in. The thread below is real, not a screenshot.
       </p>
       <div class="hero-actions">
         <a class="button primary" href="#start">Add to your site</a>
-        <a class="button secondary" href="#demo">See it live</a>
+        <button
+          class="button secondary"
+          type="button"
+          onclick={() => (showCode = !showCode)}
+          aria-expanded={showCode}
+        >
+          {showCode ? "Hide the code" : "View the code"}
+        </button>
       </div>
       <p class="microcopy">
         MIT licensed · framework-agnostic · hosted backend included
       </p>
     </div>
 
-    <div class="hero-code" aria-label="Minimal usage example">
+    <div
+      class="hero-demo"
+      aria-label="Live ATProto thread, rendered by this component"
+    >
       <div class="window-bar">
         <span></span><span></span><span></span>
-        <small>article.html</small>
+        <small>Live ATProto thread</small>
       </div>
-      <pre><code
-          ><span class="code-muted"
-            >&lt;!-- no install, straight from the CDN --&gt;</span
-          >
+      <div class="hero-demo-panel">
+        {#if data.threadData}
+          <atproto-comments
+            thread={threadUri}
+            threadData={data.threadData}
+            service="/atproto"
+            showRoot
+          ></atproto-comments>
+        {:else}
+          <p class="demo-unavailable">
+            The public AppView did not return this thread. Try another post with
+            the query parameter below.
+          </p>
+        {/if}
+      </div>
+      {#if showCode}
+        <pre class="hero-demo-code"><code
+            ><span class="code-muted"
+              >&lt;!-- no install, straight from the CDN --&gt;</span
+            >
 &lt;<span class="code-pink">script</span> <span class="code-blue">type</span
-          >=<span class="code-green">"module"</span>
+            >=<span class="code-green">"module"</span>
   <span class="code-blue">src</span>=<span class="code-green"
-            >"https://atproto.svebcomponents.dev/<wbr />cdn"</span
-          >&gt;
+              >"https://atproto.svebcomponents.dev/<wbr />cdn"</span
+            >&gt;
 &lt;/<span class="code-pink">script</span>&gt;
 
-<span class="code-muted">&lt;!-- one component --&gt;</span>
+<span class="code-muted"
+              >&lt;!-- one component, pointed at the thread above --&gt;</span
+            >
 &lt;<span class="code-pink">atproto-comments</span>
   <span class="code-blue">thread</span>=<span class="code-green"
-            >"https://bsky.app/…"</span
-          >
+              >"https://bsky.app/…"</span
+            >
 &gt;&lt;/<span class="code-pink">atproto-comments</span>&gt;</code
-        ></pre>
+          ></pre>
+      {/if}
       <div class="code-foot">
         <span class="pulse" aria-hidden="true"></span>
         Live updates connected
+        <a
+          class="code-foot-link"
+          href="https://bsky.app/profile/theosteiner.de/post/3mreni33v7k2c"
+          target="_blank"
+          rel="noreferrer">Open original ↗</a
+        >
       </div>
+      <p class="demo-hint">
+        Try another post with
+        <code>?thread=&lt;AT URI or bsky.app URL&gt;</code>.
+      </p>
     </div>
   </section>
 
@@ -317,45 +357,6 @@ import "@svebcomponents/atproto.comments";`;
         </div>
       </article>
     </div>
-  </section>
-
-  <section id="demo" class="section demo-section">
-    <div class="demo-heading">
-      <div>
-        <p class="kicker">The real component</p>
-        <h2>Not a screenshot.</h2>
-      </div>
-      <p>
-        This thread is server-rendered below, hydrated in place, and subscribed
-        to the same hosted event bridge your site gets by default.
-      </p>
-    </div>
-    <div class="demo-frame">
-      <div class="demo-toolbar">
-        <span><i></i> Live ATProto thread</span>
-        <a
-          href="https://bsky.app/profile/theosteiner.de/post/3mreni33v7k2c"
-          target="_blank"
-          rel="noreferrer">Open original ↗</a
-        >
-      </div>
-      {#if data.threadData}
-        <atproto-comments
-          thread={threadUri}
-          threadData={data.threadData}
-          service="/atproto"
-          showRoot
-        ></atproto-comments>
-      {:else}
-        <p class="demo-unavailable">
-          The public AppView did not return this thread. Try another post with
-          the query parameter below.
-        </p>
-      {/if}
-    </div>
-    <p class="demo-hint">
-      Try another post with <code>?thread=&lt;AT URI or bsky.app URL&gt;</code>.
-    </p>
   </section>
 
   <section class="section architecture">
@@ -702,10 +703,14 @@ import "@svebcomponents/atproto.comments";`;
     align-items: center;
     justify-content: center;
     padding: 0.75rem 1.25rem;
+    border: none;
     border-radius: 999px;
+    background: none;
+    font-family: inherit;
     font-size: 0.9rem;
     font-weight: 750;
     text-decoration: none;
+    cursor: pointer;
   }
 
   .button.primary {
@@ -731,7 +736,7 @@ import "@svebcomponents/atproto.comments";`;
     margin-top: 1.2rem;
   }
 
-  .hero-code {
+  .hero-demo {
     overflow: hidden;
     border: 1px solid #34343a;
     border-radius: 18px;
@@ -781,11 +786,22 @@ import "@svebcomponents/atproto.comments";`;
       monospace;
   }
 
-  .hero-code pre {
-    min-height: 300px;
-    display: flex;
-    align-items: center;
+  .hero-demo-panel {
+    background: #fff;
+    color: #202025;
+  }
+
+  .hero-demo-panel .demo-unavailable {
+    margin: 0;
     padding: clamp(1.4rem, 4vw, 2.5rem);
+    color: #67635d;
+    font-size: 0.88rem;
+    line-height: 1.6;
+  }
+
+  .hero-demo-code {
+    padding: clamp(1.2rem, 3.5vw, 2rem);
+    border-top: 1px solid #34343a;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
@@ -820,8 +836,13 @@ import "@svebcomponents/atproto.comments";`;
       monospace;
   }
 
-  .pulse,
-  .demo-toolbar i {
+  .code-foot-link {
+    margin-left: auto;
+    color: #ff8fb6;
+    text-decoration: none;
+  }
+
+  .pulse {
     width: 7px;
     height: 7px;
     border-radius: 50%;
@@ -869,8 +890,7 @@ import "@svebcomponents/atproto.comments";`;
 
   .principles p,
   .section-intro > p:last-child,
-  .reference-heading > p,
-  .demo-heading > p {
+  .reference-heading > p {
     color: #656159;
     line-height: 1.65;
   }
@@ -966,58 +986,12 @@ import "@svebcomponents/atproto.comments";`;
     border-radius: 9px;
   }
 
-  .demo-section {
-    width: auto;
-    padding-inline: max(1.5rem, calc((100vw - 1180px) / 2));
-    background: #222228;
-    color: #f8f6f1;
-  }
-
-  .demo-heading,
   .reference-heading {
     display: grid;
     grid-template-columns: 1fr 0.8fr;
     align-items: end;
     gap: 3rem;
     margin-bottom: 3rem;
-  }
-
-  .demo-heading .kicker {
-    color: #ff83ad;
-  }
-
-  .demo-heading > p {
-    color: #b6b4bd;
-  }
-
-  .demo-frame {
-    overflow: hidden;
-    max-width: 900px;
-    margin: 0 auto;
-    border: 1px solid #44444d;
-    border-radius: 18px;
-    background: #fff;
-    color: #202025;
-  }
-
-  .demo-toolbar {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.9rem 1.1rem;
-    border-bottom: 1px solid #e5e1da;
-    color: #67635d;
-    font-size: 0.76rem;
-  }
-
-  .demo-toolbar span {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-  }
-
-  .demo-toolbar a {
-    text-decoration: none;
   }
 
   :global(atproto-comments) {
@@ -1032,6 +1006,8 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .demo-hint {
+    margin: 0;
+    padding: 0.75rem 1rem 1rem;
     color: #8f8d96;
     font-size: 0.78rem;
     text-align: center;
@@ -1305,7 +1281,7 @@ import "@svebcomponents/atproto.comments";`;
       padding-top: 4rem;
     }
 
-    .hero-code {
+    .hero-demo {
       transform: none;
     }
 
@@ -1318,7 +1294,6 @@ import "@svebcomponents/atproto.comments";`;
       border-left: 0;
     }
 
-    .demo-heading,
     .reference-heading,
     .events-grid {
       grid-template-columns: 1fr;
@@ -1376,19 +1351,23 @@ import "@svebcomponents/atproto.comments";`;
       min-height: 0;
     }
 
-    .hero-code pre {
+    .hero-demo-code {
       font-size: 0.68rem;
     }
 
-    .demo-section,
     .reference {
       width: auto;
       padding-inline: 1rem;
     }
 
-    .demo-toolbar {
+    .code-foot {
       align-items: flex-start;
       flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .code-foot-link {
+      margin-left: 0;
     }
 
     .architecture-notes {
