@@ -26,6 +26,8 @@ export interface Comment {
   createdAt: string;
   likeCount: number;
   replyCount: number;
+  repostCount: number;
+  quoteCount: number;
   /** moderation label values applied to the post */
   labels: string[];
   /** viewer permalink (bsky.app by default) */
@@ -127,6 +129,8 @@ const toComment = (node: ThreadViewPost, viewer?: string): Comment => {
     ...toPostContent(post, viewer),
     likeCount: post.likeCount ?? 0,
     replyCount,
+    repostCount: post.repostCount ?? 0,
+    quoteCount: post.quoteCount ?? 0,
     labels: (post.labels ?? []).filter((l) => !l.neg).map((l) => l.val),
     url: viewerPostUrl(post.uri, post.author.handle, viewer),
     replies,

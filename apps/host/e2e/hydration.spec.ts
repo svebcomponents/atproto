@@ -77,19 +77,29 @@ test("hydrated component stays reactive", async ({ page }) => {
   const replyButton = component
     .locator('li[part="comment"] button[part="reply-button"]')
     .first();
-  await expect(replyButton).toHaveText("Reply");
+  // The visible label is the reply-count glyph ("↩ 3"), which tracks the live
+  // thread — assert the accessible name instead, which is what actually
+  // identifies this as the reply button.
+  await expect(replyButton).toHaveAccessibleName("Reply");
+
+  // Every comment renders its own composer dialog, so assertions must target
+  // *this* button's dialog. The first dialog in document order belongs to the
+  // root post, not to the first `li[part="comment"]`.
+  const dialogId = await replyButton.getAttribute("commandfor");
+  expect(dialogId, "reply button must point at a composer dialog").toBeTruthy();
+
   await replyButton.click();
 
-  const dialogState = await page.evaluate(() => {
+  const dialogState = await page.evaluate((id: string) => {
     const shadow = document.querySelector("atproto-comments")?.shadowRoot;
-    const dialog = shadow?.querySelector("dialog");
+    const dialog = shadow?.getElementById(id);
     return {
-      open: dialog?.open ?? false,
+      open: dialog instanceof HTMLDialogElement && dialog.open,
       modal: dialog?.matches(":modal") ?? false,
       // signed out in this test → the dialog shows the sign-in prompt
-      hasSigninPrompt: Boolean(shadow?.querySelector("dialog .signin-prompt")),
+      hasSigninPrompt: Boolean(dialog?.querySelector(".signin-prompt")),
     };
-  });
+  }, dialogId!);
   expect(dialogState).toEqual({
     open: true,
     modal: true,
@@ -100,12 +110,12 @@ test("hydrated component stays reactive", async ({ page }) => {
   await page.keyboard.press("Escape");
   await expect
     .poll(() =>
-      page.evaluate(
-        () =>
-          document
-            .querySelector("atproto-comments")
-            ?.shadowRoot?.querySelector("dialog")?.open ?? true,
-      ),
+      page.evaluate((id: string) => {
+        const dialog = document
+          .querySelector("atproto-comments")
+          ?.shadowRoot?.getElementById(id);
+        return dialog instanceof HTMLDialogElement ? dialog.open : true;
+      }, dialogId!),
     )
     .toBe(false);
 });

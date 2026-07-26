@@ -81,8 +81,11 @@ export interface ServiceConfig {
   /** HttpOnly cookie name used by cookie session mode. */
   sessionCookieName?: string;
   /**
-   * OAuth scopes requested from the user's PDS. Default is the narrowest
-   * posting grant: `atproto repo:app.bsky.feed.post?action=create`.
+   * OAuth scopes requested from the user's PDS. Default grants create on
+   * replies plus create+delete on likes/reposts (the latter pair needed to
+   * toggle them back off): `atproto repo:app.bsky.feed.post?action=create
+   * repo:app.bsky.feed.like?action=create&action=delete
+   * repo:app.bsky.feed.repost?action=create&action=delete`.
    */
   scope?: string;
   /**
@@ -105,6 +108,8 @@ export interface ServiceConfig {
   authClaimStore?: AuthClaimStore;
   /** rate limiter for reply posting, keyed per DID (default: 10 per 10min) */
   replyRateLimiter?: RateLimiter;
+  /** rate limiter for like/repost toggling, keyed per DID (default: 60 per 10min) */
+  reactionRateLimiter?: RateLimiter;
   /** AppView for unauthenticated profile lookups */
   appView?: string;
   /**
@@ -127,6 +132,7 @@ export interface ResolvedServiceConfig extends ServiceConfig {
   commentStream: ResolvedCommentStreamConfig;
   authClaimStore: AuthClaimStore;
   replyRateLimiter: RateLimiter;
+  reactionRateLimiter: RateLimiter;
   fetch: typeof globalThis.fetch;
   /** true when publicUrl is a localhost/127.0.0.1 loopback */
   isLoopback: boolean;
@@ -161,13 +167,17 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     sessionTtlSeconds: config.sessionTtlSeconds ?? 3600,
     sessionMode: config.sessionMode ?? "bearer",
     sessionCookieName,
-    scope: config.scope ?? "atproto repo:app.bsky.feed.post?action=create",
+    scope:
+      config.scope ??
+      "atproto repo:app.bsky.feed.post?action=create repo:app.bsky.feed.like?action=create&action=delete repo:app.bsky.feed.repost?action=create&action=delete",
     appView: config.appView ?? "https://public.api.bsky.app",
     commentStream: resolveCommentStreamConfig(config.commentStream),
     authClaimStore:
       config.authClaimStore ?? createMemoryAuthClaimStore(120_000),
     replyRateLimiter:
       config.replyRateLimiter ?? createMemoryRateLimiter(10, 10 * 60_000),
+    reactionRateLimiter:
+      config.reactionRateLimiter ?? createMemoryRateLimiter(60, 10 * 60_000),
     fetch: config.fetch ?? globalThis.fetch,
     isLoopback,
   };

@@ -171,13 +171,12 @@ import "@svebcomponents/atproto.comments";`;
       </div>
       <pre><code
           ><span class="code-muted"
-            >&lt;!-- no install, straight from jsDelivr --&gt;</span
+            >&lt;!-- no install, straight from the CDN --&gt;</span
           >
 &lt;<span class="code-pink">script</span> <span class="code-blue">type</span
           >=<span class="code-green">"module"</span>
   <span class="code-blue">src</span>=<span class="code-green"
-            >"https://cdn.jsdelivr.net/npm/<wbr />@svebcomponents/<wbr
-            />atproto.comments"</span
+            >"https://atproto.svebcomponents.dev/<wbr />cdn"</span
           >&gt;
 &lt;/<span class="code-pink">script</span>&gt;
 

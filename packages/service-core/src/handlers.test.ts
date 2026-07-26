@@ -32,20 +32,29 @@ const memoryStore = (): ServiceSessionStore => {
   };
 };
 
-// a fake PDS fetch handler that records createRecord calls
+// a fake PDS fetch handler that records createRecord/deleteRecord calls
 let createRecordCalls: unknown[] = [];
+let deleteRecordCalls: unknown[] = [];
 const fakePdsSession: OAuthPdsSession = {
   did: DID,
   async fetchHandler(pathname, init) {
     if (pathname === "/xrpc/com.atproto.repo.createRecord") {
-      createRecordCalls.push(JSON.parse(String(init?.body)));
+      const body = JSON.parse(String(init?.body)) as { collection: string };
+      createRecordCalls.push(body);
       return new Response(
         JSON.stringify({
-          uri: `at://${DID}/app.bsky.feed.post/newpost`,
-          cid: "bafynewpost",
+          uri: `at://${DID}/${body.collection}/newrecord`,
+          cid: "bafynewrecord",
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
+    }
+    if (pathname === "/xrpc/com.atproto.repo.deleteRecord") {
+      deleteRecordCalls.push(JSON.parse(String(init?.body)));
+      return new Response("{}", {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
     }
     return new Response("not found", { status: 404 });
   },
@@ -105,12 +114,19 @@ const post = (path: string, token: string, body?: unknown) =>
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
+const del = (path: string, token: string) =>
+  new Request(`${SERVICE}${path}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${token}`, origin: ORIGIN },
+  });
+
 describe("service handlers", () => {
   let service: AtprotoCommentsService;
   let store: ServiceSessionStore;
 
   beforeEach(() => {
     createRecordCalls = [];
+    deleteRecordCalls = [];
     store = memoryStore();
     service = createAtprotoCommentsService(baseConfig(store), {
       oauthClient: fakeOAuthClient,
@@ -305,6 +321,72 @@ describe("service handlers", () => {
     expect(reply!.status).toBe(200);
   });
 
+  it("carries a return url through oauth/start into authorize state", async () => {
+    const RETURN_URL = `${ORIGIN}/posts/hello`;
+    await service.fetch(
+      new Request(
+        `${SERVICE}/atproto/oauth/start?origin=${encodeURIComponent(ORIGIN)}&handle=commenter.test&return=${encodeURIComponent(RETURN_URL)}`,
+      ),
+    );
+    const authorizeState = JSON.parse(
+      vi.mocked(fakeOAuthClient.authorize).mock.calls.at(-1)![1].state,
+    ) as { return?: string };
+    expect(authorizeState.return).toBe(RETURN_URL);
+  });
+
+  it("drops a return url whose origin doesn't match the embedding origin", async () => {
+    await service.fetch(
+      new Request(
+        `${SERVICE}/atproto/oauth/start?origin=${encodeURIComponent(ORIGIN)}&handle=commenter.test&return=${encodeURIComponent("https://evil.example/steal")}`,
+      ),
+    );
+    const authorizeState = JSON.parse(
+      vi.mocked(fakeOAuthClient.authorize).mock.calls.at(-1)![1].state,
+    ) as { return?: string };
+    expect(authorizeState.return).toBeUndefined();
+  });
+
+  it("redirects back to the return url with a session cookie in cookie mode (no-JS flow)", async () => {
+    const RETURN_URL = `${ORIGIN}/posts/hello`;
+    vi.mocked(fakeOAuthClient.callback).mockResolvedValueOnce({
+      session: { did: DID } as OAuthPdsSession,
+      state: JSON.stringify({
+        origin: ORIGIN,
+        nonce: "csrf",
+        return: RETURN_URL,
+      }),
+    });
+    service = createAtprotoCommentsService(
+      { ...baseConfig(store), sessionMode: "cookie" },
+      { oauthClient: fakeOAuthClient },
+    );
+
+    const callback = await service.fetch(
+      new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=xyz`),
+    );
+    expect(callback!.status).toBe(303);
+    expect(callback!.headers.get("location")).toBe(RETURN_URL);
+    const cookie = callback!.headers.get("set-cookie");
+    expect(cookie).toContain("atproto_comments_session=");
+  });
+
+  it("does not redirect on the no-JS return url in bearer mode (needs JS to store the token)", async () => {
+    const RETURN_URL = `${ORIGIN}/posts/hello`;
+    vi.mocked(fakeOAuthClient.callback).mockResolvedValueOnce({
+      session: { did: DID } as OAuthPdsSession,
+      state: JSON.stringify({
+        origin: ORIGIN,
+        nonce: "csrf",
+        return: RETURN_URL,
+      }),
+    });
+    const callback = await service.fetch(
+      new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=xyz`),
+    );
+    expect(callback!.status).toBe(200);
+    expect(await callback!.text()).toContain("Signed in");
+  });
+
   it("returns 404 for an unknown claim nonce", async () => {
     const res = await service.fetch(
       new Request(`${SERVICE}/atproto/api/session/claim?nonce=nope`),
@@ -426,8 +508,8 @@ describe("service handlers", () => {
     );
     expect(res!.status).toBe(200);
     expect(await res!.json()).toEqual({
-      uri: `at://${DID}/app.bsky.feed.post/newpost`,
-      cid: "bafynewpost",
+      uri: `at://${DID}/app.bsky.feed.post/newrecord`,
+      cid: "bafynewrecord",
     });
     expect(createRecordCalls).toHaveLength(1);
     expect(createRecordCalls[0]).toMatchObject({
@@ -475,6 +557,243 @@ describe("service handlers", () => {
     expect(first!.status).toBe(200);
     expect(second!.status).toBe(429);
     expect(second!.headers.get("retry-after")).toBe("600");
+  });
+
+  describe("no-JS form submissions (cookie mode)", () => {
+    let cookieService: AtprotoCommentsService;
+    let sessionCookie: string;
+
+    beforeEach(async () => {
+      vi.mocked(fakeOAuthClient.callback).mockResolvedValueOnce({
+        session: { did: DID } as OAuthPdsSession,
+        state: JSON.stringify({ origin: ORIGIN, nonce: "csrf" }),
+      });
+      cookieService = createAtprotoCommentsService(
+        { ...baseConfig(store), sessionMode: "cookie" },
+        { oauthClient: fakeOAuthClient },
+      );
+      const callback = await cookieService.fetch(
+        new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=xyz`),
+      );
+      sessionCookie = callback!.headers.get("set-cookie")!.split(";")[0]!;
+    });
+
+    const formPost = (
+      path: string,
+      body: Record<string, string>,
+      referer?: string,
+    ) =>
+      new Request(`${SERVICE}${path}`, {
+        method: "POST",
+        headers: {
+          cookie: sessionCookie,
+          origin: ORIGIN,
+          "content-type": "application/x-www-form-urlencoded",
+          ...(referer ? { referer } : {}),
+        },
+        body: new URLSearchParams(body).toString(),
+      });
+
+    it("redirects to the explicit return field on success", async () => {
+      const res = await cookieService.fetch(
+        formPost("/atproto/api/like", {
+          uri: `at://${DID}/app.bsky.feed.post/root`,
+          cid: "bafyroot234567",
+          return: `${ORIGIN}/posts/hello`,
+        }),
+      );
+      expect(res!.status).toBe(303);
+      expect(res!.headers.get("location")).toBe(`${ORIGIN}/posts/hello`);
+    });
+
+    it("falls back to the Referer header when no return field is given", async () => {
+      const res = await cookieService.fetch(
+        formPost(
+          "/atproto/api/like",
+          {
+            uri: `at://${DID}/app.bsky.feed.post/root`,
+            cid: "bafyroot234567",
+          },
+          `${ORIGIN}/posts/hello`,
+        ),
+      );
+      expect(res!.status).toBe(303);
+      expect(res!.headers.get("location")).toBe(`${ORIGIN}/posts/hello`);
+    });
+
+    it("shows a plain success page when neither return nor Referer is present", async () => {
+      const res = await cookieService.fetch(
+        formPost("/atproto/api/like", {
+          uri: `at://${DID}/app.bsky.feed.post/root`,
+          cid: "bafyroot234567",
+        }),
+      );
+      expect(res!.status).toBe(200);
+      expect(res!.headers.get("content-type")).toContain("text/html");
+      expect(await res!.text()).toContain("Done");
+    });
+
+    it("ignores a return field pointing at a different origin", async () => {
+      const res = await cookieService.fetch(
+        formPost("/atproto/api/like", {
+          uri: `at://${DID}/app.bsky.feed.post/root`,
+          cid: "bafyroot234567",
+          return: "https://evil.example/steal",
+        }),
+      );
+      expect(res!.status).toBe(200);
+      expect(res!.headers.get("content-type")).toContain("text/html");
+    });
+
+    it("renders an HTML error page (not JSON) when a form submission is invalid", async () => {
+      const res = await cookieService.fetch(
+        formPost("/atproto/api/like", { uri: "not-a-uri", cid: "c" }),
+      );
+      expect(res!.status).toBe(400);
+      expect(res!.headers.get("content-type")).toContain("text/html");
+      expect(await res!.text()).toContain("Something went wrong");
+    });
+
+    it("submits a reply via form-encoded fields and redirects back", async () => {
+      const res = await cookieService.fetch(
+        formPost("/atproto/api/reply", {
+          rootUri: `at://${DID}/app.bsky.feed.post/root`,
+          rootCid: "bafyroot234567",
+          parentUri: `at://${DID}/app.bsky.feed.post/root`,
+          parentCid: "bafyroot234567",
+          text: "hello without JS",
+          return: `${ORIGIN}/posts/hello`,
+        }),
+      );
+      expect(res!.status).toBe(303);
+      expect(res!.headers.get("location")).toBe(`${ORIGIN}/posts/hello`);
+      expect(createRecordCalls).toMatchObject([
+        {
+          collection: "app.bsky.feed.post",
+          record: { text: "hello without JS" },
+        },
+      ]);
+    });
+  });
+
+  it("likes a post via the user's PDS session", async () => {
+    const token = await signIn(service);
+    const res = await service.fetch(
+      post("/atproto/api/like", token, {
+        uri: `at://${DID}/app.bsky.feed.post/root`,
+        cid: "bafyroot234567",
+      }),
+    );
+    expect(res!.status).toBe(200);
+    expect(await res!.json()).toEqual({
+      uri: `at://${DID}/app.bsky.feed.like/newrecord`,
+      cid: "bafynewrecord",
+    });
+    expect(createRecordCalls).toMatchObject([
+      {
+        repo: DID,
+        collection: "app.bsky.feed.like",
+        record: {
+          $type: "app.bsky.feed.like",
+          subject: { uri: expect.stringContaining("root") },
+        },
+      },
+    ]);
+  });
+
+  it("reposts a post via the user's PDS session", async () => {
+    const token = await signIn(service);
+    const res = await service.fetch(
+      post("/atproto/api/repost", token, {
+        uri: `at://${DID}/app.bsky.feed.post/root`,
+        cid: "bafyroot234567",
+      }),
+    );
+    expect(res!.status).toBe(200);
+    expect(createRecordCalls).toMatchObject([
+      { repo: DID, collection: "app.bsky.feed.repost" },
+    ]);
+  });
+
+  it("rejects an invalid reaction subject before touching the PDS", async () => {
+    const token = await signIn(service);
+    const res = await service.fetch(
+      post("/atproto/api/like", token, { uri: "not-a-uri", cid: "c" }),
+    );
+    expect(res!.status).toBe(400);
+    expect(createRecordCalls).toHaveLength(0);
+  });
+
+  it("enforces the reaction rate limit", async () => {
+    service = createAtprotoCommentsService(
+      {
+        ...baseConfig(store),
+        reactionRateLimiter: createMemoryRateLimiter(1, 60_000),
+      },
+      { oauthClient: fakeOAuthClient },
+    );
+    const token = await signIn(service);
+    const body = {
+      uri: `at://${DID}/app.bsky.feed.post/root`,
+      cid: "bafyroot234567",
+    };
+    const first = await service.fetch(post("/atproto/api/like", token, body));
+    const second = await service.fetch(post("/atproto/api/like", token, body));
+    expect(first!.status).toBe(200);
+    expect(second!.status).toBe(429);
+    expect(second!.headers.get("retry-after")).toBe("600");
+  });
+
+  it("unlikes by deleting the caller's own like record", async () => {
+    const token = await signIn(service);
+    const res = await service.fetch(
+      del(
+        `/atproto/api/like?uri=${encodeURIComponent(`at://${DID}/app.bsky.feed.like/mylike`)}`,
+        token,
+      ),
+    );
+    expect(res!.status).toBe(200);
+    expect(deleteRecordCalls).toMatchObject([
+      { repo: DID, collection: "app.bsky.feed.like", rkey: "mylike" },
+    ]);
+  });
+
+  it("unreposts by deleting the caller's own repost record", async () => {
+    const token = await signIn(service);
+    const res = await service.fetch(
+      del(
+        `/atproto/api/repost?uri=${encodeURIComponent(`at://${DID}/app.bsky.feed.repost/myrepost`)}`,
+        token,
+      ),
+    );
+    expect(res!.status).toBe(200);
+    expect(deleteRecordCalls).toMatchObject([
+      { repo: DID, collection: "app.bsky.feed.repost", rkey: "myrepost" },
+    ]);
+  });
+
+  it("refuses to delete a like record belonging to someone else", async () => {
+    const token = await signIn(service);
+    const res = await service.fetch(
+      del(
+        `/atproto/api/like?uri=${encodeURIComponent("at://did:plc:someoneelse/app.bsky.feed.like/theirlike")}`,
+        token,
+      ),
+    );
+    expect(res!.status).toBe(400);
+    expect(deleteRecordCalls).toHaveLength(0);
+  });
+
+  it("refuses to delete a uri from the wrong collection", async () => {
+    const token = await signIn(service);
+    const res = await service.fetch(
+      del(
+        `/atproto/api/like?uri=${encodeURIComponent(`at://${DID}/app.bsky.feed.repost/x`)}`,
+        token,
+      ),
+    );
+    expect(res!.status).toBe(400);
+    expect(deleteRecordCalls).toHaveLength(0);
   });
 
   it("logout revokes the session so the token stops working", async () => {

@@ -35,7 +35,7 @@ export class ReplyValidationError extends Error {
 const CID_PATTERN = /^[a-z2-7]{8,256}$/i;
 const LANG_PATTERN = /^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{1,8})*$/;
 
-const validatePostRef = (value: unknown, field: string): PostRef => {
+export const validatePostRef = (value: unknown, field: string): PostRef => {
   if (typeof value !== "object" || value === null) {
     throw new ReplyValidationError(`${field} must be an object`);
   }

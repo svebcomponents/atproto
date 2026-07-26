@@ -25,6 +25,8 @@ const comment = (uri: string, replies: CommentNode[] = []): CommentNode =>
     createdAt: "2026-07-24T00:00:00.000Z",
     likeCount: 0,
     replyCount: replies.length,
+    repostCount: 0,
+    quoteCount: 0,
     labels: [],
     url: "https://bsky.app",
     replies,
