@@ -1,5 +1,44 @@
 # @svebcomponents/atproto.comments
 
+## 0.2.2
+
+### Patch Changes
+
+- 6b1769a: Ship a Svelte-external build and route bundler consumers to it via the `svelte`
+  export condition, fixing a hydration crash (`Cannot read properties of null
+(reading 'f')`) that wiped a correctly server-rendered thread on the client.
+
+  The client build bundled its own Svelte runtime. In a SvelteKit/Vite app —
+  which has its own Svelte — that put **two** Svelte runtimes on the page, and
+  under `experimental.async` the app's async-boundary hydration would cross into
+  the component's separate runtime and dereference a null effect. The component
+  now also emits `dist/client-svelte`/`dist/server-svelte` (Svelte marked
+  external), and its package `exports` declare a `svelte` condition pointing at
+  them, so bundlers dedupe the component onto the app's single Svelte runtime.
+  The default `dist/client` (Svelte bundled) is unchanged and still serves the
+  CDN / bare-`import` drop-in, which has no app Svelte to dedupe against.
+
+- 6b1769a: Shrink the CDN / bare-`import` client bundle by 13% (93.6 kB → 81.3 kB raw,
+  31.8 kB → 27.8 kB gzipped) by no longer shipping Svelte's dev-only code.
+
+  The build resolved `esm-env`'s `DEV` export through its `dev-fallback` — a
+  runtime `process.env.NODE_ENV` check rather than a literal — so no `if (DEV)`
+  branch in Svelte's runtime could be eliminated, and the full dev-only error and
+  warning message texts ended up in `dist/client`. Fixed upstream in
+  `@svebcomponents/build` 0.3.3 (svebcomponents/svebcomponents#126); this is the
+  toolchain bump that picks it up. No source or API changes.
+
+- 6b1769a: Drop the vendored `HydrationHost` and use the one `@svebcomponents/ssr` ships.
+
+  The local copy existed only to avoid destructuring `$props()`, which under an
+  earlier `@svebcomponents/ssr` produced writable prop signals with no parent
+  effect and broke hydration before the user's component mounted. On the current
+  pin (`svelte` 5.56.4, `@svebcomponents/ssr` 0.3.1) that no longer reproduces:
+  the SSR'd shadow DOM is still hydrated in place, with `experimental.async` and
+  the async SSR wrapper both on or both off. Removing the vendored copy also
+  removes the build-config aliasing that kept every build variant pointed at it,
+  so the component now tracks upstream's host automatically. No API change.
+
 ## 0.2.1
 
 ### Patch Changes
