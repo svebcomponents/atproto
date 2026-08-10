@@ -1,5 +1,7 @@
 import { defineConfig } from "@svebcomponents/build";
 
+import svelteConfig from "./svelte.config.js";
+
 /**
  * `@svebcomponents/atproto.client` has to be both a real dependency and
  * bundled, which package.json alone cannot express.
@@ -25,6 +27,10 @@ export default defineConfig({
   ssr: true,
   ssrOutDir: "dist/server",
   ssrSvelteOutDir: "dist/server-svelte",
+  // The CLI loads svelte.config.js itself when it infers entries from
+  // `exports`, but not when a config file replaces that inference. Passing it
+  // explicitly keeps `preprocess`, `extensions` and `compilerOptions` applied.
+  svelteConfig,
 }).map((config) => ({
   ...config,
   deps: {

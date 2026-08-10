@@ -59,6 +59,7 @@
     "esm-env": "^1.2.0",
     "svelte": "catalog:",
     "svelte-check": "catalog:",
+    "tsdown": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
   },
