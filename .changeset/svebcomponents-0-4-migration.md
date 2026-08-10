@@ -29,7 +29,11 @@ What is new for consumers:
 - **`@svebcomponents/atproto.client` moved to `dependencies`.** The generated
   declarations reference `CommentTree` and `CommentSort` from it, so a consumer
   type-checking with `skipLibCheck: false` could not resolve them while it was
-  a devDependency. The runtime bundle still inlines it.
+  a devDependency. Because tsdown externalizes `dependencies`, and
+  `dist/client/index.js` is the CDN drop-in that has to stay loadable from a
+  bare `<script type="module">`, the package now carries a
+  `svebcomponents.config.ts` that keeps it inlined. The client bundle is
+  unchanged in shape and still self-contained (27.5 kB gzipped).
 - **The `@svebcomponents/utils` dependency is dropped.** It was never imported
   here — `@svebcomponents/build` uses it at build time — and 0.3.0 removes
   `defineElement`, its last consumer-facing export.
