@@ -1,5 +1,22 @@
 <svelte:options customElement="atproto-comments" />
 
+<!-- @component
+Renders an ATProto/Bluesky post thread as a live comment section.
+
+Every event below is dispatched on the host element through one shared helper,
+so the build's source scan cannot see them; they are declared here instead.
+Their `detail` is therefore typed `unknown` — the shapes are documented in the
+package README.
+
+@event atproto-comments:loaded - The first thread snapshot finished loading. `detail: { tree: CommentTree }`
+@event atproto-comments:revalidated - A background refresh replaced the snapshot. `detail: { tree: CommentTree }`
+@event atproto-comments:comment - The live stream announced a new reply. `detail: { uri: string, thread?: string }`
+@event atproto-comments:live-status - The live stream's upstream connection changed. `detail: { upstream?: string }`
+@event atproto-comments:signed-in - A visitor completed ATProto sign-in. `detail: { session: ServiceSessionInfo }`
+@event atproto-comments:posted - A reply was created from the in-page composer. `detail: { uri: string, cid: string, parent: string }`
+@event atproto-comments:error - An operation failed. `detail: { message: string, background?: boolean }`
+-->
+
 <script lang="ts">
   import { tick, untrack } from "svelte";
   import { BROWSER } from "esm-env";

@@ -130,21 +130,26 @@ Both upstream bugs found here are now **fixed and released in svebcomponents** (
 
 ### SSR registration ergonomics
 
-Host apps register renderers once (template pattern):
+Host apps import the renderer once; it self-registers (template pattern):
 
 ```ts
 // hooks.server.ts
-import { ElementRendererRegistry } from "@svebcomponents/ssr";
-import AtprotoCommentsRenderer from "@svebcomponents/atproto.comments/ssr";
-ElementRendererRegistry.set("atproto-comments", AtprotoCommentsRenderer);
+import "@svebcomponents/atproto.comments/ssr";
 ```
+
+The generated renderer reads `atproto-comments` from the component's
+`<svelte:options customElement>` declaration at build time and registers itself
+with `ElementRendererRegistry` on import, so there is no tag string for a host
+to get wrong. Manual `ElementRendererRegistry.set()` remains available for tags
+that are not statically knowable.
 
 Docs must cover: SvelteKit (full support), other Vite SSR frameworks (via `@svebcomponents/ssr/vite`), and no-SSR usage (CDN script + Tier 3), plus Tier 2 for everything in between.
 
 ## Distribution
 
 - **npm**: `@svebcomponents/atproto.comments`, `@svebcomponents/atproto.client`, and `@svebcomponents/atproto.bridge`. The component exposes its browser bundle at `.` and renderer at `./ssr`.
-- **CDN**: `https://cdn.jsdelivr.net/npm/@svebcomponents/atproto.comments/dist/client/index.js` — the client build bundles Svelte while leaving the small `@svebcomponents/utils` runtime external.
+- **CDN**: `https://cdn.jsdelivr.net/npm/@svebcomponents/atproto.comments/dist/client/index.js` — the client build is self-contained: it bundles Svelte and everything else the element needs, so a browser can load it without an import map.
+- **Tooling metadata**: the build emits `custom-elements.json` (custom elements manifest 2.1.0) and element/attribute/event declarations appended to `dist/client/index.d.ts`, both published.
 - **Versioning**: Changesets creates release PRs; merging one builds and publishes public packages with npm provenance.
 
 ## Dependencies policy

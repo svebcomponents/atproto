@@ -82,7 +82,7 @@ Component write UX is **built and merged**; the OAuth/posting bridge runs end-to
 - ✅ **Reply to any comment** via a modal composer dialog (not just the root); optimistic replies key off the target post's URI.
 - ✅ `viewer` prop routes every outbound post/profile link through any bsky.app-scheme viewer (e.g. deer.social); default stays bsky.app.
 - ✅ User-facing copy says **atmosphere**, not Bluesky; the OAuth callback tab now closes itself.
-- ✅ Element registered via `defineElement` from `@svebcomponents/utils`; events emitted through `$host()`; an adjacent `index.ssr.ts` hook now performs component-owned server prefetch and serializes `threadData` for hydration. Hosts may pass `threadData` to bypass it synchronously.
+- ✅ Element tag declared in `<svelte:options customElement="atproto-comments" />`, with `src/index.svelte` as the package entry itself (svebcomponents 0.4.0 dropped `defineElement` and entry modules that only re-export a component); events emitted through `$host()`; an adjacent `index.ssr.ts` hook now performs component-owned server prefetch and serializes `threadData` for hydration. Hosts may pass `threadData` to bypass it synchronously.
 - ⏳ Still open: interactive OAuth against a real test account for a full e2e pass, deploy the bridge to a public domain, and a security review — all prerequisites for announcing.
 
 ## Phase 3 — Standard.site discovery
