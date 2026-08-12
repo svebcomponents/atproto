@@ -50,7 +50,16 @@ What is new for consumers:
   types describe it; the `thread-data` attribute is a string, since an
   attribute cannot carry a `CommentTree`.
 
-The `@svebcomponents/ssr` peer range moves to `^0.6.0`. It resolves a
+The `@svebcomponents/ssr` peer range moves to `^0.7.0`. It resolves a
 component's tag from a direct `.svelte` entry, which is what keeps the generated
 renderer self-registering now that the entry module is gone — hosts still only
 need `import "@svebcomponents/atproto.comments/ssr"`.
+
+**The `svelte` export condition is gone.** The package used to ship a second,
+Svelte-flavoured build of the same component behind that condition; a bundler
+resolving `svelte` picked it up and pulled Svelte into the host's graph. Every
+consumer now loads the one compiled custom element, whatever their bundler
+resolves — a Svelte host included. Nothing to change on your side: the import
+specifiers are the same, and the element behaves the same. Only the `types` and
+`default` conditions remain, which is what `@svebcomponents/build` 0.7.0
+supports.
