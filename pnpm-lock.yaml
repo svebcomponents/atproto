@@ -19,8 +19,8 @@ catalogs:
       specifier: 1.62.1
       version: 1.62.1
     '@svebcomponents/build':
-      specifier: 0.5.0
-      version: 0.5.0
+      specifier: 0.6.0
+      version: 0.6.0
     '@svebcomponents/ssr':
       specifier: 0.6.0
       version: 0.6.0
@@ -171,7 +171,7 @@ importers:
     devDependencies:
       '@svebcomponents/build':
         specifier: 'catalog:'
-        version: 0.5.0(@types/node@24.13.3)(publint@0.3.23)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
+        version: 0.6.0(@types/node@24.13.3)(publint@0.3.23)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
       '@svebcomponents/eslint-config':
         specifier: workspace:*
         version: link:../../configs/eslint-config
@@ -1135,8 +1135,8 @@ packages:
     peerDependencies:
       svelte: ^5.0.0
 
-  '@svebcomponents/build@0.5.0':
-    resolution: {integrity: sha512-PWCYyUeYLoZeDevEnC4A1yASRiFvY+rqKnQajDeqZBdZ/CJ23BUfL+uW1pw4YSv5P+lABPugBtqZiIAIbo2Eow==}
+  '@svebcomponents/build@0.6.0':
+    resolution: {integrity: sha512-+FySvd+snYfaCnPmeHLlmS2aJeQvVgtraF5cOnu/H7ssGLzq6CZLPE2VMripEKZ0EPOMX26mB9JfHmJcrlBoqg==}
     engines: {node: '>=20.19.0'}
     hasBin: true
 
@@ -3582,7 +3582,7 @@ snapshots:
       svelte: 5.56.8(@typescript-eslint/types@8.65.0)
       zimmerframe: 1.1.4
 
-  '@svebcomponents/build@0.5.0(@types/node@24.13.3)(publint@0.3.23)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))':
+  '@svebcomponents/build@0.6.0(@types/node@24.13.3)(publint@0.3.23)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))':
     dependencies:
       '@svebcomponents/auto-options': 0.3.0(svelte@5.56.8(@typescript-eslint/types@8.65.0))
       '@svebcomponents/ssr': 0.6.0(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))

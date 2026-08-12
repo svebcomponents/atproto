@@ -35,6 +35,20 @@ What is new for consumers:
 - **The `@svebcomponents/utils` dependency is dropped.** It was never imported
   here — `@svebcomponents/build` uses it at build time — and 0.3.0 removes
   `defineElement`, its last consumer-facing export.
+- **Svelte template types** ship as a new `./svelte` export. Svelte consumers
+  opt in with one line in a `.d.ts` and get `<atproto-comments>` checked like
+  any other element:
+
+  ```ts
+  import "@svebcomponents/atproto.comments/svelte";
+  ```
+
+  They are opt-in rather than automatic because this package deliberately does
+  not declare `svelte` — it has to stay usable from a plain HTML page.
+
+  `threadData` is passed as a property (`threadData={tree}`), which is how the
+  types describe it; the `thread-data` attribute is a string, since an
+  attribute cannot carry a `CommentTree`.
 
 The `@svebcomponents/ssr` peer range moves to `^0.6.0`. It resolves a
 component's tag from a direct `.svelte` entry, which is what keeps the generated

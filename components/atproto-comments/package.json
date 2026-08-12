@@ -29,6 +29,9 @@
       "svelte": "./dist/client-svelte/index.js",
       "default": "./dist/client/index.js"
     },
+    "./svelte": {
+      "types": "./dist/client/index.svelte-types.d.ts"
+    },
     "./ssr": {
       "types": "./dist/server/ssr.d.ts",
       "svelte": "./dist/server-svelte/ssr.js",
