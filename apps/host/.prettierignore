@@ -5,5 +5,5 @@ yarn.lock
 bun.lock
 bun.lockb
 
-# adapter-node output
+# SvelteKit adapter output
 build

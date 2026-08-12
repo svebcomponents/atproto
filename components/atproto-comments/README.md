@@ -45,11 +45,19 @@ dependencies.
 
 ## 3. SSR (server-rendered, hydrated in place)
 
-Install `@svebcomponents/ssr`, import this package's `./ssr` renderer, and
-register it with your host's svebcomponents integration. During asynchronous
-SSR the component fetches the thread and serializes it for hydration, so the
-first paint already has comments instead of the loading skeleton. Passing
-`threadData` supplies that snapshot explicitly instead.
+Install `@svebcomponents/ssr`, add its Vite plugin, and import this package's
+`./ssr` entry once on the server:
+
+```ts
+// hooks.server.ts
+import "@svebcomponents/atproto.comments/ssr";
+```
+
+The renderer knows its own tag and registers itself, so there is nothing to
+wire up by hand. During asynchronous SSR the component fetches the thread and
+serializes it for hydration, so the first paint already has comments instead of
+the loading skeleton. Passing `threadData` supplies that snapshot explicitly
+instead.
 
 SvelteKit is supported today. Nuxt, Astro, Next.js, and SolidStart
 integrations are planned.
@@ -127,6 +135,36 @@ snapshot.
 - `atproto-comments:signed-in`
 - `atproto-comments:posted`
 - `atproto-comments:error`
+
+Every event's `detail` is documented on the component itself and reaches the
+published types as `CustomEvent<unknown>` — they are dispatched through one
+shared helper, which the build's source scan cannot narrow.
+
+## Editor and TypeScript support
+
+The package ships a
+[custom elements manifest](https://github.com/webcomponents/custom-elements-manifest)
+at `custom-elements.json`, which editors read for HTML completions on
+`<atproto-comments>`.
+
+TypeScript users need no setup beyond importing the package — the declarations
+put the element in `HTMLElementTagNameMap` and narrow `addEventListener`:
+
+```ts
+import "@svebcomponents/atproto.comments";
+
+const comments = document.querySelector("atproto-comments");
+comments?.addEventListener("atproto-comments:loaded", (event) => {
+  console.log(event.detail);
+});
+```
+
+Svelte, React and Vue template types are not registered automatically: the
+standalone build bundles Svelte so the package can be used in applications that
+have none. Register them yourself with the exported
+`AtprotoCommentsElement`, `AtprotoCommentsAttributes`, `AtprotoCommentsEventMap`
+and `AtprotoCommentsEventHandlers` types — see
+[typing elements in React & Vue](https://svebcomponents.dev/guides/framework-types/).
 
 See [atproto.svebcomponents.dev](https://atproto.svebcomponents.dev/) for the
 full reference and live demo.

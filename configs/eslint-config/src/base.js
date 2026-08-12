@@ -27,7 +27,9 @@ export default ts.config(
     rules: { "no-undef": "off" },
   },
   {
-    ignores: ["dist/**", ".svelte-kit/**"],
+    // `build/**` is a SvelteKit adapter-node/adapter-static output directory;
+    // without it the first production build makes `lint` fail.
+    ignores: ["dist/**", ".svelte-kit/**", "build/**"],
   },
   {
     rules: {

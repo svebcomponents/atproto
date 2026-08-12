@@ -22,6 +22,9 @@ coverage
 
 # Build Outputs
 dist
+custom-elements.json
+# SvelteKit adapter-node output
+build
 
 
 # Debug
