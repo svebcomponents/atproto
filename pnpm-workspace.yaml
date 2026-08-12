@@ -30,3 +30,10 @@ catalog:
   typescript-eslint: 8.65.0
   vite: 8.1.5
   vitest: 4.1.10
+
+# Our own scope: released from svebcomponents/svebcomponents by the same people
+# who maintain this repo, so a release-age delay buys nothing and only blocks us
+# from consuming a release we just cut. pnpm 10 does not enforce the policy at
+# all; this is here so bumping pnpm does not turn into a mystery failure.
+minimumReleaseAgeExclude:
+  - '@svebcomponents/*'
