@@ -2,10 +2,10 @@
 "@svebcomponents/atproto.comments": minor
 ---
 
-Adopt svebcomponents 0.4: the component is the package entry, and the build now
-ships a custom elements manifest and element types.
+Adopt svebcomponents 0.5: the component is the package entry, and the build now
+ships a custom elements manifest, element types and Svelte template types.
 
-`@svebcomponents/build` 0.4.0 infers a component entry from the same-basename
+`@svebcomponents/build` infers a component entry from the same-basename
 `.svelte` source, so `src/index.ts` — which only re-exported the component — is
 gone and `src/AtprotoComments.svelte` is now `src/index.svelte`. The published
 entrypoint (`dist/client/index.js`, and the jsDelivr default) is unchanged, so
@@ -29,16 +29,14 @@ What is new for consumers:
 - **`@svebcomponents/atproto.client` moved to `dependencies`.** The generated
   declarations reference `CommentTree` and `CommentSort` from it, so a consumer
   type-checking with `skipLibCheck: false` could not resolve them while it was
-  a devDependency. Because tsdown externalizes `dependencies`, and
-  `dist/client/index.js` is the CDN drop-in that has to stay loadable from a
-  bare `<script type="module">`, the package now carries a
-  `svebcomponents.config.ts` that keeps it inlined. The client bundle is
-  unchanged in shape and still self-contained (27.5 kB gzipped).
+  a devDependency. The browser build inlines it regardless, so
+  `dist/client/index.js` remains the self-contained CDN drop-in it was
+  (27.5 kB gzipped).
 - **The `@svebcomponents/utils` dependency is dropped.** It was never imported
   here — `@svebcomponents/build` uses it at build time — and 0.3.0 removes
   `defineElement`, its last consumer-facing export.
 
-The `@svebcomponents/ssr` peer range moves to `^0.5.0`. That release resolves a
+The `@svebcomponents/ssr` peer range moves to `^0.6.0`. It resolves a
 component's tag from a direct `.svelte` entry, which is what keeps the generated
 renderer self-registering now that the entry module is gone — hosts still only
 need `import "@svebcomponents/atproto.comments/ssr"`.

@@ -19,11 +19,11 @@ catalogs:
       specifier: 1.62.1
       version: 1.62.1
     '@svebcomponents/build':
-      specifier: 0.4.0
-      version: 0.4.0
-    '@svebcomponents/ssr':
       specifier: 0.5.0
       version: 0.5.0
+    '@svebcomponents/ssr':
+      specifier: 0.6.0
+      version: 0.6.0
     '@sveltejs/adapter-node':
       specifier: 5.5.7
       version: 5.5.7
@@ -69,9 +69,6 @@ catalogs:
     svelte-check:
       specifier: 4.7.5
       version: 4.7.5
-    tsdown:
-      specifier: 0.22.14
-      version: 0.22.14
     turbo:
       specifier: 2.10.7
       version: 2.10.7
@@ -121,7 +118,7 @@ importers:
         version: link:../../components/atproto-comments
       '@svebcomponents/ssr':
         specifier: 'catalog:'
-        version: 0.5.0(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
+        version: 0.6.0(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
       valibot:
         specifier: 1.4.2
         version: 1.4.2(typescript@5.9.3)
@@ -155,7 +152,7 @@ importers:
         version: 5.56.8(@typescript-eslint/types@8.65.0)
       svelte-check:
         specifier: 'catalog:'
-        version: 4.7.5(picomatch@4.0.4)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)
+        version: 4.7.5(picomatch@4.0.5)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -174,7 +171,7 @@ importers:
     devDependencies:
       '@svebcomponents/build':
         specifier: 'catalog:'
-        version: 0.4.0(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
+        version: 0.5.0(@types/node@24.13.3)(publint@0.3.23)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
       '@svebcomponents/eslint-config':
         specifier: workspace:*
         version: link:../../configs/eslint-config
@@ -183,7 +180,7 @@ importers:
         version: link:../../configs/prettier-config
       '@svebcomponents/ssr':
         specifier: 'catalog:'
-        version: 0.5.0(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
+        version: 0.6.0(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
       '@svebcomponents/typescript-config':
         specifier: workspace:*
         version: link:../../configs/typescript-config
@@ -196,9 +193,6 @@ importers:
       svelte-check:
         specifier: 'catalog:'
         version: 4.7.5(picomatch@4.0.5)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.22.14(publint@0.3.23)(typescript@5.9.3)
       vite:
         specifier: 'catalog:'
         version: 8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)
@@ -1141,20 +1135,18 @@ packages:
     peerDependencies:
       svelte: ^5.0.0
 
-  '@svebcomponents/build@0.4.0':
-    resolution: {integrity: sha512-2zQNyP1RVKV0FknGOBdECJXHfjG6XhyGB4ZJLYvM+KeV0szj59DOWD976khaKEwx9v6aL35tB+yen9BaoZugpw==}
+  '@svebcomponents/build@0.5.0':
+    resolution: {integrity: sha512-PWCYyUeYLoZeDevEnC4A1yASRiFvY+rqKnQajDeqZBdZ/CJ23BUfL+uW1pw4YSv5P+lABPugBtqZiIAIbo2Eow==}
     engines: {node: '>=20.19.0'}
     hasBin: true
-    peerDependencies:
-      tsdown: '>=0.15.0'
 
-  '@svebcomponents/ssr@0.5.0':
-    resolution: {integrity: sha512-O3oqWekqtJeZwkUvb/x9g9PhxUcusPnxbVb7Go59lOXgSTgLPpatS+16NLdk3xh7+loRkcsAXx0iUXJRBRg91g==}
+  '@svebcomponents/ssr@0.6.0':
+    resolution: {integrity: sha512-kZ9Ll83tqwMPyuFUaj0xfk8NiVclTTezeid1MUu/R+8ECbAGga3orvOLTtw5vcVcUi47huPbcun3qCc0FlqaPg==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       rolldown: '>=1.0.0-beta.0'
       svelte: ^5.0.0
-      tsdown: '>=0.15.0'
+      tsdown: '>=0.22.0'
       vite: ^6.0.0 || ^7.0.0 || ^8.0.0
     peerDependenciesMeta:
       rolldown:
@@ -3463,10 +3455,10 @@ snapshots:
       '@rollup/pluginutils': 5.4.0(rollup@4.62.2)
       commondir: 1.0.1
       estree-walker: 2.0.2
-      fdir: 6.5.0(picomatch@4.0.4)
+      fdir: 6.5.0(picomatch@4.0.5)
       is-reference: 1.2.1
       magic-string: 0.30.21
-      picomatch: 4.0.4
+      picomatch: 4.0.5
     optionalDependencies:
       rollup: 4.62.2
 
@@ -3502,7 +3494,7 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.9
       estree-walker: 2.0.2
-      picomatch: 4.0.4
+      picomatch: 4.0.5
     optionalDependencies:
       rollup: 4.62.2
 
@@ -3590,23 +3582,36 @@ snapshots:
       svelte: 5.56.8(@typescript-eslint/types@8.65.0)
       zimmerframe: 1.1.4
 
-  '@svebcomponents/build@0.4.0(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))':
+  '@svebcomponents/build@0.5.0(@types/node@24.13.3)(publint@0.3.23)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))':
     dependencies:
       '@svebcomponents/auto-options': 0.3.0(svelte@5.56.8(@typescript-eslint/types@8.65.0))
-      '@svebcomponents/ssr': 0.5.0(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
+      '@svebcomponents/ssr': 0.6.0(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
       '@sveltejs/load-config': 0.2.1
       magic-string: 0.30.21
       rollup-plugin-svelte: 7.2.3(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))
       tsdown: 0.22.14(publint@0.3.23)(typescript@5.9.3)
       unconfig: 7.5.0
     transitivePeerDependencies:
+      - '@arethetypeswrong/core'
+      - '@tsdown/css'
+      - '@tsdown/exe'
       - '@types/node'
+      - '@typescript/native-preview'
+      - '@vitejs/devtools'
+      - '@volar/typescript'
+      - oxc-resolver
+      - publint
       - rolldown
       - rollup
       - svelte
+      - tsx
+      - typescript
+      - unplugin-unused
+      - unrun
       - vite
+      - vue-tsc
 
-  '@svebcomponents/ssr@0.5.0(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))':
+  '@svebcomponents/ssr@0.6.0(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))':
     dependencies:
       '@lit-labs/ssr': 4.1.0(@types/node@24.13.3)
       '@lit-labs/ssr-dom-shim': 1.6.0
@@ -4233,10 +4238,6 @@ snapshots:
     dependencies:
       reusify: 1.1.0
 
-  fdir@6.5.0(picomatch@4.0.4):
-    optionalDependencies:
-      picomatch: 4.0.4
-
   fdir@6.5.0(picomatch@4.0.5):
     optionalDependencies:
       picomatch: 4.0.5
@@ -4861,19 +4862,6 @@ snapshots:
       has-flag: 4.0.0
 
   supports-preserve-symlinks-flag@1.0.0: {}
-
-  svelte-check@4.7.5(picomatch@4.0.4)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3):
-    dependencies:
-      '@jridgewell/trace-mapping': 0.3.31
-      '@sveltejs/load-config': 0.2.2
-      chokidar: 4.0.3
-      fdir: 6.5.0(picomatch@4.0.4)
-      picocolors: 1.1.1
-      sade: 1.8.1
-      svelte: 5.56.8(@typescript-eslint/types@8.65.0)
-      typescript: 5.9.3
-    transitivePeerDependencies:
-      - picomatch
 
   svelte-check@4.7.5(picomatch@4.0.5)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3):
     dependencies:

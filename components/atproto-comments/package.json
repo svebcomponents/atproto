@@ -59,7 +59,6 @@
     "esm-env": "^1.2.0",
     "svelte": "catalog:",
     "svelte-check": "catalog:",
-    "tsdown": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
   },
@@ -67,7 +66,7 @@
     "@svebcomponents/atproto.client": "workspace:*"
   },
   "peerDependencies": {
-    "@svebcomponents/ssr": "^0.5.0"
+    "@svebcomponents/ssr": "^0.6.0"
   },
   "peerDependenciesMeta": {
     "@svebcomponents/ssr": {
