@@ -16,7 +16,7 @@ Drop-in atmosphere/ATProto comments for any blog, built as SSR-able, **hydratabl
   WebSocket serves every active thread in a bridge process. A connection or
   reply event triggers a coalesced AppView refresh; reconnect is the
   correctness boundary because Spacedust v0 has no replay cursor.
-- 🔜 Phase 3: Standard.site auto-discovery. Also pending before announcing: deploy the bridge to a real domain + a security pass. See the [roadmap](./04-roadmap.md).
+- 🔜 Before announcing: run a real-account OAuth e2e test, deploy the bridge to a real domain, and complete a security pass. See the [roadmap](./04-roadmap.md).
 
 ## Usage sketch
 

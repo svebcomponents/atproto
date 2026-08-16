@@ -28,7 +28,7 @@ Follow-ups tied to the fixes:
 - All three fixes are in **[svebcomponents PR #103](https://github.com/svebcomponents/svebcomponents/pull/103)** (sync rendering with svelte ≥5.36, chunk-order-safe SSR entries, parallel-build clean race) including sync-wrapper e2e coverage (verified to fail pre-fix) and changesets.
 - ~~After merge + release: drop the `link:` overrides~~ **Done (2026-07-13)**: PR #105 merged and all `@svebcomponents/*` packages released at 0.1.0; this repo consumes them from npm (no overrides, no vite-plugin cast).
 
-## Phase 1 — read-only `<atproto-comments>` (first shippable)
+## Completed — read-only `<atproto-comments>` (first shippable)
 
 - `atproto-client`: AT-URI/bsky-URL parsing, `getPostThread` fetch, thread normalization with all edge variants, facet segmentation. Fixture-based unit tests.
 - Component: states per [02-component-design.md](./02-component-design.md) (skeleton/empty/comment/tombstones/labels/depth-cap), root stats header (likes/reposts via Bluesky — the "likes shown via Bluesky" feature), "Reply on Bluesky" links, CSS custom props + parts, events.
@@ -47,11 +47,9 @@ Follow-ups tied to the fixes:
 - ~~Known limitation: hydrating SvelteKit hosts re-created the element~~ **Fixed upstream (PR #105, wrapper symmetry)**: SvelteKit hosts now claim the SSR'd element — verified same-node identity + zero refetch in the adapter-node showcase. **Both halves of the exit criterion are met.**
 - Still open from the Phase 1 list: npm publish (packages ship under the existing `@svebcomponents` org — see naming update above, no new org needed), async-SSR demo page, Tier 2 JSON child.
 
-## Phase 2 — hosted auth & posting (the killer feature)
+## Completed — hosted auth & posting (the core feature)
 
-> Reordered 2026-07-07: originally Phase 3. Posting is the differentiator (all
-> prior art is read-only) and nothing in it depends on Standard.site
-> discovery, which only changes where the thread URI comes from.
+> Reordered 2026-07-07: posting is the differentiator; prior art is read-only.
 
 The big one; see [03-oauth-service.md](./03-oauth-service.md).
 
@@ -85,40 +83,35 @@ Component write UX is **built and merged**; the OAuth/posting bridge runs end-to
 - ✅ Element tag declared in `<svelte:options customElement="atproto-comments" />`, with `src/index.svelte` as the package entry itself (svebcomponents 0.4.0 dropped `defineElement` and entry modules that only re-export a component); events emitted through `$host()`; an adjacent `index.ssr.ts` hook now performs component-owned server prefetch and serializes `threadData` for hydration. Hosts may pass `threadData` to bypass it synchronously.
 - ⏳ Still open: interactive OAuth against a real test account for a full e2e pass, deploy the bridge to a public domain, and a security review — all prerequisites for announcing.
 
-## Phase 3 — Standard.site discovery
+## Current focus — make comments ready to use
 
-- `atproto-client`: DID→PDS resolution, `com.atproto.repo.getRecord`, `site.standard.document` parsing → `bskyPostRef`.
-- `components/standard-site-comments`: link discovery, delegation to `<atproto-comments>`, SSR caveats documented (explicit `document-link` for SSR).
-- Tier 2 preloaded-JSON channel finalized (matters most for the SSG audience this phase targets).
-- Dogfood on your own blog (theosteiner.de publishes Standard.site records? if not, that's its own fun side quest).
+- Run interactive OAuth end-to-end with a real test account.
+- Deploy the bridge on a public, canonical domain.
+- Complete a security review of the hosted bridge before announcing it.
+- Publish the packages, finish practical integration docs, and validate a few real blog installs.
 
-## Phase 4 — site-owner controls (product maturation, demand-driven)
-
-Site registration + origin allowlists, moderation prefs (hide-by-label defaults, blocklists), per-site rate limits, optional thread-read caching/proxy (only if AppView rate limits bite), minimal dashboard. Prioritize by real usage; don't build speculatively.
-
-## Phase 5 — `<standard-site-post>`
-
-Article rendering from `site.standard.document`. Decide `content` union coverage when the ecosystem's dominant `$type`s are clearer.
+The roadmap deliberately stops here. Standard.site discovery and post rendering
+are not planned work: a blog can supply its discussion URI directly to
+`<atproto-comments>`, which keeps the product focused on comments.
 
 ## Open questions & recommendations
 
 | Question                                   | Recommendation                                                                                                                                                                                                                                                                                                                                 |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | npm scope / naming                         | **Resolved 2026-07-22**: joined the `@svebcomponents` org rather than minting a new scope — `@svebcomponents/atproto.comments` / `atproto.bridge` / `atproto.client`. Keep `<atproto-comments>` as the tag. `<bsky-comments>` at most as a documented alias — two registered tags for one element is doc noise; skip unless there's SEO value. |
-| AppView vs direct repo reads               | AppView for threads (aggregation is the whole point — you can't assemble a thread from one repo); direct PDS reads only for Standard.site records. Revisit only if AppView dependence becomes a values problem.                                                                                                                                |
+| AppView vs direct repo reads               | AppView for threads: aggregation is the whole point, and a thread cannot be assembled from one repo. Revisit only if AppView dependence becomes a values problem.                                                                                                                                                                          |
 | Minimal OAuth scope                        | `atproto` + `repo:app.bsky.feed.post?action=create` + `repo:app.bsky.feed.like?action=create&action=delete` + `repo:app.bsky.feed.repost?action=create&action=delete` (like/repost need delete too, to undo); try dropping the `getProfile` rpc scope by reading profiles from the public AppView. Adopt a permission set when a fitting one exists.                                                                                                                                                    |
 | Reply ordering                             | Default `oldest` (blog-native reading), `sort` attribute for the rest.                                                                                                                                                                                                                                                                         |
 | Quote posts of the root                    | Out of scope for the thread list v1; a "mentions elsewhere" section later.                                                                                                                                                                                                                                                                     |
-| Service caches thread reads?               | Not in MVP (client → public AppView directly). Add proxy caching in Phase 4 only if rate limits or privacy concerns demand it.                                                                                                                                                                                                                 |
+| Service caches thread reads?               | Not in MVP (client → public AppView directly). Revisit only if rate limits or privacy concerns demand it.                                                                                                                                                                                                                                     |
 | Custom domains for auth callbacks          | No — one canonical service origin keeps the OAuth client_id story simple. Self-hosters run the whole service (it's OSS) and become their own client.                                                                                                                                                                                           |
-| Mirror Bluesky moderation by default?      | Respect labels with `collapse` default + site-owner override in Phase 4. Full label-service subscription mirroring is overkill for v1.                                                                                                                                                                                                         |
+| Mirror Bluesky moderation by default?      | Respect labels with `collapse` default. Full label-service subscription mirroring is overkill for v1.                                                                                                                                                                                                                                          |
 | Where do sessions live client-side         | localStorage per (service, origin), short-TTL JWT — rationale in [03-oauth-service.md](./03-oauth-service.md).                                                                                                                                                                                                                                 |
-| Standard.site rendering in initial product | No — Phase 5. Comments are the sharp wedge.                                                                                                                                                                                                                                                                                                    |
 
 ## Risks
 
 - **Svelte async SSR is still experimental** — the async render path may shift under us. Mitigation: Tier 1/2 preloading are the primary SSR paths; async SSR is a demo/differentiator, not a dependency.
 - **ATProto OAuth spec velocity** (scopes → permission sets migration). Mitigation: `@atproto/oauth-client-node` + thin `service-core` abstraction; scope strings in config, not code.
 - **svebcomponents alpha status**: we're building on our own alpha tooling — expect to fix upstream bugs as they surface. That's partly the point (dogfooding), but budget time for it.
-- **Abuse of the hosted service**: mitigations designed (reply-only, rate limits, origin binding, revocation); the real answer is Phase 4 registration if it grows.
+- **Abuse of the hosted service**: mitigations designed (reply-only, rate limits, origin binding, revocation). Revisit the operating model if real usage outgrows them.
 - **Bundle size** creeping up with rich text/moderation features — set a CI size budget early (e.g. <40KB gz for the CDN bundle).
