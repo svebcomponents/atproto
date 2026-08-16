@@ -10,7 +10,7 @@
   const stylePresets = [
     { id: "rounded", color: "#ff4f8b", label: "Rounded sans-serif styling" },
     { id: "editorial", color: "#e2b33c", label: "Editorial serif styling" },
-    { id: "compact", color: "#65be87", label: "High-contrast mono styling" },
+    { id: "compact", color: "#65be87", label: "Compact monospace styling" },
   ];
 
   const quickstart = `pnpm add @svebcomponents/atproto.comments
@@ -241,7 +241,22 @@ import "@svebcomponents/atproto.comments";`;
             >"https://bsky.app/profile/<wbr />theosteiner.de/post/<wbr
             />3mreni33v7k2c"</span
           >
-&gt;&lt;/<span class="code-pink">atproto-comments</span>&gt;</code
+&gt;&lt;/<span class="code-pink">atproto-comments</span>&gt;
+
+<span class="code-muted">&lt;!-- and the styling, restyled live --&gt;</span>
+&lt;<span class="code-pink">style</span>&gt;
+  <span class="code-pink">atproto-comments</span> &lbrace;
+    <span class="code-blue">--atproto-comments-accent</span>: <span
+            class="code-green code-accent"
+            aria-hidden="true"></span>;
+    <span class="code-blue">--atproto-comments-radius</span>: <span
+            class="code-green code-radius"
+            aria-hidden="true"></span>;
+    <span class="code-blue">font-family</span>: <span
+            class="code-green code-font"
+            aria-hidden="true"></span>;
+  &rbrace;
+&lt;/<span class="code-pink">style</span>&gt;</code
         ></pre>
       <div class="code-foot">
         <span>MIT licensed · no build step</span>
@@ -649,7 +664,10 @@ import "@svebcomponents/atproto.comments";`;
     min-height: 720px;
     display: grid;
     grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-    align-items: center;
+    /* Stretch rather than centre: the thread panel absorbs whatever height the
+       snippet needs, so the two cards stay level as the copy changes instead of
+       being matched by hand. */
+    align-items: stretch;
     gap: clamp(1.25rem, 3vw, 2.5rem);
     padding: 4.5rem 0 6rem;
   }
@@ -740,6 +758,8 @@ import "@svebcomponents/atproto.comments";`;
 
   .thread-showcase {
     order: 1;
+    display: flex;
+    flex-direction: column;
     border: 1px solid #d6d1c8;
     background: #fff;
     transform: rotate(-0.7deg);
@@ -900,6 +920,15 @@ import "@svebcomponents/atproto.comments";`;
     inherits: true;
     initial-value: 18px;
   }
+
+  /* An integer twin of the radius, purely so the code block can print it:
+     `counter()` is the only way to render a number as text in CSS, and it
+     counts in integers. */
+  @property --thread-radius-n {
+    syntax: "<integer>";
+    inherits: true;
+    initial-value: 18;
+  }
   /* `initial-value` has to be computationally independent, so this one cannot
      be written in rem the way the keyframes below are — a rem here would make
      the whole registration invalid and silently drop back to discrete steps.
@@ -929,6 +958,7 @@ import "@svebcomponents/atproto.comments";`;
       --thread-muted: #75686e;
       --thread-border: #ecd9e0;
       --thread-radius: 18px;
+      --thread-radius-n: 18;
     }
 
     33.33%,
@@ -943,21 +973,23 @@ import "@svebcomponents/atproto.comments";`;
       --thread-muted: #58637a;
       --thread-border: #ccd7ed;
       --thread-radius: 4px;
+      --thread-radius-n: 4;
     }
 
     66.66%,
     90.66% {
-      --thread-shell: #0f1114;
+      --thread-shell: #f4f2ec;
       --thread-font:
         ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       --thread-font-size: 0.82rem;
-      --thread-accent: #d5ff78;
-      --thread-on-accent: #111708;
-      --thread-bg: #171a1f;
-      --thread-fg: #fff;
-      --thread-muted: #d2d7df;
-      --thread-border: #626a75;
-      --thread-radius: 2px;
+      --thread-accent: #4a6b52;
+      --thread-on-accent: #f6f8f4;
+      --thread-bg: #fbfaf6;
+      --thread-fg: #34322c;
+      --thread-muted: #7d786c;
+      --thread-border: #e0dbcd;
+      --thread-radius: 6px;
+      --thread-radius-n: 6;
     }
 
     100% {
@@ -973,45 +1005,64 @@ import "@svebcomponents/atproto.comments";`;
       --thread-muted: #75686e;
       --thread-border: #ecd9e0;
       --thread-radius: 18px;
+      --thread-radius-n: 18;
     }
   }
 
-  .thread-panel {
-    min-height: 500px;
-    background: var(--thread-shell);
-    color: var(--thread-fg);
+  /* The cycle runs on the hero rather than the panel so the code block on the
+     right inherits the same animated values, and every clock in the hero can be
+     steered from one place: each participant reads its delay and play state
+     from these two, so parking the cycle is a two-line change below instead of
+     one per animated element. */
+  .hero {
+    --cycle-delay: 0s;
+    --cycle-state: running;
     animation: thread-style-cycle 21s ease-in-out infinite;
+  }
+
+  .hero,
+  .code-accent::after,
+  .code-font::after {
+    animation-delay: var(--cycle-delay);
+    animation-play-state: var(--cycle-state);
   }
 
   /* Picking a swatch parks the cycle inside that preset's hold window rather
      than restating its values: a negative delay seeks into the animation, and
      pausing freezes it there. The presets stay defined in exactly one place. */
-  .thread-showcase:has(#thread-style-rounded:checked) .thread-panel {
-    animation-delay: -2s;
-    animation-play-state: paused;
+  .hero:has(#thread-style-rounded:checked) {
+    --cycle-delay: -2s;
+    --cycle-state: paused;
   }
 
-  .thread-showcase:has(#thread-style-editorial:checked) .thread-panel {
-    animation-delay: -9s;
-    animation-play-state: paused;
+  .hero:has(#thread-style-editorial:checked) {
+    --cycle-delay: -9s;
+    --cycle-state: paused;
   }
 
-  .thread-showcase:has(#thread-style-compact:checked) .thread-panel {
-    animation-delay: -16s;
-    animation-play-state: paused;
+  .hero:has(#thread-style-compact:checked) {
+    --cycle-delay: -16s;
+    --cycle-state: paused;
   }
 
   /* Frozen on the first preset, still fully styled. A swatch chosen by hand
      wins over this, since those selectors are more specific. */
   @media (prefers-reduced-motion: reduce) {
-    .thread-panel {
-      animation-delay: -2s;
-      animation-play-state: paused;
+    .hero {
+      --cycle-delay: -2s;
+      --cycle-state: paused;
     }
   }
 
+  .thread-panel {
+    flex: 1;
+    min-height: 500px;
+    background: var(--thread-shell);
+    color: var(--thread-fg);
+  }
+
   .thread-panel :global(atproto-comments) {
-    max-height: 500px;
+    max-height: 100%;
     padding: clamp(1rem, 3vw, 1.75rem);
     color: var(--thread-fg);
     font-family: var(--thread-font);
@@ -1034,19 +1085,22 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .hero-demo-code {
-    min-height: 300px;
     padding: clamp(1.2rem, 3.5vw, 2rem);
     border-top: 1px solid #34343a;
+    /* Tighter than the page's other code blocks: this one carries three
+       snippets, and at the shared 0.95rem/1.75 it towered over the thread. */
+    font-size: 0.85rem;
+    line-height: 1.62;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
 
   .code-heading {
-    padding: clamp(1.5rem, 4vw, 2.25rem) clamp(1.2rem, 3.5vw, 2rem);
+    padding: clamp(1.25rem, 3vw, 1.75rem) clamp(1.2rem, 3.5vw, 2rem);
   }
 
   .code-heading h2 {
-    font-size: clamp(2.25rem, 4vw, 3.4rem);
+    font-size: clamp(2rem, 3.2vw, 2.85rem);
   }
 
   .code-heading p {
@@ -1055,6 +1109,131 @@ import "@svebcomponents/atproto.comments";`;
     color: #aaaab3;
     font-size: 0.86rem;
     line-height: 1.6;
+  }
+
+  /* The three values in the style block are drawn as `content`, because that is
+     the only text in CSS that an animation can reach. They are decorative
+     readouts of the cycle on the left, so they carry aria-hidden and sit
+     outside the copyable part of the snippet.
+
+     Each uses a different mechanism, picked by what the value is:
+       radius — printed straight from the animated variable via counter(), so it
+                is the real interpolated number rather than a replay of it
+       accent — scrambled, since a colour has no text form CSS can derive
+       font   — flipped, since a font stack has nothing to interpolate through */
+  .code-radius {
+    counter-reset: radius var(--thread-radius-n);
+  }
+
+  .code-radius::after {
+    content: counter(radius) "px";
+  }
+
+  .code-accent::after {
+    content: "#e73476";
+    animation: code-accent-text 21s infinite steps(1, end);
+  }
+
+  .code-font::after {
+    content: "Inter, sans-serif";
+    animation: code-font-text 21s infinite linear;
+  }
+
+  /* Locks in left to right over the ~2s morph, so the value resolves in step
+     with the colour it describes. `steps(1, end)` keeps each frame flat for its
+     whole interval — without it a discrete property would swap halfway between
+     frames and the cadence would read as half the frames at twice the length. */
+  @keyframes code-accent-text {
+    0%,
+    24% {
+      content: "#e73476";
+    }
+    25% {
+      content: "#8f1c4a";
+    }
+    26.5% {
+      content: "#2a9d17";
+    }
+    28% {
+      content: "#25f0c3";
+    }
+    29.5% {
+      content: "#256a91";
+    }
+    31% {
+      content: "#25634f";
+    }
+    32.5% {
+      content: "#2563e7";
+    }
+    33.33%,
+    57.33% {
+      content: "#2563eb";
+    }
+    58.5% {
+      content: "#3b91c6";
+    }
+    60% {
+      content: "#4d84a1";
+    }
+    61.5% {
+      content: "#4ac93e";
+    }
+    63% {
+      content: "#4a62b0";
+    }
+    64.5% {
+      content: "#4a6b41";
+    }
+    66% {
+      content: "#4a6b5c";
+    }
+    66.66%,
+    90.66% {
+      content: "#4a6b52";
+    }
+    91.5% {
+      content: "#a4c209";
+    }
+    93% {
+      content: "#e18b5d";
+    }
+    94.5% {
+      content: "#e7f2a8";
+    }
+    96% {
+      content: "#e73c19";
+    }
+    97.5% {
+      content: "#e734d2";
+    }
+    99% {
+      content: "#e7347f";
+    }
+    100% {
+      content: "#e73476";
+    }
+  }
+
+  /* Declared at the same offsets as `--thread-font`, and left on the default
+     timing so it flips at the midpoint of the morph — the same instant the
+     thread on the left changes typeface. */
+  @keyframes code-font-text {
+    0%,
+    24% {
+      content: "Inter, sans-serif";
+    }
+    33.33%,
+    57.33% {
+      content: "Georgia, serif";
+    }
+    66.66%,
+    90.66% {
+      content: "ui-monospace, monospace";
+    }
+    100% {
+      content: "Inter, sans-serif";
+    }
   }
 
   .code-muted {
