@@ -1,52 +1,17 @@
 <script lang="ts">
   import "@svebcomponents/atproto.comments";
-  import { onMount } from "svelte";
   import type { PageProps } from "./$types";
 
   let { data }: PageProps = $props();
   const threadUri = $derived(data.thread);
-  let activeStyle = $state(0);
-  let styleRotation = $state<ReturnType<typeof setInterval>>();
 
+  // The style rotation is entirely CSS (see `thread-style-cycle` below), so
+  // these only carry the swatch colour and the accessible name.
   const stylePresets = [
-    {
-      className: "style-rounded",
-      color: "#ff4f8b",
-      label: "Preview rounded sans-serif styling",
-    },
-    {
-      className: "style-editorial",
-      color: "#e2b33c",
-      label: "Preview editorial serif styling",
-    },
-    {
-      className: "style-compact",
-      color: "#65be87",
-      label: "Preview high-contrast monospace styling",
-    },
+    { id: "rounded", color: "#ff4f8b", label: "Rounded sans-serif styling" },
+    { id: "editorial", color: "#e2b33c", label: "Editorial serif styling" },
+    { id: "compact", color: "#65be87", label: "High-contrast mono styling" },
   ];
-  const currentStyle = $derived(stylePresets[activeStyle]!);
-
-  const chooseStyle = (index: number) => {
-    activeStyle = index;
-    if (styleRotation) clearInterval(styleRotation);
-  };
-
-  onMount(() => {
-    const reducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-
-    if (!reducedMotion) {
-      styleRotation = setInterval(() => {
-        activeStyle = (activeStyle + 1) % stylePresets.length;
-      }, 5000);
-    }
-
-    return () => {
-      if (styleRotation) clearInterval(styleRotation);
-    };
-  });
 
   const quickstart = `pnpm add @svebcomponents/atproto.comments
 
@@ -198,24 +163,30 @@ import "@svebcomponents/atproto.comments";`;
 
     <div class="thread-showcase">
       <div class="showcase-bar">
-        <div class="style-picker" aria-label="Component styling examples">
-          {#each stylePresets as preset, index (preset.className)}
-            <button
-              type="button"
+        <fieldset class="style-picker">
+          <legend class="sr-only">Component styling examples</legend>
+          {#each stylePresets as preset (preset.id)}
+            <input
+              type="radio"
+              class="sr-only"
+              name="thread-style"
+              id={`thread-style-${preset.id}`}
+            />
+            <label
+              for={`thread-style-${preset.id}`}
               style:--swatch={preset.color}
-              aria-label={preset.label}
-              aria-pressed={activeStyle === index}
-              onclick={() => chooseStyle(index)}
-            ></button>
+            >
+              <span class="sr-only">{preset.label}</span>
+            </label>
           {/each}
-        </div>
+        </fieldset>
         <div class="live-label">
           <span class="pulse" aria-hidden="true"></span>
           <span>Live ATProto thread</span>
         </div>
       </div>
       <div
-        class={`thread-panel ${currentStyle.className}`}
+        class="thread-panel"
         aria-label="Live ATProto thread, rendered by this component"
       >
         {#if data.threadData}
@@ -820,19 +791,23 @@ import "@svebcomponents/atproto.comments";`;
     display: flex;
     align-items: center;
     gap: 0.4rem;
-  }
-
-  .style-picker button {
-    width: 8px;
-    height: 8px;
+    margin: 0;
     padding: 0;
     border: 0;
+  }
+
+  .style-picker label {
+    display: block;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: var(--swatch);
     cursor: pointer;
   }
 
-  .style-picker button:focus-visible {
+  /* The radio itself is visually hidden but still focusable, so the focus ring
+     has to be drawn on the swatch it labels. */
+  .style-picker input:focus-visible + label {
     outline: 2px solid #1b1b1d;
     outline-offset: 2px;
   }
@@ -877,62 +852,177 @@ import "@svebcomponents/atproto.comments";`;
       monospace;
   }
 
+  /* Registering these makes them interpolable: an unregistered custom property
+     can only flip between keyframes, a registered one animates through the
+     values in between. That is what lets the thread morph from one preset to
+     the next instead of snapping, and it is why the rotation needs no JS.
+
+     Only `--thread-*` is registered here — the component's own
+     `--atproto-comments-*` API is read from these below, so this page never
+     imposes a syntax on someone else's custom properties. */
+  @property --thread-shell {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #fffafc;
+  }
+  @property --thread-accent {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #e73476;
+  }
+  @property --thread-on-accent {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #fff;
+  }
+  @property --thread-bg {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #fff;
+  }
+  @property --thread-fg {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #241d20;
+  }
+  @property --thread-muted {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #75686e;
+  }
+  @property --thread-border {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #ecd9e0;
+  }
+  @property --thread-radius {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 18px;
+  }
+  /* `initial-value` has to be computationally independent, so this one cannot
+     be written in rem the way the keyframes below are — a rem here would make
+     the whole registration invalid and silently drop back to discrete steps.
+     The animation always supplies a value, so this is only a formality. */
+  @property --thread-font-size {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 14.4px;
+  }
+
+  /* Each preset holds for ~5s, then morphs into the next over ~2s.
+     `--thread-font` is deliberately left unregistered: a font stack has no
+     interpolable form, so it flips halfway through the morph, while the colours
+     are mid-blend and the swap is least conspicuous. */
+  @keyframes thread-style-cycle {
+    0%,
+    24% {
+      --thread-shell: #fffafc;
+      --thread-font:
+        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+      --thread-font-size: 0.9rem;
+      --thread-accent: #e73476;
+      --thread-on-accent: #fff;
+      --thread-bg: #fff;
+      --thread-fg: #241d20;
+      --thread-muted: #75686e;
+      --thread-border: #ecd9e0;
+      --thread-radius: 18px;
+    }
+
+    33.33%,
+    57.33% {
+      --thread-shell: #f7f8fc;
+      --thread-font: Georgia, "Times New Roman", serif;
+      --thread-font-size: 1rem;
+      --thread-accent: #2563eb;
+      --thread-on-accent: #fff;
+      --thread-bg: #fbfcff;
+      --thread-fg: #172033;
+      --thread-muted: #58637a;
+      --thread-border: #ccd7ed;
+      --thread-radius: 4px;
+    }
+
+    66.66%,
+    90.66% {
+      --thread-shell: #0f1114;
+      --thread-font:
+        ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --thread-font-size: 0.82rem;
+      --thread-accent: #d5ff78;
+      --thread-on-accent: #111708;
+      --thread-bg: #171a1f;
+      --thread-fg: #fff;
+      --thread-muted: #d2d7df;
+      --thread-border: #626a75;
+      --thread-radius: 2px;
+    }
+
+    100% {
+      --thread-shell: #fffafc;
+      --thread-font:
+        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+      --thread-font-size: 0.9rem;
+      --thread-accent: #e73476;
+      --thread-on-accent: #fff;
+      --thread-bg: #fff;
+      --thread-fg: #241d20;
+      --thread-muted: #75686e;
+      --thread-border: #ecd9e0;
+      --thread-radius: 18px;
+    }
+  }
+
   .thread-panel {
     min-height: 500px;
-    background: var(--thread-shell, #fff);
-    color: #202025;
-    transition: background 350ms ease;
+    background: var(--thread-shell);
+    color: var(--thread-fg);
+    animation: thread-style-cycle 21s ease-in-out infinite;
+  }
+
+  /* Picking a swatch parks the cycle inside that preset's hold window rather
+     than restating its values: a negative delay seeks into the animation, and
+     pausing freezes it there. The presets stay defined in exactly one place. */
+  .thread-showcase:has(#thread-style-rounded:checked) .thread-panel {
+    animation-delay: -2s;
+    animation-play-state: paused;
+  }
+
+  .thread-showcase:has(#thread-style-editorial:checked) .thread-panel {
+    animation-delay: -9s;
+    animation-play-state: paused;
+  }
+
+  .thread-showcase:has(#thread-style-compact:checked) .thread-panel {
+    animation-delay: -16s;
+    animation-play-state: paused;
+  }
+
+  /* Frozen on the first preset, still fully styled. A swatch chosen by hand
+     wins over this, since those selectors are more specific. */
+  @media (prefers-reduced-motion: reduce) {
+    .thread-panel {
+      animation-delay: -2s;
+      animation-play-state: paused;
+    }
   }
 
   .thread-panel :global(atproto-comments) {
     max-height: 500px;
     padding: clamp(1rem, 3vw, 1.75rem);
-    color: var(--atproto-comments-fg, #241d20);
-    font-family: var(--thread-font, inherit);
-    --atproto-comments-font-size: var(--thread-font-size, 0.9rem);
-    transition:
-      color 350ms ease,
-      font-size 350ms ease;
-  }
-
-  .thread-panel.style-rounded {
-    --thread-shell: #fffafc;
-    --thread-font:
-      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-      "Segoe UI", sans-serif;
-    --thread-font-size: 0.9rem;
-    --atproto-comments-accent: #e73476;
-    --atproto-comments-bg: #fff;
-    --atproto-comments-fg: #241d20;
-    --atproto-comments-muted: #75686e;
-    --atproto-comments-border: #ecd9e0;
-    --atproto-comments-radius: 18px;
-  }
-
-  .thread-panel.style-editorial {
-    --thread-shell: #f7f8fc;
-    --thread-font: Georgia, "Times New Roman", serif;
-    --thread-font-size: 1rem;
-    --atproto-comments-accent: #2563eb;
-    --atproto-comments-bg: #fbfcff;
-    --atproto-comments-fg: #172033;
-    --atproto-comments-muted: #58637a;
-    --atproto-comments-border: #ccd7ed;
-    --atproto-comments-radius: 4px;
-  }
-
-  .thread-panel.style-compact {
-    --thread-shell: #0f1114;
-    --thread-font:
-      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    --thread-font-size: 0.82rem;
-    --atproto-comments-accent: #d5ff78;
-    --atproto-comments-on-accent: #111708;
-    --atproto-comments-bg: #171a1f;
-    --atproto-comments-fg: #ffffff;
-    --atproto-comments-muted: #d2d7df;
-    --atproto-comments-border: #626a75;
-    --atproto-comments-radius: 2px;
+    color: var(--thread-fg);
+    font-family: var(--thread-font);
+    --atproto-comments-accent: var(--thread-accent);
+    --atproto-comments-on-accent: var(--thread-on-accent);
+    --atproto-comments-bg: var(--thread-bg);
+    --atproto-comments-fg: var(--thread-fg);
+    --atproto-comments-muted: var(--thread-muted);
+    --atproto-comments-border: var(--thread-border);
+    --atproto-comments-radius: var(--thread-radius);
+    --atproto-comments-font-size: var(--thread-font-size);
   }
 
   .thread-panel .demo-unavailable {
