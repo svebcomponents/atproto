@@ -5,14 +5,6 @@
   let { data }: PageProps = $props();
   const threadUri = $derived(data.thread);
 
-  // The style rotation is entirely CSS (see `thread-style-cycle` below), so
-  // these only carry the swatch colour and the accessible name.
-  const stylePresets = [
-    { id: "rounded", color: "#ff4f8b", label: "Rounded sans-serif styling" },
-    { id: "editorial", color: "#e2b33c", label: "Editorial serif styling" },
-    { id: "compact", color: "#65be87", label: "Compact monospace styling" },
-  ];
-
   const quickstart = `pnpm add @svebcomponents/atproto.comments
 
 import "@svebcomponents/atproto.comments";`;
@@ -163,23 +155,6 @@ import "@svebcomponents/atproto.comments";`;
 
     <div class="thread-showcase">
       <div class="showcase-bar">
-        <fieldset class="style-picker">
-          <legend class="sr-only">Component styling examples</legend>
-          {#each stylePresets as preset (preset.id)}
-            <input
-              type="radio"
-              class="sr-only"
-              name="thread-style"
-              id={`thread-style-${preset.id}`}
-            />
-            <label
-              for={`thread-style-${preset.id}`}
-              style:--swatch={preset.color}
-            >
-              <span class="sr-only">{preset.label}</span>
-            </label>
-          {/each}
-        </fieldset>
         <div class="live-label">
           <span class="pulse" aria-hidden="true"></span>
           <span>Live ATProto thread</span>
@@ -204,7 +179,6 @@ import "@svebcomponents/atproto.comments";`;
         {/if}
       </div>
       <div class="showcase-foot">
-        <span>CSS knobs: type · size · color · radius</span>
         <a
           class="showcase-link"
           href="https://bsky.app/profile/theosteiner.de/post/3mreni33v7k2c"
@@ -216,26 +190,17 @@ import "@svebcomponents/atproto.comments";`;
 
     <div class="hero-code" aria-label="Code needed to render this thread">
       <div class="window-bar">
-        <span></span><span></span><span></span>
         <small>Paste into your site</small>
       </div>
-      <div class="code-heading">
-        <div class="eyebrow"><span></span> One component</div>
-        <h2>Get this thread.</h2>
-        <p>Load the module from our CDN, then point the element at any post.</p>
-      </div>
       <pre class="hero-demo-code"><code
-          ><span class="code-muted"
-            >&lt;!-- no install, straight from the hosted CDN --&gt;</span
-          >
-&lt;<span class="code-pink">script</span> <span class="code-blue">type</span
+          >&lt;<span class="code-pink">script</span> <span class="code-blue"
+            >type</span
           >=<span class="code-green">"module"</span>
   <span class="code-blue">src</span>=<span class="code-green"
             >"https://atproto.svebcomponents.dev/<wbr />cdn"</span
           >&gt;
 &lt;/<span class="code-pink">script</span>&gt;
 
-<span class="code-muted">&lt;!-- the live thread shown here --&gt;</span>
 &lt;<span class="code-pink">atproto-comments</span>
   <span class="code-blue">thread</span>=<span class="code-green"
             >"https://bsky.app/profile/<wbr />theosteiner.de/post/<wbr
@@ -243,7 +208,6 @@ import "@svebcomponents/atproto.comments";`;
           >
 &gt;&lt;/<span class="code-pink">atproto-comments</span>&gt;
 
-<span class="code-muted">&lt;!-- and the styling, restyled live --&gt;</span>
 &lt;<span class="code-pink">style</span>&gt;
   <span class="code-pink">atproto-comments</span> &lbrace;
     <span class="code-blue">--atproto-comments-accent</span>: <span
@@ -259,7 +223,6 @@ import "@svebcomponents/atproto.comments";`;
 &lt;/<span class="code-pink">style</span>&gt;</code
         ></pre>
       <div class="code-foot">
-        <span>MIT licensed · no build step</span>
         <a class="code-foot-link" href="#start">More options ↓</a>
       </div>
     </div>
@@ -684,7 +647,6 @@ import "@svebcomponents/atproto.comments";`;
     border: 0;
   }
 
-  .eyebrow,
   .kicker {
     margin: 0 0 1.15rem;
     color: #7d405b;
@@ -692,18 +654,6 @@ import "@svebcomponents/atproto.comments";`;
     font-weight: 800;
     letter-spacing: 0.13em;
     text-transform: uppercase;
-  }
-
-  .eyebrow {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-  }
-
-  .eyebrow span {
-    width: 28px;
-    height: 1px;
-    background: #ff4f8b;
   }
 
   h1,
@@ -767,6 +717,8 @@ import "@svebcomponents/atproto.comments";`;
 
   .hero-code {
     order: 2;
+    display: flex;
+    flex-direction: column;
     border: 1px solid #34343a;
     background: #202025;
     color: #f7f5f0;
@@ -777,7 +729,6 @@ import "@svebcomponents/atproto.comments";`;
   .showcase-foot {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 1rem;
     padding: 0.9rem 1rem;
     color: #777169;
@@ -807,56 +758,14 @@ import "@svebcomponents/atproto.comments";`;
     text-decoration: none;
   }
 
-  .style-picker {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin: 0;
-    padding: 0;
-    border: 0;
-  }
-
-  .style-picker label {
-    display: block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--swatch);
-    cursor: pointer;
-  }
-
-  /* The radio itself is visually hidden but still focusable, so the focus ring
-     has to be drawn on the swatch it labels. */
-  .style-picker input:focus-visible + label {
-    outline: 2px solid #1b1b1d;
-    outline-offset: 2px;
-  }
-
   .window-bar {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
     padding: 0.9rem 1rem;
     border-bottom: 1px solid #34343a;
   }
 
-  .window-bar > span {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #ff4f8b;
-  }
-
-  .window-bar > span:nth-child(2) {
-    background: #e2b33c;
-  }
-
-  .window-bar > span:nth-child(3) {
-    background: #65be87;
-  }
-
   .window-bar small {
-    margin-left: auto;
     color: #8d8d99;
   }
 
@@ -1010,47 +919,20 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   /* The cycle runs on the hero rather than the panel so the code block on the
-     right inherits the same animated values, and every clock in the hero can be
-     steered from one place: each participant reads its delay and play state
-     from these two, so parking the cycle is a two-line change below instead of
-     one per animated element. */
+     right inherits the same animated values and stays in step with the thread. */
   .hero {
-    --cycle-delay: 0s;
-    --cycle-state: running;
     animation: thread-style-cycle 21s ease-in-out infinite;
   }
 
-  .hero,
-  .code-accent::after,
-  .code-font::after {
-    animation-delay: var(--cycle-delay);
-    animation-play-state: var(--cycle-state);
-  }
-
-  /* Picking a swatch parks the cycle inside that preset's hold window rather
-     than restating its values: a negative delay seeks into the animation, and
-     pausing freezes it there. The presets stay defined in exactly one place. */
-  .hero:has(#thread-style-rounded:checked) {
-    --cycle-delay: -2s;
-    --cycle-state: paused;
-  }
-
-  .hero:has(#thread-style-editorial:checked) {
-    --cycle-delay: -9s;
-    --cycle-state: paused;
-  }
-
-  .hero:has(#thread-style-compact:checked) {
-    --cycle-delay: -16s;
-    --cycle-state: paused;
-  }
-
-  /* Frozen on the first preset, still fully styled. A swatch chosen by hand
-     wins over this, since those selectors are more specific. */
+  /* Parked inside the first preset's hold window, still fully styled: a negative
+     delay seeks into the animation and pausing freezes it there, so the presets
+     stay defined in exactly one place. */
   @media (prefers-reduced-motion: reduce) {
-    .hero {
-      --cycle-delay: -2s;
-      --cycle-state: paused;
+    .hero,
+    .code-accent::after,
+    .code-font::after {
+      animation-delay: -2s;
+      animation-play-state: paused;
     }
   }
 
@@ -1085,6 +967,7 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .hero-demo-code {
+    flex: 1;
     padding: clamp(1.2rem, 3.5vw, 2rem);
     border-top: 1px solid #34343a;
     /* Tighter than the page's other code blocks: this one carries three
@@ -1093,22 +976,6 @@ import "@svebcomponents/atproto.comments";`;
     line-height: 1.62;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-  }
-
-  .code-heading {
-    padding: clamp(1.25rem, 3vw, 1.75rem) clamp(1.2rem, 3.5vw, 2rem);
-  }
-
-  .code-heading h2 {
-    font-size: clamp(2rem, 3.2vw, 2.85rem);
-  }
-
-  .code-heading p {
-    max-width: 380px;
-    margin: 1rem 0 0;
-    color: #aaaab3;
-    font-size: 0.86rem;
-    line-height: 1.6;
   }
 
   /* The three values in the style block are drawn as `content`, because that is
@@ -1236,10 +1103,6 @@ import "@svebcomponents/atproto.comments";`;
     }
   }
 
-  .code-muted {
-    color: #797984;
-  }
-
   .code-pink {
     color: #ff7eab;
   }
@@ -1267,7 +1130,6 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .code-foot-link {
-    margin-left: auto;
     color: #ff8fb6;
     text-decoration: none;
   }
