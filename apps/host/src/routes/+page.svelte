@@ -1,10 +1,52 @@
 <script lang="ts">
   import "@svebcomponents/atproto.comments";
+  import { onMount } from "svelte";
   import type { PageProps } from "./$types";
 
   let { data }: PageProps = $props();
   const threadUri = $derived(data.thread);
-  let showCode = $state(false);
+  let activeStyle = $state(0);
+  let styleRotation = $state<ReturnType<typeof setInterval>>();
+
+  const stylePresets = [
+    {
+      className: "style-rounded",
+      color: "#ff4f8b",
+      label: "Preview rounded sans-serif styling",
+    },
+    {
+      className: "style-editorial",
+      color: "#e2b33c",
+      label: "Preview editorial serif styling",
+    },
+    {
+      className: "style-compact",
+      color: "#65be87",
+      label: "Preview high-contrast monospace styling",
+    },
+  ];
+  const currentStyle = $derived(stylePresets[activeStyle]!);
+
+  const chooseStyle = (index: number) => {
+    activeStyle = index;
+    if (styleRotation) clearInterval(styleRotation);
+  };
+
+  onMount(() => {
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    if (!reducedMotion) {
+      styleRotation = setInterval(() => {
+        activeStyle = (activeStyle + 1) % stylePresets.length;
+      }, 5000);
+    }
+
+    return () => {
+      if (styleRotation) clearInterval(styleRotation);
+    };
+  });
 
   const quickstart = `pnpm add @svebcomponents/atproto.comments
 
@@ -149,38 +191,33 @@ import "@svebcomponents/atproto.comments";`;
 
 <main id="top">
   <section class="hero">
-    <div class="hero-copy">
-      <div class="eyebrow"><span></span> Open social comments</div>
-      <h1>Introducing<br /><em>&lt;atproto-comments&gt;</em></h1>
-      <p class="lede">
-        Comments for your site, straight from the AT Protocol — no database, no
-        lock-in. Reply to this post and watch it show up live below.
-      </p>
-      <div class="hero-actions">
-        <a class="button primary" href="#start">Add to your site</a>
-        <button
-          class="button secondary"
-          type="button"
-          onclick={() => (showCode = !showCode)}
-          aria-expanded={showCode}
-        >
-          {showCode ? "Hide the code" : "View the code"}
-        </button>
-      </div>
-      <p class="microcopy">
-        MIT licensed · framework-agnostic · hosted backend included
-      </p>
-    </div>
+    <h1 class="sr-only">
+      Introducing &lt;atproto-comments&gt;: live AT Protocol comments for your
+      site
+    </h1>
 
-    <div
-      class="hero-demo"
-      aria-label="Live ATProto thread, rendered by this component"
-    >
-      <div class="window-bar">
-        <span></span><span></span><span></span>
-        <small>Live ATProto thread</small>
+    <div class="thread-showcase">
+      <div class="showcase-bar">
+        <div class="style-picker" aria-label="Component styling examples">
+          {#each stylePresets as preset, index (preset.className)}
+            <button
+              type="button"
+              style:--swatch={preset.color}
+              aria-label={preset.label}
+              aria-pressed={activeStyle === index}
+              onclick={() => chooseStyle(index)}
+            ></button>
+          {/each}
+        </div>
+        <div class="live-label">
+          <span class="pulse" aria-hidden="true"></span>
+          <span>Live ATProto thread</span>
+        </div>
       </div>
-      <div class="hero-demo-panel">
+      <div
+        class={`thread-panel ${currentStyle.className}`}
+        aria-label="Live ATProto thread, rendered by this component"
+      >
         {#if data.threadData}
           <atproto-comments
             thread={threadUri}
@@ -195,42 +232,50 @@ import "@svebcomponents/atproto.comments";`;
           </p>
         {/if}
       </div>
-      {#if showCode}
-        <pre class="hero-demo-code"><code
-            ><span class="code-muted"
-              >&lt;!-- no install, straight from the CDN --&gt;</span
-            >
-&lt;<span class="code-pink">script</span> <span class="code-blue">type</span
-            >=<span class="code-green">"module"</span>
-  <span class="code-blue">src</span>=<span class="code-green"
-              >"https://atproto.svebcomponents.dev/<wbr />cdn"</span
-            >&gt;
-&lt;/<span class="code-pink">script</span>&gt;
-
-<span class="code-muted"
-              >&lt;!-- one component, pointed at the thread above --&gt;</span
-            >
-&lt;<span class="code-pink">atproto-comments</span>
-  <span class="code-blue">thread</span>=<span class="code-green"
-              >"https://bsky.app/…"</span
-            >
-&gt;&lt;/<span class="code-pink">atproto-comments</span>&gt;</code
-          ></pre>
-      {/if}
-      <div class="code-foot">
-        <span class="pulse" aria-hidden="true"></span>
-        Live updates connected
+      <div class="showcase-foot">
+        <span>CSS knobs: type · size · color · radius</span>
         <a
-          class="code-foot-link"
+          class="showcase-link"
           href="https://bsky.app/profile/theosteiner.de/post/3mreni33v7k2c"
           target="_blank"
           rel="noreferrer">Open original ↗</a
         >
       </div>
-      <p class="demo-hint">
-        Try another post with
-        <code>?thread=&lt;AT URI or bsky.app URL&gt;</code>.
-      </p>
+    </div>
+
+    <div class="hero-code" aria-label="Code needed to render this thread">
+      <div class="window-bar">
+        <span></span><span></span><span></span>
+        <small>Paste into your site</small>
+      </div>
+      <div class="code-heading">
+        <div class="eyebrow"><span></span> One component</div>
+        <h2>Get this thread.</h2>
+        <p>Load the module from our CDN, then point the element at any post.</p>
+      </div>
+      <pre class="hero-demo-code"><code
+          ><span class="code-muted"
+            >&lt;!-- no install, straight from the hosted CDN --&gt;</span
+          >
+&lt;<span class="code-pink">script</span> <span class="code-blue">type</span
+          >=<span class="code-green">"module"</span>
+  <span class="code-blue">src</span>=<span class="code-green"
+            >"https://atproto.svebcomponents.dev/<wbr />cdn"</span
+          >&gt;
+&lt;/<span class="code-pink">script</span>&gt;
+
+<span class="code-muted">&lt;!-- the live thread shown here --&gt;</span>
+&lt;<span class="code-pink">atproto-comments</span>
+  <span class="code-blue">thread</span>=<span class="code-green"
+            >"https://bsky.app/profile/<wbr />theosteiner.de/post/<wbr
+            />3mreni33v7k2c"</span
+          >
+&gt;&lt;/<span class="code-pink">atproto-comments</span>&gt;</code
+        ></pre>
+      <div class="code-foot">
+        <span>MIT licensed · no build step</span>
+        <a class="code-foot-link" href="#start">More options ↓</a>
+      </div>
     </div>
   </section>
 
@@ -287,7 +332,8 @@ import "@svebcomponents/atproto.comments";`;
           <h3>npm install</h3>
           <p>
             <code>pnpm add</code> the package and import it into your own
-            bundle.
+            bundle. The import brings typed events and a custom elements
+            manifest with it, so editors complete the tag.
             <a class="text-link" href="#start">See the snippet ↓</a>
           </p>
         </div>
@@ -629,12 +675,24 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .hero {
-    min-height: 670px;
+    min-height: 720px;
     display: grid;
-    grid-template-columns: 0.72fr 1.28fr;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
     align-items: center;
-    gap: clamp(2rem, 6vw, 4rem);
-    padding: 5.5rem 0 6.5rem;
+    gap: clamp(1.25rem, 3vw, 2.5rem);
+    padding: 4.5rem 0 6rem;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .eyebrow,
@@ -673,28 +731,8 @@ import "@svebcomponents/atproto.comments";`;
     font-size: clamp(2.75rem, 4.6vw, 4.25rem);
   }
 
-  h1 em {
-    color: #e73476;
-    font-weight: inherit;
-  }
-
   h2 {
     font-size: clamp(3rem, 5vw, 5rem);
-  }
-
-  .lede {
-    max-width: 420px;
-    margin: 1.5rem 0 0;
-    color: #514e49;
-    font-size: clamp(1rem, 1.4vw, 1.1rem);
-    line-height: 1.55;
-  }
-
-  .hero-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.8rem;
-    margin-top: 2rem;
   }
 
   .button {
@@ -722,28 +760,81 @@ import "@svebcomponents/atproto.comments";`;
     background: #e73476;
   }
 
-  .button.secondary {
-    border: 1px solid #bdb8ae;
-  }
-
-  .button.secondary:hover {
-    border-color: #1b1b1d;
-  }
-
-  .microcopy {
-    color: #817c73;
-    font-size: 0.78rem;
-    margin-top: 1.2rem;
-  }
-
-  .hero-demo {
+  .thread-showcase,
+  .hero-code {
     overflow: hidden;
-    border: 1px solid #34343a;
     border-radius: 18px;
+    box-shadow: 0 28px 70px rgb(25 20 22 / 0.16);
+  }
+
+  .thread-showcase {
+    order: 1;
+    border: 1px solid #d6d1c8;
+    background: #fff;
+    transform: rotate(-0.7deg);
+  }
+
+  .hero-code {
+    order: 2;
+    border: 1px solid #34343a;
     background: #202025;
     color: #f7f5f0;
-    box-shadow: 0 28px 70px rgb(25 20 22 / 0.18);
-    transform: rotate(1.2deg);
+    transform: rotate(0.7deg);
+  }
+
+  .showcase-bar,
+  .showcase-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1rem;
+    color: #777169;
+    font:
+      0.72rem ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      monospace;
+  }
+
+  .showcase-bar {
+    border-bottom: 1px solid #e3dfd7;
+  }
+
+  .live-label {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .showcase-foot {
+    border-top: 1px solid #e3dfd7;
+  }
+
+  .showcase-link {
+    color: #c62e67;
+    text-decoration: none;
+  }
+
+  .style-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .style-picker button {
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--swatch);
+    cursor: pointer;
+  }
+
+  .style-picker button:focus-visible {
+    outline: 2px solid #1b1b1d;
+    outline-offset: 2px;
   }
 
   .window-bar {
@@ -786,16 +877,65 @@ import "@svebcomponents/atproto.comments";`;
       monospace;
   }
 
-  .hero-demo-panel {
-    background: #fff;
+  .thread-panel {
+    min-height: 500px;
+    background: var(--thread-shell, #fff);
     color: #202025;
+    transition: background 350ms ease;
   }
 
-  .hero-demo-panel :global(atproto-comments) {
-    max-height: 320px;
+  .thread-panel :global(atproto-comments) {
+    max-height: 500px;
+    padding: clamp(1rem, 3vw, 1.75rem);
+    color: var(--atproto-comments-fg, #241d20);
+    font-family: var(--thread-font, inherit);
+    --atproto-comments-font-size: var(--thread-font-size, 0.9rem);
+    transition:
+      color 350ms ease,
+      font-size 350ms ease;
   }
 
-  .hero-demo-panel .demo-unavailable {
+  .thread-panel.style-rounded {
+    --thread-shell: #fffafc;
+    --thread-font:
+      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", sans-serif;
+    --thread-font-size: 0.9rem;
+    --atproto-comments-accent: #e73476;
+    --atproto-comments-bg: #fff;
+    --atproto-comments-fg: #241d20;
+    --atproto-comments-muted: #75686e;
+    --atproto-comments-border: #ecd9e0;
+    --atproto-comments-radius: 18px;
+  }
+
+  .thread-panel.style-editorial {
+    --thread-shell: #f7f8fc;
+    --thread-font: Georgia, "Times New Roman", serif;
+    --thread-font-size: 1rem;
+    --atproto-comments-accent: #2563eb;
+    --atproto-comments-bg: #fbfcff;
+    --atproto-comments-fg: #172033;
+    --atproto-comments-muted: #58637a;
+    --atproto-comments-border: #ccd7ed;
+    --atproto-comments-radius: 4px;
+  }
+
+  .thread-panel.style-compact {
+    --thread-shell: #0f1114;
+    --thread-font:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --thread-font-size: 0.82rem;
+    --atproto-comments-accent: #d5ff78;
+    --atproto-comments-on-accent: #111708;
+    --atproto-comments-bg: #171a1f;
+    --atproto-comments-fg: #ffffff;
+    --atproto-comments-muted: #d2d7df;
+    --atproto-comments-border: #626a75;
+    --atproto-comments-radius: 2px;
+  }
+
+  .thread-panel .demo-unavailable {
     margin: 0;
     padding: clamp(1.4rem, 4vw, 2.5rem);
     color: #67635d;
@@ -804,12 +944,27 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .hero-demo-code {
-    max-height: 320px;
+    min-height: 300px;
     padding: clamp(1.2rem, 3.5vw, 2rem);
     border-top: 1px solid #34343a;
-    overflow-y: auto;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+
+  .code-heading {
+    padding: clamp(1.5rem, 4vw, 2.25rem) clamp(1.2rem, 3.5vw, 2rem);
+  }
+
+  .code-heading h2 {
+    font-size: clamp(2.25rem, 4vw, 3.4rem);
+  }
+
+  .code-heading p {
+    max-width: 380px;
+    margin: 1rem 0 0;
+    color: #aaaab3;
+    font-size: 0.86rem;
+    line-height: 1.6;
   }
 
   .code-muted {
@@ -1006,22 +1161,7 @@ import "@svebcomponents/atproto.comments";`;
     overflow: auto;
     padding: clamp(1rem, 4vw, 2.5rem);
     scrollbar-color: #c7c2b9 transparent;
-    --atproto-comments-accent: #e73476;
-    --atproto-comments-radius: 999px;
     --atproto-comments-font-size: 0.9rem;
-  }
-
-  .demo-hint {
-    margin: 0;
-    padding: 0.75rem 1rem 1rem;
-    color: #8f8d96;
-    font-size: 0.78rem;
-    text-align: center;
-  }
-
-  .demo-hint code {
-    border-color: #414149;
-    background: #2b2b31;
   }
 
   .architecture {
@@ -1287,7 +1427,8 @@ import "@svebcomponents/atproto.comments";`;
       padding-top: 4rem;
     }
 
-    .hero-demo {
+    .thread-showcase,
+    .hero-code {
       transform: none;
     }
 
