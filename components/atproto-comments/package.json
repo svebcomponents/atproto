@@ -67,7 +67,7 @@
     "@svebcomponents/atproto.client": "workspace:*"
   },
   "peerDependencies": {
-    "@svebcomponents/ssr": "^0.7.0"
+    "@svebcomponents/ssr": "^0.8.0"
   },
   "peerDependenciesMeta": {
     "@svebcomponents/ssr": {
