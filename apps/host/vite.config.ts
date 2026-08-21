@@ -12,9 +12,11 @@ export default defineConfig({
   // it into the same async server graph creates a top-level-await cycle.
   ssr: { external: ["@svebcomponents/ssr/shim"] },
   plugins: [
-    // The page server-load supplies threadData, so rendering stays synchronous
+    // No options: the plugin reads this app's Svelte compiler settings, which
+    // leave `experimental.async` off, and picks its synchronous wrapper. The
+    // page server-load supplies threadData, so rendering stays synchronous
     // while still producing a fully server-rendered declarative shadow root.
-    svebcomponents({ async: false }),
+    svebcomponents(),
     sveltekit(),
   ],
 });

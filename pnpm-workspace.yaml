@@ -8,8 +8,8 @@ catalog:
   "@eslint/compat": 2.1.0
   "@playwright/test": 1.62.1
   "@types/node": 24.13.3
-  "@svebcomponents/build": 0.7.0
-  "@svebcomponents/ssr": 0.7.0
+  "@svebcomponents/build": 0.7.1
+  "@svebcomponents/ssr": 0.8.0
   "@sveltejs/adapter-node": 5.5.7
   "@sveltejs/kit": 2.70.2
   "@sveltejs/vite-plugin-svelte": 7.2.0
