@@ -5,6 +5,23 @@
   let { data }: PageProps = $props();
   const threadUri = $derived(data.thread);
 
+  /* The snippet is copied out of the DOM rather than kept as a second string,
+     so the code on screen and the code on the clipboard cannot drift apart. */
+  let snippetEl: HTMLElement;
+  let copied = $state(false);
+  let copiedTimer: ReturnType<typeof setTimeout>;
+
+  async function copySnippet() {
+    try {
+      await navigator.clipboard.writeText(snippetEl.textContent ?? "");
+    } catch {
+      return;
+    }
+    copied = true;
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => (copied = false), 2000);
+  }
+
   const quickstart = `pnpm add @svebcomponents/atproto.comments
 
 import "@svebcomponents/atproto.comments";`;
@@ -129,7 +146,7 @@ import "@svebcomponents/atproto.comments";`;
 
 <header class="site-header">
   <a class="brand" href="#top" aria-label="svebcomponents atproto home">
-    <span class="brand-mark" aria-hidden="true">✦</span>
+    <img class="brand-mark" src="/svebcomponents.svg" alt="" />
     <span>svebcomponents<span class="brand-muted">/atproto</span></span>
   </a>
   <nav aria-label="Main navigation">
@@ -190,37 +207,45 @@ import "@svebcomponents/atproto.comments";`;
 
     <div class="hero-code" aria-label="Code needed to render this thread">
       <div class="window-bar">
-        <small>Paste into your site</small>
+        <button class="copy-button" type="button" onclick={copySnippet}>
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="5.5" y="5.5" width="8" height="9" rx="1.5" />
+            <path
+              d="M10.5 3V2.5a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5V10A1.5 1.5 0 0 0 4 11.5h.5"
+            />
+          </svg>
+          {copied ? "Copied to clipboard" : "Paste into your site"}
+        </button>
       </div>
-      <pre class="hero-demo-code"><code
-          >&lt;<span class="code-pink">script</span> <span class="code-blue"
+      <pre class="hero-demo-code"><code bind:this={snippetEl}
+          >&lt;<span class="code-tag">script</span> <span class="code-attr"
             >type</span
-          >=<span class="code-green">"module"</span>
-  <span class="code-blue">src</span>=<span class="code-green"
+          >=<span class="code-string">"module"</span>
+  <span class="code-attr">src</span>=<span class="code-string"
             >"https://atproto.svebcomponents.dev/<wbr />cdn"</span
           >&gt;
-&lt;/<span class="code-pink">script</span>&gt;
+&lt;/<span class="code-tag">script</span>&gt;
 
-&lt;<span class="code-pink">atproto-comments</span>
-  <span class="code-blue">thread</span>=<span class="code-green"
+&lt;<span class="code-tag">atproto-comments</span>
+  <span class="code-attr">thread</span>=<span class="code-string"
             >"https://bsky.app/profile/<wbr />theosteiner.de/post/<wbr
             />3mreni33v7k2c"</span
           >
-&gt;&lt;/<span class="code-pink">atproto-comments</span>&gt;
+&gt;&lt;/<span class="code-tag">atproto-comments</span>&gt;
 
-&lt;<span class="code-pink">style</span>&gt;
-  <span class="code-pink">atproto-comments</span> &lbrace;
-    <span class="code-blue">--atproto-comments-accent</span>: <span
-            class="code-green code-accent"
-            aria-hidden="true"></span>;
-    <span class="code-blue">--atproto-comments-radius</span>: <span
-            class="code-green code-radius"
-            aria-hidden="true"></span>;
-    <span class="code-blue">font-family</span>: <span
-            class="code-green code-font"
-            aria-hidden="true"></span>;
+&lt;<span class="code-tag">style</span>&gt;
+  <span class="code-tag">atproto-comments</span> &lbrace;
+    <span class="code-attr">--atproto-comments-accent</span>: <span
+            class="code-string">#2563eb</span
+          >;
+    <span class="code-attr">--atproto-comments-radius</span>: <span
+            class="code-string">4px</span
+          >;
+    <span class="code-attr">font-family</span>: <span class="code-string"
+            >ui-monospace, monospace</span
+          >;
   &rbrace;
-&lt;/<span class="code-pink">style</span>&gt;</code
+&lt;/<span class="code-tag">style</span>&gt;</code
         ></pre>
       <div class="code-foot">
         <a class="code-foot-link" href="#start">More options ↓</a>
@@ -493,7 +518,7 @@ import "@svebcomponents/atproto.comments";`;
   </section>
 
   <section class="closing">
-    <span class="closing-star" aria-hidden="true">✦</span>
+    <img class="closing-mark" src="/svebcomponents.svg" alt="" />
     <p class="kicker">Comments should belong to the conversation</p>
     <h2>Make the social web<br />feel like the web again.</h2>
     <a class="button primary" href="#start">Start with one thread</a>
@@ -502,7 +527,7 @@ import "@svebcomponents/atproto.comments";`;
 
 <footer>
   <a class="brand" href="#top">
-    <span class="brand-mark" aria-hidden="true">✦</span>
+    <img class="brand-mark" src="/svebcomponents.svg" alt="" />
     <span>svebcomponents<span class="brand-muted">/atproto</span></span>
   </a>
   <p>Open source, MIT licensed, and built on the atmosphere.</p>
@@ -514,6 +539,36 @@ import "@svebcomponents/atproto.comments";`;
 </footer>
 
 <style>
+  /* One palette for the page. Every colour below is a role, not a shade: the
+     surfaces step down from --page, the text steps down from --ink, and the
+     accent family is the only hue that carries meaning. The dark card and the
+     syntax colours are the one place a second, deeper ground is used. */
+  :global(:root) {
+    --page: #f2f5fb;
+    --surface-raised: #e8eef9;
+    --surface-sunken: #e3ebf7;
+
+    --ink: #111a2b;
+    --ink-strong: #162033;
+    --text: #55637d;
+    --text-meta: #6d7c96;
+
+    --line: #d5deee;
+    --line-strong: #c2ccdf;
+
+    --accent: #2563eb;
+    --accent-deep: #1d4ed8;
+    --accent-soft: #7fa4ee;
+    --accent-wash: #e3ecfd;
+    --accent-band: #c7d9f7;
+
+    --dark: #141b2b;
+    --dark-line: #28324a;
+    --dark-hover: #222c42;
+    --dark-text: #eef2fb;
+    --dark-meta: #8d9bb8;
+    --dark-link: #8ab4ff;
+  }
   :global(*) {
     box-sizing: border-box;
   }
@@ -525,8 +580,8 @@ import "@svebcomponents/atproto.comments";`;
 
   :global(body) {
     margin: 0;
-    background: #f6f4ef;
-    color: #1b1b1d;
+    background: var(--page);
+    color: var(--ink);
     font-family:
       Inter,
       ui-sans-serif,
@@ -539,7 +594,7 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   :global(::selection) {
-    background: #ff4f8b;
+    background: var(--accent);
     color: #fff;
   }
 
@@ -558,7 +613,7 @@ import "@svebcomponents/atproto.comments";`;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid #d9d5cd;
+    border-bottom: 1px solid var(--line);
   }
 
   .brand {
@@ -571,18 +626,12 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .brand-mark {
-    width: 1.8rem;
-    height: 1.8rem;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    background: #ff4f8b;
-    color: #fff;
-    font-size: 0.9rem;
+    width: auto;
+    height: 1.9rem;
   }
 
   .brand-muted {
-    color: #77736b;
+    color: var(--text-meta);
     font-weight: 500;
   }
 
@@ -603,12 +652,12 @@ import "@svebcomponents/atproto.comments";`;
   nav a:hover,
   footer a:hover,
   .text-link:hover {
-    color: #dc2868;
+    color: var(--accent-deep);
   }
 
   .github-link {
     padding: 0.55rem 0.85rem;
-    border: 1px solid #c7c2b9;
+    border: 1px solid var(--line-strong);
     border-radius: 999px;
   }
 
@@ -649,7 +698,7 @@ import "@svebcomponents/atproto.comments";`;
 
   .kicker {
     margin: 0 0 1.15rem;
-    color: #7d405b;
+    color: var(--accent-deep);
     font-size: 0.76rem;
     font-weight: 800;
     letter-spacing: 0.13em;
@@ -691,26 +740,31 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .button.primary {
-    background: #1b1b1d;
+    background: var(--ink);
     color: #fff;
   }
 
   .button.primary:hover {
-    background: #e73476;
+    background: var(--accent);
   }
 
   .thread-showcase,
   .hero-code {
     overflow: hidden;
     border-radius: 18px;
-    box-shadow: 0 28px 70px rgb(25 20 22 / 0.16);
+    box-shadow: 0 28px 70px rgb(17 26 43 / 0.18);
   }
 
   .thread-showcase {
     order: 1;
     display: flex;
     flex-direction: column;
-    border: 1px solid #d6d1c8;
+    /* A thread only grows. The card stops here and the panel inside it scrolls,
+       so the hero keeps its proportions however long the conversation gets.
+       The floor is what gives a short thread presence. */
+    min-height: 500px;
+    max-height: min(80vh, 820px);
+    border: 1px solid var(--line);
     background: #fff;
     transform: rotate(-0.7deg);
   }
@@ -719,9 +773,9 @@ import "@svebcomponents/atproto.comments";`;
     order: 2;
     display: flex;
     flex-direction: column;
-    border: 1px solid #34343a;
-    background: #202025;
-    color: #f7f5f0;
+    border: 1px solid var(--dark-line);
+    background: var(--dark);
+    color: var(--dark-text);
     transform: rotate(0.7deg);
   }
 
@@ -731,7 +785,7 @@ import "@svebcomponents/atproto.comments";`;
     align-items: center;
     gap: 1rem;
     padding: 0.9rem 1rem;
-    color: #777169;
+    color: var(--text-meta);
     font:
       0.72rem ui-monospace,
       SFMono-Regular,
@@ -740,7 +794,7 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .showcase-bar {
-    border-bottom: 1px solid #e3dfd7;
+    border-bottom: 1px solid var(--line);
   }
 
   .live-label {
@@ -750,30 +804,58 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .showcase-foot {
-    border-top: 1px solid #e3dfd7;
+    border-top: 1px solid var(--line);
   }
 
   .showcase-link {
-    color: #c62e67;
+    color: var(--accent-deep);
     text-decoration: none;
   }
 
   .window-bar {
     display: flex;
-    align-items: center;
-    padding: 0.9rem 1rem;
-    border-bottom: 1px solid #34343a;
+    justify-content: flex-end;
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--dark-line);
   }
 
-  .window-bar small {
-    color: #8d8d99;
+  .copy-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.6rem;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: var(--dark-meta);
+    font:
+      0.72rem ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      monospace;
+    cursor: pointer;
+  }
+
+  .copy-button:hover {
+    background: var(--dark-hover);
+    color: var(--dark-text);
+  }
+
+  .copy-button svg {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   pre {
     margin: 0;
     overflow-x: auto;
-    background: #202025;
-    color: #f7f5f0;
+    background: var(--dark);
+    color: var(--dark-text);
     font:
       0.95rem/1.75 ui-monospace,
       SFMono-Regular,
@@ -781,187 +863,40 @@ import "@svebcomponents/atproto.comments";`;
       monospace;
   }
 
-  /* Registering these makes them interpolable: an unregistered custom property
-     can only flip between keyframes, a registered one animates through the
-     values in between. That is what lets the thread morph from one preset to
-     the next instead of snapping, and it is why the rotation needs no JS.
-
-     Only `--thread-*` is registered here — the component's own
-     `--atproto-comments-*` API is read from these below, so this page never
-     imposes a syntax on someone else's custom properties. */
-  @property --thread-shell {
-    syntax: "<color>";
-    inherits: true;
-    initial-value: #fffafc;
-  }
-  @property --thread-accent {
-    syntax: "<color>";
-    inherits: true;
-    initial-value: #e73476;
-  }
-  @property --thread-on-accent {
-    syntax: "<color>";
-    inherits: true;
-    initial-value: #fff;
-  }
-  @property --thread-bg {
-    syntax: "<color>";
-    inherits: true;
-    initial-value: #fff;
-  }
-  @property --thread-fg {
-    syntax: "<color>";
-    inherits: true;
-    initial-value: #241d20;
-  }
-  @property --thread-muted {
-    syntax: "<color>";
-    inherits: true;
-    initial-value: #75686e;
-  }
-  @property --thread-border {
-    syntax: "<color>";
-    inherits: true;
-    initial-value: #ecd9e0;
-  }
-  @property --thread-radius {
-    syntax: "<length>";
-    inherits: true;
-    initial-value: 18px;
-  }
-
-  /* An integer twin of the radius, purely so the code block can print it:
-     `counter()` is the only way to render a number as text in CSS, and it
-     counts in integers. */
-  @property --thread-radius-n {
-    syntax: "<integer>";
-    inherits: true;
-    initial-value: 18;
-  }
-  /* `initial-value` has to be computationally independent, so this one cannot
-     be written in rem the way the keyframes below are — a rem here would make
-     the whole registration invalid and silently drop back to discrete steps.
-     The animation always supplies a value, so this is only a formality. */
-  @property --thread-font-size {
-    syntax: "<length>";
-    inherits: true;
-    initial-value: 14.4px;
-  }
-
-  /* Each preset holds for ~5s, then morphs into the next over ~2s.
-     `--thread-font` is deliberately left unregistered: a font stack has no
-     interpolable form, so it flips halfway through the morph, while the colours
-     are mid-blend and the swap is least conspicuous. */
-  @keyframes thread-style-cycle {
-    0%,
-    24% {
-      --thread-shell: #fffafc;
-      --thread-font:
-        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-        "Segoe UI", sans-serif;
-      --thread-font-size: 0.9rem;
-      --thread-accent: #e73476;
-      --thread-on-accent: #fff;
-      --thread-bg: #fff;
-      --thread-fg: #241d20;
-      --thread-muted: #75686e;
-      --thread-border: #ecd9e0;
-      --thread-radius: 18px;
-      --thread-radius-n: 18;
-    }
-
-    33.33%,
-    57.33% {
-      --thread-shell: #f7f8fc;
-      --thread-font: Georgia, "Times New Roman", serif;
-      --thread-font-size: 1rem;
-      --thread-accent: #2563eb;
-      --thread-on-accent: #fff;
-      --thread-bg: #fbfcff;
-      --thread-fg: #172033;
-      --thread-muted: #58637a;
-      --thread-border: #ccd7ed;
-      --thread-radius: 4px;
-      --thread-radius-n: 4;
-    }
-
-    66.66%,
-    90.66% {
-      --thread-shell: #f4f2ec;
-      --thread-font:
-        ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      --thread-font-size: 0.82rem;
-      --thread-accent: #4a6b52;
-      --thread-on-accent: #f6f8f4;
-      --thread-bg: #fbfaf6;
-      --thread-fg: #34322c;
-      --thread-muted: #7d786c;
-      --thread-border: #e0dbcd;
-      --thread-radius: 6px;
-      --thread-radius-n: 6;
-    }
-
-    100% {
-      --thread-shell: #fffafc;
-      --thread-font:
-        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-        "Segoe UI", sans-serif;
-      --thread-font-size: 0.9rem;
-      --thread-accent: #e73476;
-      --thread-on-accent: #fff;
-      --thread-bg: #fff;
-      --thread-fg: #241d20;
-      --thread-muted: #75686e;
-      --thread-border: #ecd9e0;
-      --thread-radius: 18px;
-      --thread-radius-n: 18;
-    }
-  }
-
-  /* The cycle runs on the hero rather than the panel so the code block on the
-     right inherits the same animated values and stays in step with the thread. */
-  .hero {
-    animation: thread-style-cycle 21s ease-in-out infinite;
-  }
-
-  /* Parked inside the first preset's hold window, still fully styled: a negative
-     delay seeks into the animation and pausing freezes it there, so the presets
-     stay defined in exactly one place. */
-  @media (prefers-reduced-motion: reduce) {
-    .hero,
-    .code-accent::after,
-    .code-font::after {
-      animation-delay: -2s;
-      animation-play-state: paused;
-    }
-  }
-
   .thread-panel {
     flex: 1;
-    min-height: 500px;
-    background: var(--thread-shell);
-    color: var(--thread-fg);
+    /* Flex items refuse to shrink past their content without this, which would
+       push the bar and the footer out through the card's cap. */
+    min-height: 0;
+    overflow-y: auto;
+    background: #f7f8fc;
+    color: #172033;
+    scrollbar-color: var(--line-strong) transparent;
   }
 
+  /* The demo's own theming, and the values the snippet on the right prints.
+     Change one and change the other. */
   .thread-panel :global(atproto-comments) {
-    max-height: 100%;
+    max-height: none;
+    overflow: visible;
     padding: clamp(1rem, 3vw, 1.75rem);
-    color: var(--thread-fg);
-    font-family: var(--thread-font);
-    --atproto-comments-accent: var(--thread-accent);
-    --atproto-comments-on-accent: var(--thread-on-accent);
-    --atproto-comments-bg: var(--thread-bg);
-    --atproto-comments-fg: var(--thread-fg);
-    --atproto-comments-muted: var(--thread-muted);
-    --atproto-comments-border: var(--thread-border);
-    --atproto-comments-radius: var(--thread-radius);
-    --atproto-comments-font-size: var(--thread-font-size);
+    color: #172033;
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --atproto-comments-accent: #2563eb;
+    --atproto-comments-on-accent: #fff;
+    --atproto-comments-bg: #fbfcff;
+    --atproto-comments-fg: #172033;
+    --atproto-comments-muted: #58637a;
+    --atproto-comments-border: #ccd7ed;
+    --atproto-comments-radius: 4px;
+    --atproto-comments-font-size: 0.82rem;
   }
 
   .thread-panel .demo-unavailable {
     margin: 0;
     padding: clamp(1.4rem, 4vw, 2.5rem);
-    color: #67635d;
+    color: var(--text);
     font-size: 0.88rem;
     line-height: 1.6;
   }
@@ -969,7 +904,6 @@ import "@svebcomponents/atproto.comments";`;
   .hero-demo-code {
     flex: 1;
     padding: clamp(1.2rem, 3.5vw, 2rem);
-    border-top: 1px solid #34343a;
     /* Tighter than the page's other code blocks: this one carries three
        snippets, and at the shared 0.95rem/1.75 it towered over the thread. */
     font-size: 0.85rem;
@@ -978,141 +912,16 @@ import "@svebcomponents/atproto.comments";`;
     overflow-wrap: anywhere;
   }
 
-  /* The three values in the style block are drawn as `content`, because that is
-     the only text in CSS that an animation can reach. They are decorative
-     readouts of the cycle on the left, so they carry aria-hidden and sit
-     outside the copyable part of the snippet.
-
-     Each uses a different mechanism, picked by what the value is:
-       radius — printed straight from the animated variable via counter(), so it
-                is the real interpolated number rather than a replay of it
-       accent — scrambled, since a colour has no text form CSS can derive
-       font   — flipped, since a font stack has nothing to interpolate through */
-  .code-radius {
-    counter-reset: radius var(--thread-radius-n);
+  .code-tag {
+    color: #b99bfa;
   }
 
-  .code-radius::after {
-    content: counter(radius) "px";
+  .code-attr {
+    color: #7cc3ff;
   }
 
-  .code-accent::after {
-    content: "#e73476";
-    animation: code-accent-text 21s infinite steps(1, end);
-  }
-
-  .code-font::after {
-    content: "Inter, sans-serif";
-    animation: code-font-text 21s infinite linear;
-  }
-
-  /* Locks in left to right over the ~2s morph, so the value resolves in step
-     with the colour it describes. `steps(1, end)` keeps each frame flat for its
-     whole interval — without it a discrete property would swap halfway between
-     frames and the cadence would read as half the frames at twice the length. */
-  @keyframes code-accent-text {
-    0%,
-    24% {
-      content: "#e73476";
-    }
-    25% {
-      content: "#8f1c4a";
-    }
-    26.5% {
-      content: "#2a9d17";
-    }
-    28% {
-      content: "#25f0c3";
-    }
-    29.5% {
-      content: "#256a91";
-    }
-    31% {
-      content: "#25634f";
-    }
-    32.5% {
-      content: "#2563e7";
-    }
-    33.33%,
-    57.33% {
-      content: "#2563eb";
-    }
-    58.5% {
-      content: "#3b91c6";
-    }
-    60% {
-      content: "#4d84a1";
-    }
-    61.5% {
-      content: "#4ac93e";
-    }
-    63% {
-      content: "#4a62b0";
-    }
-    64.5% {
-      content: "#4a6b41";
-    }
-    66% {
-      content: "#4a6b5c";
-    }
-    66.66%,
-    90.66% {
-      content: "#4a6b52";
-    }
-    91.5% {
-      content: "#a4c209";
-    }
-    93% {
-      content: "#e18b5d";
-    }
-    94.5% {
-      content: "#e7f2a8";
-    }
-    96% {
-      content: "#e73c19";
-    }
-    97.5% {
-      content: "#e734d2";
-    }
-    99% {
-      content: "#e7347f";
-    }
-    100% {
-      content: "#e73476";
-    }
-  }
-
-  /* Declared at the same offsets as `--thread-font`, and left on the default
-     timing so it flips at the midpoint of the morph — the same instant the
-     thread on the left changes typeface. */
-  @keyframes code-font-text {
-    0%,
-    24% {
-      content: "Inter, sans-serif";
-    }
-    33.33%,
-    57.33% {
-      content: "Georgia, serif";
-    }
-    66.66%,
-    90.66% {
-      content: "ui-monospace, monospace";
-    }
-    100% {
-      content: "Inter, sans-serif";
-    }
-  }
-
-  .code-pink {
-    color: #ff7eab;
-  }
-
-  .code-blue {
-    color: #75bbff;
-  }
-
-  .code-green {
-    color: #9bd9ae;
+  .code-string {
+    color: #7ddccb;
   }
 
   .code-foot {
@@ -1120,8 +929,8 @@ import "@svebcomponents/atproto.comments";`;
     align-items: center;
     gap: 0.55rem;
     padding: 0.85rem 1rem;
-    border-top: 1px solid #34343a;
-    color: #aaaab3;
+    border-top: 1px solid var(--dark-line);
+    color: var(--dark-meta);
     font:
       0.72rem ui-monospace,
       SFMono-Regular,
@@ -1130,7 +939,7 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .code-foot-link {
-    color: #ff8fb6;
+    color: var(--dark-link);
     text-decoration: none;
   }
 
@@ -1145,8 +954,8 @@ import "@svebcomponents/atproto.comments";`;
   .principles {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    border-top: 1px solid #d9d5cd;
-    border-bottom: 1px solid #d9d5cd;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
   }
 
   .principles article {
@@ -1154,11 +963,11 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .principles article + article {
-    border-left: 1px solid #d9d5cd;
+    border-left: 1px solid var(--line);
   }
 
   .number {
-    color: #d94b7e;
+    color: var(--accent);
     font:
       0.75rem ui-monospace,
       SFMono-Regular,
@@ -1183,7 +992,7 @@ import "@svebcomponents/atproto.comments";`;
   .principles p,
   .section-intro > p:last-child,
   .reference-heading > p {
-    color: #656159;
+    color: var(--text);
     line-height: 1.65;
   }
 
@@ -1215,9 +1024,9 @@ import "@svebcomponents/atproto.comments";`;
   p code,
   td code {
     padding: 0.1em 0.32em;
-    border: 1px solid #ddd7cd;
+    border: 1px solid var(--line);
     border-radius: 4px;
-    background: #ebe8e1;
+    background: var(--surface-raised);
     font-size: 0.87em;
   }
 
@@ -1226,17 +1035,17 @@ import "@svebcomponents/atproto.comments";`;
     gap: 0.9rem;
     margin-top: 2rem;
     padding: 1rem;
-    border-left: 3px solid #ff4f8b;
-    background: #eeebe4;
+    border-left: 3px solid var(--accent);
+    background: var(--surface-raised);
   }
 
   .default-note > span {
-    color: #e73476;
+    color: var(--accent);
   }
 
   .default-note p {
     margin: 0;
-    color: #555149;
+    color: var(--text);
     font-size: 0.84rem;
     line-height: 1.6;
   }
@@ -1245,8 +1054,8 @@ import "@svebcomponents/atproto.comments";`;
     display: flex;
     flex-direction: column;
     gap: 1px;
-    background: #d9d5cd;
-    border: 1px solid #d9d5cd;
+    background: var(--line);
+    border: 1px solid var(--line);
   }
 
   .step {
@@ -1254,7 +1063,7 @@ import "@svebcomponents/atproto.comments";`;
     grid-template-columns: 38px 1fr;
     gap: 1rem;
     padding: 1.5rem;
-    background: #f6f4ef;
+    background: #fff;
   }
 
   .step-number {
@@ -1262,9 +1071,9 @@ import "@svebcomponents/atproto.comments";`;
     height: 30px;
     display: grid;
     place-items: center;
-    border: 1px solid #c7c2b9;
+    border: 1px solid var(--line-strong);
     border-radius: 50%;
-    color: #817c73;
+    color: var(--text-meta);
     font-size: 0.75rem;
   }
 
@@ -1291,7 +1100,7 @@ import "@svebcomponents/atproto.comments";`;
     max-height: min(68vh, 660px);
     overflow: auto;
     padding: clamp(1rem, 4vw, 2.5rem);
-    scrollbar-color: #c7c2b9 transparent;
+    scrollbar-color: var(--line-strong) transparent;
     --atproto-comments-font-size: 0.9rem;
   }
 
@@ -1313,13 +1122,14 @@ import "@svebcomponents/atproto.comments";`;
     flex-direction: column;
     justify-content: center;
     padding: 1.2rem;
-    border: 1px solid #cdc8bf;
+    border: 1px solid var(--line-strong);
+    background: #fff;
     text-align: center;
   }
 
   .flow-node small,
   .flow-node span {
-    color: #7a756d;
+    color: var(--text-meta);
     font-size: 0.7rem;
   }
 
@@ -1329,13 +1139,13 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   .accent-node {
-    border-color: #ff8db5;
-    background: #ffe5ee;
+    border-color: var(--accent-soft);
+    background: var(--accent-wash);
   }
 
   .flow-arrow {
     padding: 0 0.6rem;
-    color: #c33d70;
+    color: var(--accent);
   }
 
   .architecture-notes {
@@ -1343,7 +1153,7 @@ import "@svebcomponents/atproto.comments";`;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
-    color: #6a665f;
+    color: var(--text-meta);
     font-size: 0.77rem;
     line-height: 1.5;
   }
@@ -1354,18 +1164,18 @@ import "@svebcomponents/atproto.comments";`;
 
   .architecture-notes strong {
     display: block;
-    color: #222;
+    color: var(--ink-strong);
   }
 
   .reference {
     width: auto;
     padding-inline: max(1.5rem, calc((100vw - 1180px) / 2));
-    background: #eae6de;
+    background: var(--surface-sunken);
   }
 
   .table-wrap {
     overflow-x: auto;
-    border-top: 1px solid #bdb7ad;
+    border-top: 1px solid var(--line-strong);
   }
 
   table {
@@ -1377,13 +1187,13 @@ import "@svebcomponents/atproto.comments";`;
   th,
   td {
     padding: 1rem;
-    border-bottom: 1px solid #cec8be;
+    border-bottom: 1px solid var(--line-strong);
     text-align: left;
     vertical-align: top;
   }
 
   th {
-    color: #6e6961;
+    color: var(--text-meta);
     font-size: 0.68rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -1392,7 +1202,7 @@ import "@svebcomponents/atproto.comments";`;
   td:nth-child(2),
   td:nth-child(3) {
     white-space: nowrap;
-    color: #6c675f;
+    color: var(--text-meta);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.75rem;
   }
@@ -1406,7 +1216,7 @@ import "@svebcomponents/atproto.comments";`;
 
   .events-grid > div:first-child p,
   .self-host-copy > p {
-    color: #656159;
+    color: var(--text);
     line-height: 1.65;
   }
 
@@ -1416,13 +1226,13 @@ import "@svebcomponents/atproto.comments";`;
     gap: 1rem;
     margin: 0;
     padding: 0.7rem 0;
-    border-bottom: 1px solid #cec8be;
-    color: #68635c;
+    border-bottom: 1px solid var(--line-strong);
+    color: var(--text);
     font-size: 0.78rem;
   }
 
   .event-list code {
-    color: #bd2d63;
+    color: var(--accent-deep);
   }
 
   .self-host {
@@ -1442,26 +1252,26 @@ import "@svebcomponents/atproto.comments";`;
 
   .self-host li {
     padding-left: 1.2rem;
-    border-left: 1px solid #d9a1b5;
-    color: #625e57;
+    border-left: 1px solid var(--accent-soft);
+    color: var(--text);
     font-size: 0.87rem;
     line-height: 1.6;
   }
 
   .self-host li strong {
-    color: #222;
+    color: var(--ink-strong);
   }
 
   .resource-note {
     margin-top: 2rem;
     padding: 1.2rem;
-    border: 1px solid #d4cec4;
-    background: #efebe4;
+    border: 1px solid var(--line-strong);
+    background: var(--surface-raised);
   }
 
   .resource-note p {
     margin-bottom: 0;
-    color: #676159;
+    color: var(--text);
     font-size: 0.8rem;
     line-height: 1.6;
   }
@@ -1470,18 +1280,18 @@ import "@svebcomponents/atproto.comments";`;
     align-self: start;
     padding: 1.5rem;
     border-radius: 14px;
-    background: #202025;
-    color: #f8f6f1;
-    box-shadow: 0 24px 60px rgb(31 25 27 / 0.14);
+    background: var(--dark);
+    color: var(--dark-text);
+    box-shadow: 0 24px 60px rgb(17 26 43 / 0.16);
   }
 
   .self-host-code pre {
-    border: 1px solid #37373e;
+    border: 1px solid var(--dark-line);
   }
 
   .code-label {
     margin: 0.8rem 0 0.6rem;
-    color: #93929c;
+    color: var(--dark-meta);
     font:
       0.7rem ui-monospace,
       SFMono-Regular,
@@ -1497,27 +1307,27 @@ import "@svebcomponents/atproto.comments";`;
   .text-link {
     display: inline-block;
     margin-top: 1.4rem;
-    color: #ff8fb6;
+    color: var(--accent);
     font-size: 0.82rem;
     font-weight: 700;
     text-decoration: none;
   }
 
+  .self-host-code .text-link {
+    color: var(--dark-link);
+  }
+
   .closing {
     padding: clamp(7rem, 13vw, 12rem) 1.5rem;
-    background: #f7c9d9;
+    background: var(--accent-band);
     text-align: center;
   }
 
-  .closing-star {
-    width: 46px;
-    height: 46px;
-    display: grid;
-    place-items: center;
+  .closing-mark {
+    display: block;
+    width: auto;
+    height: 52px;
     margin: 0 auto 1.5rem;
-    border-radius: 50%;
-    background: #e73476;
-    color: #fff;
   }
 
   .closing h2 {
@@ -1533,7 +1343,7 @@ import "@svebcomponents/atproto.comments";`;
   }
 
   footer p {
-    color: #777169;
+    color: var(--text-meta);
     font-size: 0.75rem;
     text-align: center;
   }
@@ -1568,7 +1378,7 @@ import "@svebcomponents/atproto.comments";`;
     }
 
     .principles article + article {
-      border-top: 1px solid #d9d5cd;
+      border-top: 1px solid var(--line);
       border-left: 0;
     }
 
@@ -1636,16 +1446,6 @@ import "@svebcomponents/atproto.comments";`;
     .reference {
       width: auto;
       padding-inline: 1rem;
-    }
-
-    .code-foot {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 0.3rem;
-    }
-
-    .code-foot-link {
-      margin-left: 0;
     }
 
     .architecture-notes {
