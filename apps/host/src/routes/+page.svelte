@@ -117,15 +117,15 @@ import "@svebcomponents/atproto.comments";`;
 </script>
 
 <svelte:head>
-  <title>ATProto comments for any site — svebcomponents</title>
+  <title>atproto-comments — svebcomponents</title>
   <meta
     name="description"
-    content="A drop-in, server-renderable web component for ATProto comments, with free hosted OAuth and live updates."
+    content="A web component that renders an AT Protocol thread as a comment section. Server-rendered and hydratable, with sign-in, replies, live updates, and a self-hostable backend."
   />
-  <meta property="og:title" content="ATProto comments for any site" />
+  <meta property="og:title" content="atproto-comments" />
   <meta
     property="og:description"
-    content="One web component. Public ATProto threads, in-page replies, SSR, and live updates."
+    content="Renders an AT Protocol thread as a comment section. Supports SSR, sign-in, replies, and live updates."
   />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://atproto.svebcomponents.dev/" />
@@ -166,8 +166,8 @@ import "@svebcomponents/atproto.comments";`;
 <main id="top">
   <section class="hero">
     <h1 class="sr-only">
-      Introducing &lt;atproto-comments&gt;: live AT Protocol comments for your
-      site
+      &lt;atproto-comments&gt;, a web component that renders an AT Protocol
+      thread as a comment section
     </h1>
 
     <div class="thread-showcase">
@@ -214,7 +214,7 @@ import "@svebcomponents/atproto.comments";`;
               d="M10.5 3V2.5a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5V10A1.5 1.5 0 0 0 4 11.5h.5"
             />
           </svg>
-          {copied ? "Copied to clipboard" : "Paste into your site"}
+          {copied ? "Copied" : "Copy HTML"}
         </button>
       </div>
       <pre class="hero-demo-code"><code bind:this={snippetEl}
@@ -253,49 +253,49 @@ import "@svebcomponents/atproto.comments";`;
     </div>
   </section>
 
-  <section class="principles" aria-label="Product principles">
+  <section class="principles" aria-label="Design notes">
     <article>
       <span class="number">01</span>
-      <h2>Own nothing</h2>
+      <h2>No data store</h2>
       <p>
-        Comments are ordinary ATProto replies. No proprietary comment database,
-        no export story, no lock-in.
+        Comments are ordinary <code>app.bsky.feed.post</code> records written to each
+        commenter's repo. Deleting the record deletes the comment.
       </p>
     </article>
     <article>
       <span class="number">02</span>
-      <h2>Feel native</h2>
+      <h2>Styleable</h2>
       <p>
-        Shadow DOM keeps it reliable; CSS variables and parts let it settle into
-        the typography of your site.
+        Styles are scoped by shadow DOM. CSS custom properties and parts adapt
+        the component to the typography of the host page.
       </p>
     </article>
     <article>
       <span class="number">03</span>
-      <h2>Stay current</h2>
+      <h2>Event-driven updates</h2>
       <p>
-        Live signals replace polling. A new reply triggers one focused AppView
-        refresh, with coalescing and retry built in.
+        The component does not poll. Bridge events trigger one coalesced AppView
+        refresh per change, retried briefly while new replies index.
       </p>
     </article>
   </section>
 
   <section id="tiers" class="section split-section">
     <div class="section-intro">
-      <p class="kicker">Pick your depth</p>
-      <h2>Start simple.<br />Go deeper when you need to.</h2>
+      <p class="kicker">Setup options</p>
+      <h2>Four ways<br />to add it to a page.</h2>
       <p>
-        Every tier below talks to the same free hosted backend. Self-hosting it
-        is a separate switch — flip it from any tier, whenever you want to.
+        Each level adds tooling, not features. All of them use the hosted
+        backend unless you set the <code>service</code> property to your own deployment.
       </p>
     </div>
     <div class="steps">
       <article class="step">
         <span class="step-number">1</span>
         <div>
-          <h3>CDN drop-in</h3>
+          <h3>CDN script tag</h3>
           <p>
-            Two tags, no build step — paste them into any HTML page or CMS. See
+            Two tags pasted into static HTML or a CMS, no bundler required. See
             the snippet above.
           </p>
         </div>
@@ -305,9 +305,8 @@ import "@svebcomponents/atproto.comments";`;
         <div>
           <h3>npm install</h3>
           <p>
-            <code>pnpm add</code> the package and import it into your own
-            bundle. The import brings typed events and a custom elements
-            manifest with it, so editors complete the tag.
+            Add the package and import it once into your own bundle. Type
+            definitions and a custom elements manifest ship with it.
             <a class="text-link" href="#start">See the snippet ↓</a>
           </p>
         </div>
@@ -317,9 +316,9 @@ import "@svebcomponents/atproto.comments";`;
         <div>
           <h3>Server-rendered</h3>
           <p>
-            Hydrate in place instead of flashing a loading skeleton. SvelteKit
-            is supported today — Nuxt, Astro, Next.js, and SolidStart are
-            planned.
+            The thread is rendered into declarative shadow DOM on the server and
+            adopted in place on the client. SvelteKit is supported today; Nuxt,
+            Astro, Next.js, and SolidStart integrations are planned.
             <a
               class="text-link"
               href="https://github.com/svebcomponents/atproto/tree/main/components/atproto-comments#3-ssr-server-rendered-hydrated-in-place"
@@ -335,7 +334,7 @@ import "@svebcomponents/atproto.comments";`;
           <h3>Self-hosted backend</h3>
           <p>
             Run OAuth, posting, and live events on your own infrastructure
-            instead of the hosted default.
+            instead of the hosted service.
             <a class="text-link" href="#self-host">See self-hosting ↓</a>
           </p>
         </div>
@@ -346,7 +345,7 @@ import "@svebcomponents/atproto.comments";`;
   <section id="start" class="section split-section">
     <div class="section-intro">
       <p class="kicker">Quickstart</p>
-      <h2>Two snippets.<br />That’s the setup.</h2>
+      <h2>Install and render.</h2>
       <p>
         The custom element works with Svelte, Astro, Eleventy, React, plain
         HTML, or anything else that can load an ES module.
@@ -381,12 +380,12 @@ import "@svebcomponents/atproto.comments";`;
 
   <section class="section architecture">
     <div class="section-intro">
-      <p class="kicker">Designed for the public web</p>
-      <h2>A signal, not another source of truth.</h2>
+      <p class="kicker">Architecture</p>
+      <h2>Reads come from<br />the public AppView.</h2>
       <p>
-        Reads go straight to a public AppView. The backend only coordinates
-        OAuth, publishes replies, and tells the component when the public
-        snapshot may have changed.
+        The bridge does not store or serve comment content. It handles OAuth,
+        publishes replies through the reader's PDS, and emits events when the
+        public snapshot may have changed.
       </p>
     </div>
     <div class="flow" aria-label="Live update architecture">
@@ -409,12 +408,15 @@ import "@svebcomponents/atproto.comments";`;
       </div>
     </div>
     <div class="architecture-notes">
-      <p><strong>One upstream.</strong> Threads are multiplexed per process.</p>
       <p>
-        <strong>No polling.</strong> Refreshes happen on connection or reply.
+        <strong>One upstream.</strong> Each bridge process multiplexes every active
+        thread over a single Spacedust connection.
       </p>
       <p>
-        <strong>No replay dependency.</strong> Reconnect forces a fresh read.
+        <strong>No polling.</strong> Refreshes follow connection and reply events.
+      </p>
+      <p>
+        <strong>No replay dependency.</strong> A reconnect forces a fresh read.
       </p>
     </div>
   </section>
@@ -423,11 +425,11 @@ import "@svebcomponents/atproto.comments";`;
     <div class="reference-heading">
       <div>
         <p class="kicker">Component reference</p>
-        <h2>Small surface.<br />Useful escape hatches.</h2>
+        <h2>Properties<br />and events.</h2>
       </div>
       <p>
-        Defaults are intentionally complete. Most sites only set
-        <code>thread</code>; everything else exists for policy, presentation, or
+        Most pages only need to set <code>thread</code>. The remaining
+        properties cover sorting, depth limits, moderation handling, and
         infrastructure choices.
       </p>
     </div>
@@ -458,8 +460,8 @@ import "@svebcomponents/atproto.comments";`;
       <div>
         <h3>Imperative refresh</h3>
         <p>
-          Call <code>element.revalidate()</code> whenever your application knows more
-          than the live stream does. Concurrent calls are deduplicated.
+          Call <code>element.revalidate()</code> to request a refresh outside the
+          normal event path. Concurrent calls are deduplicated.
         </p>
       </div>
       <div class="event-list">
@@ -473,28 +475,29 @@ import "@svebcomponents/atproto.comments";`;
 
   <section id="self-host" class="section self-host">
     <div class="self-host-copy">
-      <p class="kicker">One backend switch</p>
-      <h2>Hosted by default.<br />Yours when you want it.</h2>
+      <p class="kicker">Self-hosting</p>
+      <h2>Hosted service by default,<br />or run your own.</h2>
       <p>
-        The <code>service</code> property is the only backend setting in the component.
-        Change it once and OAuth, posting, and live SSE all move together.
+        The <code>service</code> property selects the backend used for OAuth, posting,
+        and the SSE stream. One value switches between the hosted service and your
+        own deployment.
       </p>
       <ul>
         <li>
-          <strong>Cross-origin hosted mode</strong> uses a short-lived, origin-bound
-          bridge JWT. ATProto OAuth tokens never leave the server.
+          In cross-origin deployments the component holds a short-lived,
+          origin-bound bridge JWT. ATProto OAuth tokens never leave the server.
         </li>
         <li>
-          <strong>Same-origin self-hosted mode</strong> uses an HttpOnly, SameSite
-          cookie instead—no browser-readable session credential.
+          Same-origin deployments use an HttpOnly SameSite cookie instead, which
+          page JavaScript cannot read.
         </li>
         <li>
-          Both modes run the exact same open-source bridge and store no comment
-          bodies.
+          Both modes run the same open-source bridge code, which stores no
+          comment bodies.
         </li>
       </ul>
       <div class="resource-note">
-        <strong>Being gentle with Microcosm</strong>
+        <strong>Spacedust usage</strong>
         <p>
           A process opens one filtered Spacedust connection only while someone
           is watching. It updates the subject set as threads come and go,
@@ -516,13 +519,6 @@ import "@svebcomponents/atproto.comments";`;
       >
     </div>
   </section>
-
-  <section class="closing">
-    <img class="closing-mark" src="/svebcomponents.svg" alt="" />
-    <p class="kicker">Comments should belong to the conversation</p>
-    <h2>Make the social web<br />feel like the web again.</h2>
-    <a class="button primary" href="#start">Start with one thread</a>
-  </section>
 </main>
 
 <footer>
@@ -530,7 +526,7 @@ import "@svebcomponents/atproto.comments";`;
     <img class="brand-mark" src="/svebcomponents.svg" alt="" />
     <span>svebcomponents<span class="brand-muted">/atproto</span></span>
   </a>
-  <p>Open source, MIT licensed, and built on the atmosphere.</p>
+  <p>MIT licensed.</p>
   <div>
     <a href="https://github.com/svebcomponents/atproto">Source</a>
     <a href="https://www.npmjs.com/org/svebcomponents">npm</a>
@@ -721,31 +717,6 @@ import "@svebcomponents/atproto.comments";`;
 
   h2 {
     font-size: clamp(3rem, 5vw, 5rem);
-  }
-
-  .button {
-    display: inline-flex;
-    min-height: 48px;
-    align-items: center;
-    justify-content: center;
-    padding: 0.75rem 1.25rem;
-    border: none;
-    border-radius: 999px;
-    background: none;
-    font-family: inherit;
-    font-size: 0.9rem;
-    font-weight: 750;
-    text-decoration: none;
-    cursor: pointer;
-  }
-
-  .button.primary {
-    background: var(--ink);
-    color: #fff;
-  }
-
-  .button.primary:hover {
-    background: var(--accent);
   }
 
   .thread-showcase,
@@ -1258,10 +1229,6 @@ import "@svebcomponents/atproto.comments";`;
     line-height: 1.6;
   }
 
-  .self-host li strong {
-    color: var(--ink-strong);
-  }
-
   .resource-note {
     margin-top: 2rem;
     padding: 1.2rem;
@@ -1315,23 +1282,6 @@ import "@svebcomponents/atproto.comments";`;
 
   .self-host-code .text-link {
     color: var(--dark-link);
-  }
-
-  .closing {
-    padding: clamp(7rem, 13vw, 12rem) 1.5rem;
-    background: var(--accent-band);
-    text-align: center;
-  }
-
-  .closing-mark {
-    display: block;
-    width: auto;
-    height: 52px;
-    margin: 0 auto 1.5rem;
-  }
-
-  .closing h2 {
-    margin-bottom: 2rem;
   }
 
   footer {

@@ -4,21 +4,38 @@
 > Alpha: the component, hosted-backend contract, and self-hosted bridge work
 > end-to-end, but the packages and public service have not been announced yet.
 
-Drop-in atmosphere/ATProto comments for any blog, built as SSR-able, **hydratable** web components with [svebcomponents](https://svebcomponents.dev). Readers sign in with their ATProto account and reply from the page; comments live in commenters' own repos on the social web, not in our database.
+A web component that renders an AT Protocol (Bluesky) post thread as a comment section, built with [svebcomponents](https://svebcomponents.dev). Supports server-side rendering and hydration. Readers can sign in with an ATProto account and reply from the page; replies are ordinary `app.bsky.feed.post` records in each commenter's own repo, and neither the component nor the bridge stores comment content.
 
 ## Status
 
-- ✅ **Phase 1 — read-only `<atproto-comments>`**: fetches and renders a thread (nested replies, tombstones for deleted/blocked posts, moderation-label collapse, depth capping, rich text from facets, root like/repost stats, permalinks to the post). Self-contained bundle ~26 KB gz.
-- ✅ **SSR + hydration**: server-rendered declarative shadow DOM is adopted in place on the client — verified by e2e (same-node identity and rich-prop transport), including inside a hydrating SvelteKit host. The live connection may then perform one intentional background sync.
-- ✅ **Phase 2 — in-page sign-in & posting**: set a `service` and readers sign in with their atmosphere account (OAuth popup + COOP-safe nonce-claim handshake), then reply to the thread or to any comment via a modal composer with a grapheme counter and optimistic append. The hosted bridge is `packages/service-core` (framework-agnostic OAuth/posting; ATProto tokens stay server-side), mounted in `apps/host` at `/atproto`. A `viewer` prop routes outbound links through any atmosphere viewer (bsky.app default, e.g. deer.social).
-- ✅ **Live comments without polling**: the component subscribes to the hosted
-  SSE bridge by default. One multiplexed, filtered Microcosm Spacedust
-  WebSocket serves every active thread in a bridge process. A connection or
-  reply event triggers a coalesced AppView refresh; reconnect is the
-  correctness boundary because Spacedust v0 has no replay cursor.
-- 🔜 Before announcing: run a real-account OAuth e2e test, deploy the bridge to a real domain, and complete a security pass. See the [roadmap](./04-roadmap.md).
+Implemented:
 
-## Usage sketch
+- Thread rendering: fetches a thread and renders nested replies, tombstones
+  for deleted or blocked posts, moderation-label collapse, depth capping,
+  rich text from facets, root like/repost counts, and permalinks to the post.
+  Self-contained bundle, ~26 KB gzipped.
+- SSR and hydration: declarative shadow DOM rendered on the server is adopted
+  in place on the client, including inside a hydrating SvelteKit host
+  (covered by e2e tests for same-node identity and rich-prop transport).
+- In-page sign-in and posting: set `service` and readers can sign in with
+  their ATProto account (OAuth popup with a COOP-safe nonce-claim handshake)
+  and reply to the thread or to any comment through a modal composer with a
+  grapheme counter and optimistic append. The bridge lives in
+  `packages/service-core` (framework-agnostic OAuth and posting; ATProto
+  tokens stay on the server) and is mounted by `apps/host` at `/atproto`.
+  The `viewer` property routes outbound profile/post links through any
+  AppView (bsky.app by default, e.g. deer.social).
+- Live updates without polling: the component subscribes to the hosted SSE
+  bridge by default. One filtered Microcosm Spacedust WebSocket per bridge
+  process serves every active thread; a connection or reply event triggers a
+  coalesced AppView refresh. A reconnect triggers a fresh read because
+  Spacedust v0 has no replay cursor.
+
+Still open before publishing: a real-account OAuth e2e test, deploying the
+bridge to a real domain, and a security pass. See the
+[roadmap](./04-roadmap.md).
+
+## Usage
 
 ```html
 <script type="module" src=".../atproto-comments/dist/client/index.js"></script>
@@ -28,7 +45,7 @@ Drop-in atmosphere/ATProto comments for any blog, built as SSR-able, **hydratabl
   thread="https://bsky.app/profile/bsky.app/post/…"
 ></atproto-comments>
 
-<!-- One property moves all backend features to your own bridge. -->
+<!-- Point service at your own bridge to self-host OAuth, posting, and live updates. -->
 <atproto-comments
   thread="https://bsky.app/profile/bsky.app/post/…"
   service="/atproto"
@@ -36,9 +53,10 @@ Drop-in atmosphere/ATProto comments for any blog, built as SSR-able, **hydratabl
 ```
 
 With svebcomponents SSR, the component fetches its thread on the server and
-serializes `threadData` for flash-free hydration. The live connection then
-acts as the freshness boundary and performs one background sync. Browser-only
-consumers fetch immediately, then use the same event-driven refresh path.
+serializes `threadData` so hydration renders the same comments without a
+loading flash; after connecting, the live connection performs one background
+sync. Browser-only consumers fetch immediately and then use the same
+event-driven refresh path.
 
 ## Planning docs
 
