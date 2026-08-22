@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from "$app/paths";
   import "@svebcomponents/atproto.comments";
   import type { PageProps } from "./$types";
 
@@ -34,6 +35,10 @@ import "@svebcomponents/atproto.comments";`;
   thread="at://did:plc:…/app.bsky.feed.post/…"
   service="/atproto"
 ></atproto-comments>`;
+
+  const consentSnippet = `const comments = document.querySelector("atproto-comments");
+comments.live = "off";
+onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
 
   const selfHostedConfig = `createAtprotoCommentsService({
   publicUrl: "https://your.blog",
@@ -642,6 +647,61 @@ import "@svebcomponents/atproto.comments";`;
       >
     </div>
   </section>
+
+  <section id="privacy" class="section split-section">
+    <div class="section-intro">
+      <p class="kicker">Reader privacy</p>
+      <h2>Nobody is<br />counted at the door.</h2>
+      <p>
+        Rendering a comment section should not turn a page view into a record on
+        someone else's server. By default it doesn't: a signed-out reader's
+        browser never contacts the bridge.
+      </p>
+      <a class="text-link" href={resolve("/privacy")}>Bridge privacy policy →</a
+      >
+    </div>
+    <div class="section-body">
+      <dl class="privacy-grid">
+        <dt><code>live="signed-in"</code> <span class="pill">default</span></dt>
+        <dd>
+          Only readers who signed in stream updates. Everyone else reads from
+          the AppView, or from your own server via SSR, and makes no request to
+          the bridge at all.
+        </dd>
+        <dt><code>live="all"</code></dt>
+        <dd>
+          Every reader streams. Livelier, and a disclosure: reader IP addresses
+          and the thread being read reach the bridge. Fine when the bridge is
+          yours — this page uses it, because the bridge is this same origin.
+        </dd>
+        <dt><code>live="off"</code></dt>
+        <dd>
+          No streaming. Comments still render and still refresh after you post.
+        </dd>
+      </dl>
+
+      <div class="resource-note">
+        <strong>In the EU</strong>
+        <p>
+          Embedding a widget that calls a third party makes you a joint
+          controller for what it sends (<em>Fashion ID</em>, C-40/17), and IP
+          addresses are personal data (<em>Breyer</em>, C-582/14). The default
+          keeps signed-out readers out of scope entirely. If you want
+          <code>live="all"</code>, either disclose it or wire the attribute to
+          your consent banner — it takes effect immediately, in both directions.
+        </p>
+      </div>
+
+      <p class="code-label">Consent-managed</p>
+      <pre><code>{consentSnippet}</code></pre>
+
+      <p class="footnote">
+        Note that avatars load from Bluesky's CDN in the reader's browser
+        whatever you choose, so Bluesky sees reader IPs either way. Self-host
+        the bridge to remove the remaining third party.
+      </p>
+    </div>
+  </section>
 </main>
 
 <footer>
@@ -653,11 +713,61 @@ import "@svebcomponents/atproto.comments";`;
   <div>
     <a href="https://github.com/svebcomponents/atproto">Source</a>
     <a href="https://www.npmjs.com/org/svebcomponents">npm</a>
+    <a href={resolve("/privacy")}>Privacy</a>
     <a href="https://www.microcosm.blue/">Microcosm</a>
   </div>
 </footer>
 
 <style>
+  .section-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+    min-width: 0;
+  }
+  #privacy .section-intro > p {
+    max-width: 500px;
+    margin-top: 1.8rem;
+  }
+  #privacy .section-intro > .text-link {
+    margin-top: 1.1rem;
+    display: inline-block;
+  }
+  .privacy-grid {
+    margin: 0;
+    display: grid;
+    gap: 0.4rem 1rem;
+  }
+  .privacy-grid dt {
+    font-weight: 600;
+    color: var(--ink-strong);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .privacy-grid dt:not(:first-of-type) {
+    margin-top: 0.9rem;
+  }
+  .privacy-grid dd {
+    margin: 0;
+    color: var(--text);
+  }
+  .pill {
+    font-size: 0.66rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--accent-deep);
+    background: var(--accent-wash);
+    border-radius: 999px;
+    padding: 0.1rem 0.5rem;
+  }
+  .footnote {
+    font-size: 0.9rem;
+    color: var(--text-meta);
+  }
+
   /* One palette for the page. Every colour below is a role, not a shade: the
      surfaces step down from --page, the text steps down from --ink, and the
      accent family is the only hue that carries meaning. The dark card and the

@@ -82,6 +82,52 @@ Sign-out revokes the ATProto grant, not just the browser session, and unused
 grants expire on their own. Bridge operators should truncate client IPs in
 access logs and keep retention short.
 
+## Using this in the EU
+
+Not legal advice, but the shape of the problem is well established and mostly
+comes down to one setting.
+
+Embedding a third-party widget that makes a visitor's browser talk to someone
+else's server is the pattern the CJEU addressed in *Fashion ID* (C-40/17): the
+site doing the embedding was a **joint controller** with the third party for
+the data the visitor's browser sent. IP addresses are personal data
+(*Breyer*, C-582/14), so this matters even though nothing here is tracking
+anyone.
+
+What that means in practice:
+
+- **The default is the quiet one.** With `live="signed-in"`, a signed-out
+  reader's browser makes no request to the bridge at all, so there is nothing
+  to disclose and no consent to collect. Readers who sign in have asked for the
+  service, which is a straightforward legal basis.
+- **`live="all"` is a disclosure.** Every reader's IP address and the thread
+  they are reading go to whichever bridge you point at. Say so in your privacy
+  policy and link the bridge's own policy. If you would rather ask first, wire
+  `live` to your consent banner — it can be changed at runtime:
+
+  ```js
+  const comments = document.querySelector("atproto-comments");
+  comments.live = "off";
+  onConsent((granted) => (comments.live = granted ? "all" : "off"));
+  ```
+
+  Consent here is genuinely optional — reading works fully without it — which
+  is what makes it valid consent rather than a bundled condition.
+- **Cookie banners are a separate question.** ePrivacy Art. 5(3) governs
+  storing or reading data on the device. The live connection stores nothing, so
+  it is out of scope; the sign-in token in `localStorage` is in scope but is the
+  textbook "strictly necessary for a service the user requested" case. The
+  component does not need a cookie banner on its own account.
+- **Mention Bluesky regardless of configuration.** Avatars load from Bluesky's
+  CDN directly in the reader's browser, so Bluesky sees reader IPs even with
+  `live="signed-in"`. That is inherent to rendering ATProto content, not
+  something this component routes around.
+- **Self-hosting removes the third party entirely.** Set `service` to your own
+  deployment and pass `allowedOrigins` so only your sites can use it.
+
+The hosted bridge's own policy is at
+[atproto.svebcomponents.dev/privacy](https://atproto.svebcomponents.dev/privacy).
+
 ## Planning docs
 
 - [00-overview.md](./00-overview.md) — executive summary & decisions
