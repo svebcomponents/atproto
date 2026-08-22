@@ -36,6 +36,17 @@ export const DEFAULT_SERVICE_URL = "https://atproto.svebcomponents.dev/atproto";
  * Browser-side client for the hosted OAuth/posting bridge. Holds the
  * origin-bound session token (in memory + localStorage, keyed per service),
  * runs the popup sign-in handshake, and calls the reply API.
+ *
+ * The token lives in `localStorage`, which any script on the embedding page
+ * can read. That is a deliberate, reviewed trade-off rather than an
+ * oversight: the hosted bridge is cross-origin, so SameSite rules keep an
+ * HttpOnly cookie from reaching it, and a comment widget that signed readers
+ * out on every reload would be a worse product. The exposure is bounded by a
+ * short token lifetime, by the session being revocable server-side, and by
+ * the component having no `javascript:` sink of its own (link facets are
+ * scheme-checked in `richText.ts`). A site embedding this is trusting it with
+ * reader sessions; self-hosting same-origin with `sessionMode: "cookie"`
+ * avoids browser-readable tokens entirely.
  */
 export class ServiceClient {
   #token: string | null = null;
