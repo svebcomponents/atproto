@@ -1,7 +1,7 @@
 # ATProto Blog Components — Planning Overview
 
 Date: 2026-07-06 (planning snapshot)
-Status: Phases 1–2 built — read-only rendering + in-page sign-in & posting work end-to-end; not yet published/deployed. Live status lives in [04-roadmap.md](./04-roadmap.md); this doc is kept as the original planning snapshot.
+Status: Phases 1–2 built and shipped — read-only rendering plus in-page sign-in & posting work end-to-end; packages are published to npm and the hosted service runs at `atproto.svebcomponents.dev`. Live status lives in [04-roadmap.md](./04-roadmap.md); this doc is kept as the original planning snapshot.
 
 This directory contains the planning docs for a set of SSR-able web components (built with [svebcomponents](https://svebcomponents.dev)) that bring ATProto/Bluesky-native comments and post rendering to any blog, plus a hosted OAuth/posting service.
 
@@ -26,12 +26,12 @@ Raw product brainstorm: [atproto-blog-architecture-notes.md](./atproto-blog-arch
 
 ## Key findings from research (2026-07)
 
-1. **svebcomponents SSR already supports async rendering.** `SvelteCustomElementRenderer.renderShadow()` handles promise-returning `render()` results, and `AsyncCustomElementWrapper` exists. A component can `await fetch(...)` during SSR. This makes "SSR-able, optionally asynchronous" a first-class capability, not a hack.
-2. **Client builds bundle Svelte by default** (`externalSvelte: false`), so the CDN drop-in story (`<script type="module" src="https://cdn.jsdelivr.net/npm/...">`) works with zero extra tooling.
+1. **svebcomponents SSR supports async rendering.** The element renderer accepts promise-returning `render()` results, so a component can `await fetch(...)` during SSR; a later upstream release restored a synchronous wrapper for components that never await (recorded in [01-architecture.md](./01-architecture.md)). This makes "SSR-able, optionally asynchronous" a first-class capability, not a hack.
+2. **Client builds are self-contained by default**, bundling Svelte and everything the element needs at runtime, so the CDN drop-in story (`<script type="module" src="https://cdn.jsdelivr.net/npm/...">`) works with zero extra tooling.
 3. **ATProto granular OAuth scopes have shipped.** A posting bridge can request narrowly: `atproto repo:app.bsky.feed.post?action=create rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview`. No more `transition:generic` full-account access. Permission sets are arriving and may simplify the consent screen further.
 4. **Standard.site's `site.standard.document` lexicon has `bskyPostRef`** — a strong ref to the cross-posted Bluesky post. `<standard-site-comments>` auto-discovery (page `<link>` → document record → `bskyPostRef` → thread) is fully supported by the schema.
 5. **The public AppView (`public.api.bsky.app`) serves `app.bsky.feed.getPostThread` without auth and with CORS**, so read-only mode needs no backend at all.
-6. **The template's dependency catalog is stale** (svelte 5.34.7, vite 6, kit 2.20.5). Async SSR in Svelte requires a newer 5.x with the async/experimental support the `@svebcomponents/ssr` promise path relies on. Dependency bump is step 0 (see roadmap).
+6. ~~**The template's dependency catalog is stale** (svelte 5.34.7, vite 6, kit 2.20.5)~~ **Resolved in step 0**: the catalog was bumped during scaffolding and tracks published versions in `pnpm-workspace.yaml` (currently `@svebcomponents/build` 0.7.1 / `@svebcomponents/ssr` 0.8.0).
 
 ## The two hard problems (solved in these docs)
 
