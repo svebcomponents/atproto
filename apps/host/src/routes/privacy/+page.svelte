@@ -1,9 +1,18 @@
 <script lang="ts">
   import { resolve } from "$app/paths";
 
-  // DRAFT — review before publishing. Every [BRACKETED] value below needs a
-  // real answer, and the hosting region in particular decides whether the
-  // "Where the bridge runs" section needs an international-transfer note.
+  // Read this before changing what the service stores or logs — the page has
+  // to keep matching the code. Two statements here are load-bearing and are
+  // true only as long as nobody adds request logging: the service writes no
+  // access log, and no IP address is ever written to disk. The bridge makes
+  // no console calls at all, and adapter-node prints only two startup lines.
+  //
+  // Requires on the VM, once: a journald cap so diagnostic output does not
+  // accumulate forever.
+  //   sudo mkdir -p /etc/systemd/journald.conf.d
+  //   printf '[Journal]\nMaxRetentionSec=30day\n' \
+  //     | sudo tee /etc/systemd/journald.conf.d/retention.conf
+  //   sudo systemctl restart systemd-journald
   //
   // Note that operating this bridge at all is what creates these obligations.
   // Shipping the component with no default service — self-hosting only — is
@@ -76,12 +85,15 @@
       a monitored mailbox is what GDPR asks for. Japan's own address-disclosure
       rule (特定商取引法) covers commercial sales, not a free service.
 
-      Open question for a Japan-established operator offering this to EU
-      readers: GDPR Art. 27 can require an EU representative. Art. 27(2)(a)
-      exempts processing that is occasional, excludes special categories at
-      scale, and is unlikely to risk rights and freedoms — a continuously
-      running public service is arguably not "occasional". Worth confirming
-      with a lawyer; if a representative is appointed, name them here.
+      GDPR Art. 27 can require a non-EU controller to appoint an EU
+      representative. The operator has assessed this service as falling within
+      the Art. 27(2)(a) exemption: the processing is low-risk and minimal —
+      no special categories, no profiling, no advertising, no comment content
+      stored, nothing written to disk for readers who do not sign in, and
+      identifiers limited to the public parts of a profile the person chose to
+      sign in with. Revisit if the service starts retaining more, or if usage
+      grows to a scale where "occasional" stops being arguable. If a
+      representative is ever appointed, name them here.
     -->
     <p>
       The bridge is operated by <strong>Theodor Baltus Steiner</strong>. For
@@ -134,7 +146,6 @@
         an <strong>authorization token set</strong> from your provider, which is what
         allows the bridge to post as you when you ask it to;
       </li>
-      <li>ordinary <strong>server logs</strong> of the requests you make.</li>
     </ul>
     <p>
       Your password never reaches this service. Sign-in happens on your own
@@ -180,10 +191,10 @@
             >
           </tr>
           <tr>
-            <td>Server logs</td>
+            <td>Diagnostic output (crashes, restarts)</td>
             <td
-              >Keeping the service up, debugging, abuse and rate-limit
-              enforcement</td
+              >Knowing when the service is broken. Contains no visitor data —
+              see below</td
             >
             <td>(f) legitimate interests</td>
           </tr>
@@ -226,9 +237,15 @@
             ></tr
           >
           <tr
-            ><td>Server logs</td><td
-              >[N] days, then deleted. IP addresses are [truncated / hashed /
-              stored in full — pick one].</td
+            ><td>Request and access logs</td><td
+              >None are kept. The service writes no access log, and no IP
+              address is ever written to disk.</td
+            ></tr
+          >
+          <tr
+            ><td>Diagnostic output</td><td
+              >Crash and restart messages go to the system journal and are
+              discarded after 30 days. They contain no visitor data.</td
             ></tr
           >
         </tbody>
@@ -258,8 +275,10 @@
         never contacts it.
       </li>
       <li>
-        <strong>[HOSTING PROVIDER], hosting.</strong> Runs the machine, and so processes
-        data on the operator's behalf.
+        <strong>exe.dev, hosting.</strong> Runs the server, and so processes data
+        on the operator's behalf. Requests reach the server through exe.dev's own
+        edge, which may record ordinary connection metadata under its own policy —
+        that layer is outside this service's control.
       </li>
     </ul>
     <p class="note">
@@ -286,14 +305,13 @@
     -->
     <p>
       The service is operated from Japan and the server runs in
-      <strong>[Tokyo, Japan / Frankfurt, Germany — CONFIRM]</strong>.
+      <strong>Tokyo, Japan</strong>.
     </p>
     <p>
       Japan is recognised by the European Commission as providing an adequate
       level of data protection, so personal data reaching this service from the
       EU or EEA does not depend on Standard Contractual Clauses or any
-      additional safeguard. Where the server itself is in Frankfurt, the data
-      does not leave the EEA at all.
+      additional safeguard.
     </p>
   </section>
 
