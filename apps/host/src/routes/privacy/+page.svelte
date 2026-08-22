@@ -4,8 +4,12 @@
   // DRAFT — review before publishing. Every [BRACKETED] value below needs a
   // real answer, and the hosting region in particular decides whether the
   // "Where the bridge runs" section needs an international-transfer note.
+  //
+  // Note that operating this bridge at all is what creates these obligations.
+  // Shipping the component with no default service — self-hosting only — is
+  // the one option that removes them rather than documenting them.
   const lastUpdated = "22 August 2026";
-  const contact = "privacy@svebcomponents.dev";
+  const contact = "svebcomponents@theosteiner.de";
 </script>
 
 <svelte:head>
@@ -60,11 +64,24 @@
 
   <section>
     <h2>Who is responsible</h2>
+    <!--
+      GDPR Art. 13(1)(a) asks for the controller's identity and contact
+      details. A name plus a monitored email address satisfies that; it does
+      not by itself require a postal address.
+
+      A postal address is required separately by Impressum law — § 5 DDG in
+      Germany, the ECG in Austria — which applies based on where the operator
+      is established, not where readers are, and which wants an address that
+      legal papers can be served at (a PO box does not qualify). If that law
+      reaches you, uncomment the address line below and fill it in. If you are
+      established outside those jurisdictions, name + email is enough here.
+    -->
     <p>
-      The bridge is operated by <strong>[LEGAL NAME]</strong>, [ADDRESS]. For
-      anything on this page, write to
-      <a href="mailto:{contact}">{contact}</a>.
+      The bridge is operated by <strong>[NAME OR ENTITY]</strong>. For anything
+      on this page, write to <a href="mailto:{contact}">{contact}</a>; that
+      mailbox is monitored and is the fastest way to reach a person.
     </p>
+    <!-- <p>Postal address: [ADDRESS]</p> -->
     <p class="note">
       Under the GDPR, the operator of a site that embeds the component and the
       operator of this bridge are likely <strong>joint controllers</strong> for
