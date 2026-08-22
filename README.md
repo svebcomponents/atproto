@@ -25,15 +25,15 @@ Implemented:
   tokens stay on the server) and is mounted by `apps/host` at `/atproto`.
   The `viewer` property routes outbound profile/post links through any
   AppView (bsky.app by default, e.g. deer.social).
-- Live updates without polling: the component subscribes to the hosted SSE
-  bridge by default. One filtered Microcosm Spacedust WebSocket per bridge
-  process serves every active thread; a connection or reply event triggers a
+- Live updates without polling: signed-in readers subscribe to the SSE
+  bridge. One filtered Microcosm Spacedust WebSocket per bridge process
+  serves every active thread; a connection or reply event triggers a
   coalesced AppView refresh. A reconnect triggers a fresh read because
-  Spacedust v0 has no replay cursor.
+  Spacedust v0 has no replay cursor. Set `live="all"` to stream for signed-out
+  readers too — see [Reader privacy](#reader-privacy) for what that changes.
 
-Still open before publishing: a real-account OAuth e2e test, deploying the
-bridge to a real domain, and a security pass. See the
-[roadmap](./04-roadmap.md).
+Still open before publishing: a real-account OAuth e2e test and deploying the
+bridge to a real domain. See the [roadmap](./04-roadmap.md).
 
 ## Usage
 
@@ -57,6 +57,30 @@ serializes `threadData` so hydration renders the same comments without a
 loading flash; after connecting, the live connection performs one background
 sync. Browser-only consumers fetch immediately and then use the same
 event-driven refresh path.
+
+## Reader privacy
+
+The component is built so that reading a comment section is not an event
+anyone has to record.
+
+- **Comments are never stored by this project.** Replies are ordinary
+  `app.bsky.feed.post` records written to each commenter's own repo through
+  their own PDS. The bridge keeps no copy.
+- **Signed-out readers do not contact the bridge.** Thread content is read
+  from the AppView (or server-rendered), and the component holds no
+  connection to the service until someone signs in. `live="all"` opts every
+  reader into the live stream, which means their IP address and the page
+  they are on reach whichever bridge you point at — reasonable when that
+  bridge is your own, worth disclosing when it is the hosted one.
+- **Self-host to keep everything first-party.** Set `service` to your own
+  deployment and no third party is involved at all. Pass `allowedOrigins` so
+  only your sites can use it.
+- **The hosted bridge is a third party to your readers.** If you use the
+  default `service`, say so where you say what else your site loads.
+
+Sign-out revokes the ATProto grant, not just the browser session, and unused
+grants expire on their own. Bridge operators should truncate client IPs in
+access logs and keep retention short.
 
 ## Planning docs
 

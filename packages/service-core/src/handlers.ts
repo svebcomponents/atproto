@@ -72,6 +72,30 @@ const parseOrigin = (value: string | null): string | null => {
 };
 
 /**
+ * Same as {@link parseOrigin}, but also enforces `config.allowedOrigins` when
+ * the deployment configured one. Used everywhere an origin is accepted from
+ * the network, so an unlisted site can neither start a sign-in nor hold a
+ * session.
+ */
+const parseAllowedOrigin = (
+  value: string | null,
+  config: ResolvedServiceConfig,
+): string | null => {
+  const origin = parseOrigin(value);
+  if (origin === null) return null;
+  if (config.allowedOrigins && !config.allowedOrigins.includes(origin)) {
+    return null;
+  }
+  return origin;
+};
+
+/**
+ * Methods that create or destroy records in the user's repo. These require a
+ * proven `Origin`; see {@link requiresOriginHeader}.
+ */
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/**
  * Validates the no-JS redirect-back target for the cookie-mode sign-in flow:
  * must be same-origin as the embedding site being authorized, so a forged
  * `return` can't redirect elsewhere once a real sign-in completes.
@@ -199,10 +223,17 @@ const authenticateCookie = async (
   return { did: session.did, origin: session.origin, sid };
 };
 
+/**
+ * Carried through the OAuth round trip in the `state` parameter.
+ *
+ * There is deliberately no CSRF nonce of our own here: `@atproto/
+ * oauth-client-node` generates and verifies the `state` value against its
+ * own state store, so replay protection for the authorization round trip is
+ * already handled a layer down. An earlier `nonce` field on this interface
+ * was never read by the callback — it looked like a control but wasn't one.
+ */
 interface AuthorizeState {
   origin: string;
-  /** CSRF nonce */
-  nonce: string;
   /** claim nonce the opener polls with (undefined for the redirect fallback) */
   claim?: string;
   /** no-JS flow: page to redirect back to once signed in (cookie mode only) */
@@ -281,9 +312,12 @@ const handleStart = async (
   config: ResolvedServiceConfig,
   clientPromise: Promise<OAuthBridgeClient>,
 ): Promise<Response> => {
-  const origin = parseOrigin(url.searchParams.get("origin"));
+  const origin = parseAllowedOrigin(url.searchParams.get("origin"), config);
   if (!origin) {
-    return html(errorPage("Missing or invalid origin parameter"), 400);
+    return html(
+      errorPage("This site is not allowed to sign in with this service."),
+      400,
+    );
   }
   const handle = url.searchParams.get("handle")?.trim() ?? "";
   const claim = url.searchParams.get("claim")?.trim();
@@ -306,7 +340,6 @@ const handleStart = async (
   try {
     const state: AuthorizeState = {
       origin,
-      nonce: crypto.randomUUID(),
       ...(claim ? { claim } : {}),
       ...(returnTo ? { return: returnTo } : {}),
     };
@@ -348,8 +381,8 @@ const handleCallback = async (
     const { session, state } = await client.callback(url.searchParams);
     did = session.did;
     const parsedState = JSON.parse(state ?? "") as Partial<AuthorizeState>;
-    const parsedOrigin = parseOrigin(parsedState.origin ?? null);
-    if (!parsedOrigin) throw new Error("state is missing the origin");
+    const parsedOrigin = parseAllowedOrigin(parsedState.origin ?? null, config);
+    if (!parsedOrigin) throw new Error("state is missing an allowed origin");
     origin = parsedOrigin;
     claimNonce = parsedState.claim;
     returnTo = parseReturnUrl(parsedState.return ?? null, origin) ?? undefined;
@@ -381,8 +414,14 @@ const handleCallback = async (
   // Primary handoff: stash the claim for the opener to poll. OAuth providers
   // set COOP which severs window.opener, so postMessage (below) can't be
   // relied on — it's kept only as a same-origin fast path.
+  //
+  // The claim records the origin this sign-in was authorized for, and
+  // retrieval requires a matching `Origin`. The nonce travels as a query
+  // parameter on a public endpoint, so it is not a secret an attacker can be
+  // kept out of — but the origin is something they cannot forge from a
+  // browser, and the token is only ever useful on that origin anyway.
   if (claimNonce) {
-    await config.authClaimStore.set(claimNonce, handoff);
+    await config.authClaimStore.set(claimNonce, { origin, ...handoff });
   }
 
   // No-JS flow: a plain top-level redirect back to the exact page the reader
@@ -452,7 +491,10 @@ const handleApi = async (
   clientPromise: Promise<OAuthBridgeClient>,
   commentStreams: CommentStreamBroker,
 ): Promise<Response> => {
-  const requestOrigin = parseOrigin(request.headers.get("origin"));
+  const requestOrigin = parseAllowedOrigin(
+    request.headers.get("origin"),
+    config,
+  );
 
   if (request.method === "OPTIONS") {
     return new Response(null, {
@@ -466,10 +508,13 @@ const handleApi = async (
     });
   }
 
-  // Claim retrieval is authenticated by the unguessable nonce itself (the
-  // opener generated it and only it knows it), so it runs before the bearer
-  // gate. The returned token is origin-bound, so a leaked claim is still
-  // useless off its origin. One-time read.
+  // Claim retrieval runs before the bearer gate — the session it hands back
+  // is the thing the caller is trying to obtain. It is guarded by the origin
+  // the sign-in was authorized for, NOT by the nonce: the nonce arrives as a
+  // `?claim=` parameter on a public endpoint, so anyone can craft a sign-in
+  // link carrying a nonce of their choosing and then poll for the result.
+  // Requiring a matching `Origin` means only the site the reader actually
+  // signed in to can collect the session. One-time read.
   if (request.method === "GET" && route === "/api/session/claim") {
     const cors = requestOrigin ? corsHeaders(requestOrigin) : {};
     const nonce = new URL(request.url).searchParams.get("nonce");
@@ -477,7 +522,23 @@ const handleApi = async (
     if (!claim) {
       return jsonError(404, "NotReady", "No claim for this nonce yet", cors);
     }
-    return json(claim, 200, cors);
+    // A same-origin fetch sends no `Origin` header, which is only legitimate
+    // when the embedding site *is* the service (a self-hosted, same-origin
+    // deployment). Any cross-origin caller must prove its origin.
+    const originMatches =
+      requestOrigin === null
+        ? claim.origin === config.publicUrl
+        : requestOrigin === claim.origin;
+    if (!originMatches) {
+      return jsonError(
+        403,
+        "OriginMismatch",
+        "This claim belongs to a different site",
+        cors,
+      );
+    }
+    const { origin: _claimOrigin, ...handoff } = claim;
+    return json(handoff, 200, cors);
   }
 
   // Watching public replies does not require an account. Spacedust only
@@ -491,11 +552,26 @@ const handleApi = async (
   const bearer = authorization.startsWith("Bearer ")
     ? authorization.slice("Bearer ".length)
     : null;
+
+  // Origin binding is a browser-enforced control: browsers always attach an
+  // `Origin` header to cross-origin requests and never let a page forge one.
+  // A non-browser client simply omits it — so treating "absent" as "nothing
+  // to check" would let any leaked token create records from anywhere, which
+  // is precisely what the binding exists to prevent. Every request that
+  // writes to the user's repo must therefore carry a proven origin, in both
+  // session modes. Reads (GET) stay permissive so a same-origin deployment,
+  // where browsers omit the header, keeps working.
+  if (MUTATING_METHODS.has(request.method) && requestOrigin === null) {
+    return jsonError(
+      403,
+      "OriginRequired",
+      "This request must be made from a browser on the site you signed in to",
+    );
+  }
+
   const claims =
     config.sessionMode === "cookie"
-      ? request.method === "POST" && requestOrigin === null
-        ? null
-        : await authenticateCookie(request, requestOrigin, config)
+      ? await authenticateCookie(request, requestOrigin, config)
       : bearer
         ? await tokens.verify(bearer, requestOrigin)
         : null;
@@ -549,6 +625,22 @@ const handleApi = async (
 
     case "POST /api/session/logout": {
       await config.serviceSessionStore.del(claims.sid);
+      // Also give up the ATProto grant. Without this, signing out ends only
+      // the browser's session with the bridge while the refresh token that
+      // lets the bridge post as this account stays on disk indefinitely —
+      // "sign out" has to mean the service can no longer act as the user.
+      //
+      // Token sets are keyed by DID, so a reader signed in on two sites at
+      // once ends both by signing out of either. That is the safer default:
+      // the alternative silently keeps a live credential for an account
+      // whose owner just asked to be signed out.
+      try {
+        await (await clientPromise).revoke(claims.did);
+      } catch {
+        // Best-effort: the PDS may be unreachable, or the grant already
+        // gone. The browser session is deleted either way, and the stored
+        // token set expires on its own (see the session store's TTL).
+      }
       return json(
         { ok: true },
         200,

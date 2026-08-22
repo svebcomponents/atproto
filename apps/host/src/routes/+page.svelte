@@ -182,10 +182,16 @@ import "@svebcomponents/atproto.comments";`;
         aria-label="Live ATProto thread, rendered by this component"
       >
         {#if data.threadData}
+          <!-- live="all" because this demo is first-party: the bridge it
+               streams from is this same site, so a visitor's connection here
+               tells us nothing they weren't already telling us. The default
+               (live="signed-in") is the right one for a component embedded
+               on someone else's blog against the hosted service. -->
           <atproto-comments
             thread={threadUri}
             threadData={data.threadData}
             service="/atproto"
+            live="all"
             showRoot
           ></atproto-comments>
         {:else}

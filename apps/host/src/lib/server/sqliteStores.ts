@@ -31,6 +31,17 @@ export interface Stores {
 const CLAIM_TTL_MS = 120_000;
 
 /**
+ * How long an unused ATProto token set is kept. These are the credentials
+ * that let the bridge post as a reader, so they are the most sensitive rows
+ * in the database — a copy of this file is posting access to every account
+ * in it. Signing out revokes and deletes the row immediately; this TTL is
+ * the backstop for everyone who simply closes the tab and never returns.
+ * Each refresh rewrites the row and pushes the expiry out, so an actively
+ * used session is never cut off.
+ */
+const OAUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60_000;
+
+/**
  * Pending OAuth authorization state (the PKCE verifier + issuer, keyed by the
  * `state` param) lives at most this long. A user who starts the sign-in flow
  * and never completes it — closes the tab, backs out — would otherwise leave
@@ -59,6 +70,16 @@ export const createSqliteStores = (path: string): Stores => {
   } catch {
     // column already present
   }
+  // Pre-existing databases created before oauth_session had a TTL. Existing
+  // rows get 0, which `expiring` treats as "no expiry recorded" and renews on
+  // next write, so nobody is signed out by the upgrade itself.
+  try {
+    db.exec(
+      "ALTER TABLE oauth_session ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0",
+    );
+  } catch {
+    // column already present
+  }
 
   const kv = <T>(table: string, keyColumn: string) => {
     const setStmt = db.prepare(
@@ -76,6 +97,44 @@ export const createSqliteStores = (path: string): Stores => {
       async get(key: string): Promise<T | undefined> {
         const row = getStmt.get(key) as { value: string } | undefined;
         return row ? (JSON.parse(row.value) as T) : undefined;
+      },
+      async del(key: string): Promise<void> {
+        delStmt.run(key);
+      },
+    };
+  };
+
+  /**
+   * Like {@link kv}, but rows age out. `expires_at = 0` marks a row written
+   * before the column existed: it stays readable and picks up a real expiry
+   * the next time it is written.
+   */
+  const expiringKv = <T>(table: string, keyColumn: string, ttlMs: number) => {
+    const setStmt = db.prepare(
+      `INSERT INTO ${table} (${keyColumn}, value, expires_at) VALUES (?, ?, ?)
+       ON CONFLICT(${keyColumn}) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at`,
+    );
+    const getStmt = db.prepare(
+      `SELECT value, expires_at FROM ${table} WHERE ${keyColumn} = ?`,
+    );
+    const delStmt = db.prepare(`DELETE FROM ${table} WHERE ${keyColumn} = ?`);
+    const sweepStmt = db.prepare(
+      `DELETE FROM ${table} WHERE expires_at != 0 AND expires_at <= ?`,
+    );
+    return {
+      async set(key: string, value: T): Promise<void> {
+        sweepStmt.run(Date.now());
+        setStmt.run(key, JSON.stringify(value), Date.now() + ttlMs);
+      },
+      async get(key: string): Promise<T | undefined> {
+        const row = getStmt.get(key) as
+          { value: string; expires_at: number } | undefined;
+        if (!row) return undefined;
+        if (row.expires_at !== 0 && row.expires_at <= Date.now()) {
+          delStmt.run(key);
+          return undefined;
+        }
+        return JSON.parse(row.value) as T;
       },
       async del(key: string): Promise<void> {
         delStmt.run(key);
@@ -140,7 +199,11 @@ export const createSqliteStores = (path: string): Stores => {
   return {
     stateStore,
     // oauth-client-node keys sessions by `sub` (the DID)
-    sessionStore: kv<NodeSavedSession>("oauth_session", "did"),
+    sessionStore: expiringKv<NodeSavedSession>(
+      "oauth_session",
+      "did",
+      OAUTH_SESSION_TTL_MS,
+    ),
     serviceSessionStore: kv<ServiceSession>("service_session", "sid"),
     authClaimStore,
   };

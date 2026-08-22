@@ -18,6 +18,12 @@ export interface OAuthBridgeClient {
     params: URLSearchParams,
   ): Promise<{ session: OAuthPdsSession; state: string | null }>;
   restore(did: string): Promise<OAuthPdsSession>;
+  /**
+   * Revokes the stored ATProto token set for a DID and deletes it from the
+   * session store. Called on sign-out so the grant does not outlive the
+   * browser session the reader thinks they ended.
+   */
+  revoke(did: string): Promise<void>;
 }
 
 /** the subset of OAuthSession the reply handler needs */
