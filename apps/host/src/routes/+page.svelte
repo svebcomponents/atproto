@@ -283,10 +283,10 @@ import "@svebcomponents/atproto.comments";`;
   <section id="tiers" class="section split-section">
     <div class="section-intro">
       <p class="kicker">Setup options</p>
-      <h2>Four ways<br />to add it to a page.</h2>
+      <h2>Four levels<br />of control.</h2>
       <p>
-        Each level adds tooling, not features. All of them use the hosted
-        backend unless you set the <code>service</code> property to your own deployment.
+        Each level unlocks more fine-grained control over how you distribute the
+        comment component and where data flows from.
       </p>
     </div>
     <div class="steps">
@@ -294,10 +294,7 @@ import "@svebcomponents/atproto.comments";`;
         <span class="step-number">1</span>
         <div>
           <h3>CDN script tag</h3>
-          <p>
-            Two tags pasted into static HTML or a CMS, no bundler required. See
-            the snippet above.
-          </p>
+          <p>Pasted into static HTML or a CMS. See the snippet above.</p>
         </div>
       </article>
       <article class="step">
@@ -307,7 +304,7 @@ import "@svebcomponents/atproto.comments";`;
           <p>
             Add the package and import it once into your own bundle. Type
             definitions and a custom elements manifest ship with it.
-            <a class="text-link" href="#start">See the snippet ↓</a>
+            <a class="text-link" href="#start">Install guide ↓</a>
           </p>
         </div>
       </article>
@@ -317,14 +314,9 @@ import "@svebcomponents/atproto.comments";`;
           <h3>Server-rendered</h3>
           <p>
             The thread is rendered into declarative shadow DOM on the server and
-            adopted in place on the client. SvelteKit is supported today; Nuxt,
-            Astro, Next.js, and SolidStart integrations are planned.
-            <a
-              class="text-link"
-              href="https://github.com/svebcomponents/atproto/tree/main/components/atproto-comments#3-ssr-server-rendered-hydrated-in-place"
-              target="_blank"
-              rel="noreferrer">Read the SSR guide ↗</a
-            >
+            adopted in place on the client. SvelteKit, Vue, Astro & React are
+            supported by svebcomponents as of today.
+            <a class="text-link" href="#ssr">See the SSR guide ↓</a>
           </p>
         </div>
       </article>
@@ -345,7 +337,7 @@ import "@svebcomponents/atproto.comments";`;
   <section id="start" class="section split-section">
     <div class="section-intro">
       <p class="kicker">Quickstart</p>
-      <h2>Install and render.</h2>
+      <h2>Install from npm & go.</h2>
       <p>
         The custom element works with Svelte, Astro, Eleventy, React, plain
         HTML, or anything else that can load an ES module.
@@ -353,10 +345,11 @@ import "@svebcomponents/atproto.comments";`;
       <aside class="default-note">
         <span aria-hidden="true">✦</span>
         <p>
-          <strong>The hosted service is the default.</strong> Leave off
-          <code>service</code> and the component uses
-          <code>https://atproto.svebcomponents.dev/atproto</code> for live events
-          and optional sign-in.
+          <strong>svebcomponents/atproto is phoning home.</strong><br />
+          the component uses <i>a hosted bridge</i> <br />
+          (<code>https://atproto.svebcomponents.dev/atproto</code>)<br /> to
+          receive live events and facilitate sign-in.<br />
+          <a href="#self-host">self-host to make it run on your origin ↓</a>
         </p>
       </aside>
     </div>
@@ -378,33 +371,152 @@ import "@svebcomponents/atproto.comments";`;
     </div>
   </section>
 
+  <section id="ssr" class="section split-section">
+    <div class="section-intro">
+      <p class="kicker">Server rendering</p>
+      <h2>One recipe,<br />every host.</h2>
+      <p>
+        Server rendering works the same way everywhere: import the component's
+        renderer entry (<code>@svebcomponents/atproto.comments/ssr</code>) once
+        on the server, its browser entry on the client, and write
+        <code>&lt;atproto-comments&gt;</code> like any other tag. A small adapter
+        renders declarative shadow DOM during SSR — including the thread fetch — and
+        the browser adopts it in place on hydration, so the first paint already shows
+        comments.
+      </p>
+    </div>
+    <div class="ssr-grid">
+      <article class="ssr-card">
+        <h3>Svelte</h3>
+        <p><code>@svebcomponents/ssr</code></p>
+        <p>
+          Add the Vite plugin before Svelte's and import the renderer entry in
+          <code>hooks.server.ts</code>.
+        </p>
+        <a
+          class="text-link"
+          href="https://svebcomponents.dev/server-rendering/sveltekit/"
+          target="_blank"
+          rel="noreferrer">Setup guide ↗</a
+        >
+      </article>
+      <article class="ssr-card">
+        <h3>React</h3>
+        <p><code>@svebcomponents/ssr-react/rsc</code></p>
+        <p>
+          Point <code>jsxImportSource</code> at the adapter, load both entries, use
+          the tag as JSX.
+        </p>
+        <a
+          class="text-link"
+          href="https://svebcomponents.dev/server-rendering/react/"
+          target="_blank"
+          rel="noreferrer">Setup guide ↗</a
+        >
+      </article>
+      <article class="ssr-card">
+        <h3>Vue</h3>
+        <p><code>@svebcomponents/ssr-vue</code></p>
+        <p>
+          Add the Vite plugin before Vue's and <code>app.use()</code> the adapter
+          on both app instances.
+        </p>
+        <a
+          class="text-link"
+          href="https://svebcomponents.dev/server-rendering/vue/"
+          target="_blank"
+          rel="noreferrer">Setup guide ↗</a
+        >
+      </article>
+      <article class="ssr-card">
+        <h3>Astro</h3>
+        <p><code>@svebcomponents/ssr-astro</code></p>
+        <p>
+          Add the integration, import the renderer entry in frontmatter and the
+          browser entry in a script.
+        </p>
+        <a
+          class="text-link"
+          href="https://svebcomponents.dev/server-rendering/astro/"
+          target="_blank"
+          rel="noreferrer">Setup guide ↗</a
+        >
+      </article>
+    </div>
+  </section>
+
   <section class="section architecture">
     <div class="section-intro">
       <p class="kicker">Architecture</p>
-      <h2>Reads come from<br />the public AppView.</h2>
+      <h2>Reads, writes,<br />and live updates.</h2>
       <p>
-        The bridge does not store or serve comment content. It handles OAuth,
-        publishes replies through the reader's PDS, and emits events when the
-        public snapshot may have changed.
+        Reads go straight from the browser to a public AppView. Writes run
+        through the bridge's OAuth flow and land as ordinary posts in the
+        commenter's own PDS repo. Live updates travel the other way: Spacedust
+        signals the bridge, which fans out one SSE stream per viewer. The bridge
+        coordinates all of this; it never stores or serves comment content.
       </p>
     </div>
-    <div class="flow" aria-label="Live update architecture">
-      <div class="flow-node">
+    <div
+      class="flow"
+      role="img"
+      aria-label="Diagram: the component reads thread snapshots directly from the public AppView; signs readers in and posts replies through the bridge into the commenter's PDS repo; and receives live update signals from Spacedust via one SSE stream per viewer. Relays carry repo commits from the commenter's PDS to both the AppView index and Spacedust."
+    >
+      <div class="flow-node source-node">
         <small>Your page</small>
         <strong>&lt;atproto-comments&gt;</strong>
-        <span>renders + refreshes</span>
+        <span>renders · hydrates · refreshes</span>
       </div>
-      <span class="flow-arrow">⇄</span>
-      <div class="flow-node accent-node">
+
+      <div class="flow-link reads-link">
+        <span class="flow-arrow">→</span>
+        <small>thread reads</small>
+      </div>
+      <div class="flow-node appview-node">
+        <small>Public infra</small>
+        <strong>AppView</strong>
+        <span>direct from the browser, no auth</span>
+      </div>
+
+      <div class="flow-link writes-link">
+        <span class="flow-arrow">→</span>
+        <small>sign-in · post reply</small>
+      </div>
+      <div class="flow-node accent-node bridge-node">
         <small>Hosted or yours</small>
-        <strong>Event bridge</strong>
-        <span>one SSE per viewer</span>
+        <strong>Bridge</strong>
+        <span>narrow OAuth scopes · SSE fan-out</span>
       </div>
-      <span class="flow-arrow">⇄</span>
-      <div class="flow-node">
+      <div class="flow-link writes-far-link">
+        <span class="flow-arrow">→</span>
+        <small>createRecord</small>
+      </div>
+      <div class="flow-node pds-node">
+        <small>Commenter's PDS</small>
+        <strong>Their repo</strong>
+        <span>replies live here, not on your server</span>
+      </div>
+      <div class="flow-link vertical-link relay-up-link">
+        <span class="flow-arrow">↑</span>
+        <small>indexed via relays</small>
+      </div>
+      <div class="flow-link vertical-link relay-down-link">
+        <span class="flow-arrow">↓</span>
+        <small>watched via relays</small>
+      </div>
+
+      <div class="flow-link updates-link">
+        <span class="flow-arrow">←</span>
+        <small>SSE per viewer</small>
+      </div>
+      <div class="flow-link updates-far-link">
+        <span class="flow-arrow">←</span>
+        <small>one filtered WebSocket</small>
+      </div>
+      <div class="flow-node spacedust-node">
         <small>Community infra</small>
-        <strong>Microcosm</strong>
-        <span>one filtered WebSocket</span>
+        <strong>Spacedust</strong>
+        <span>repo event firehose, via relays</span>
       </div>
     </div>
     <div class="architecture-notes">
@@ -417,6 +529,11 @@ import "@svebcomponents/atproto.comments";`;
       </p>
       <p>
         <strong>No replay dependency.</strong> A reconnect forces a fresh read.
+      </p>
+      <p>
+        <strong>One origin.</strong> Replies live only in the commenter's PDS; relays
+        carry those commits to the AppView's index and to Spacedust. Nothing in this
+        chain holds a private copy.
       </p>
     </div>
   </section>
@@ -1058,6 +1175,44 @@ import "@svebcomponents/atproto.comments";`;
     border-radius: 9px;
   }
 
+  .ssr-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    align-content: start;
+    background: var(--line);
+    border: 1px solid var(--line);
+  }
+
+  .ssr-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 1.5rem;
+    background: #fff;
+  }
+
+  .ssr-card h3 {
+    margin: 0;
+  }
+
+  .ssr-card p {
+    margin: 0;
+    color: var(--text);
+    font-size: 0.87rem;
+    line-height: 1.55;
+  }
+
+  .ssr-card code {
+    color: var(--accent-deep);
+    font-size: 0.82em;
+  }
+
+  .ssr-card .text-link {
+    margin-top: auto;
+    padding-top: 0.75rem;
+  }
+
   .reference-heading {
     display: grid;
     grid-template-columns: 1fr 0.8fr;
@@ -1083,8 +1238,101 @@ import "@svebcomponents/atproto.comments";`;
 
   .flow {
     display: grid;
-    grid-template-columns: 1fr auto 1fr auto 1fr;
+    grid-template-columns:
+      minmax(0, 1.15fr)
+      auto
+      minmax(0, 1fr)
+      auto
+      minmax(0, 0.9fr);
+    grid-template-rows:
+      auto
+      minmax(2.75rem, auto)
+      auto
+      minmax(2.75rem, auto)
+      auto;
+    gap: 1.25rem 0;
     align-items: center;
+  }
+
+  .source-node {
+    grid-column: 1;
+    grid-row: 1 / span 5;
+    align-self: stretch;
+  }
+
+  .reads-link {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .appview-node {
+    grid-column: 3 / span 3;
+    grid-row: 1;
+  }
+
+  .writes-link {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .bridge-node {
+    grid-column: 3;
+    grid-row: 2 / span 4;
+    align-self: stretch;
+  }
+
+  .writes-far-link {
+    grid-column: 4;
+    grid-row: 3;
+  }
+
+  .pds-node {
+    grid-column: 5;
+    grid-row: 3;
+  }
+
+  .updates-link {
+    grid-column: 2;
+    grid-row: 5;
+  }
+
+  .updates-far-link {
+    grid-column: 4;
+    grid-row: 5;
+  }
+
+  .spacedust-node {
+    grid-column: 5;
+    grid-row: 5;
+  }
+
+  .relay-up-link {
+    grid-column: 5;
+    grid-row: 2;
+    align-self: center;
+  }
+
+  .relay-down-link {
+    grid-column: 5;
+    grid-row: 4;
+    align-self: center;
+  }
+
+  .flow-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0 0.6rem;
+    text-align: center;
+  }
+
+  .flow-link small {
+    color: var(--text-meta);
+    font-size: 0.66rem;
+    line-height: 1.35;
+    max-width: 11ch;
   }
 
   .flow-node {
@@ -1118,11 +1366,10 @@ import "@svebcomponents/atproto.comments";`;
     padding: 0 0.6rem;
     color: var(--accent);
   }
-
   .architecture-notes {
     grid-column: 2;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
     color: var(--text-meta);
     font-size: 0.77rem;
@@ -1302,6 +1549,19 @@ import "@svebcomponents/atproto.comments";`;
     justify-content: flex-end;
   }
 
+  /* The flow diagram needs width for its five columns; stack the architecture
+     intro above it much earlier than the page's other split sections. */
+  @media (max-width: 1180px) {
+    .architecture {
+      grid-template-columns: 1fr;
+      gap: 3rem;
+    }
+
+    .architecture-notes {
+      grid-column: auto;
+    }
+  }
+
   @media (max-width: 850px) {
     .site-header nav a:not(.github-link) {
       display: none;
@@ -1339,13 +1599,53 @@ import "@svebcomponents/atproto.comments";`;
 
     .flow {
       grid-template-columns: 1fr;
+      grid-template-rows: none;
       gap: 0;
+    }
+
+    .flow > * {
+      grid-area: auto;
+    }
+
+    .source-node,
+    .bridge-node {
+      align-self: auto;
+    }
+
+    .bridge-node {
+      grid-row: auto / span 1;
+    }
+
+    .appview-node {
+      grid-column: auto / span 1;
+    }
+
+    .flow-node {
+      min-height: 0;
+    }
+
+    .flow-link {
+      padding: 0.6rem 0;
+    }
+
+    .flow-link {
+      padding: 0.35rem 0;
     }
 
     .flow-arrow {
       padding: 0.35rem;
       transform: rotate(90deg);
       text-align: center;
+    }
+
+    /* The relay connectors only make sense in the multi-column layout; the
+       notes below the diagram carry that information on small screens. */
+    .vertical-link {
+      display: none;
+    }
+
+    .ssr-grid {
+      grid-template-columns: 1fr;
     }
 
     .architecture-notes {

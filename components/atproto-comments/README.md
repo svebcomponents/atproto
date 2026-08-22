@@ -59,8 +59,8 @@ serializes it for hydration, so the first paint already has comments instead of
 the loading skeleton. Passing `threadData` supplies that snapshot explicitly
 instead.
 
-SvelteKit is supported today. Nuxt, Astro, Next.js, and SolidStart
-integrations are planned.
+Host adapters ship upstream for SvelteKit, React 19, Vue 3, and Astro
+(`@svebcomponents/ssr*`); Nuxt and SolidStart integrations are still planned.
 
 ## 4. Self-hosted backend
 
