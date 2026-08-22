@@ -130,7 +130,14 @@ const parseReturnUrl = (
   try {
     const url = new URL(value);
     if (url.protocol !== "https:" && url.protocol !== "http:") return null;
-    return url.origin === origin ? url.toString() : null;
+    if (url.origin !== origin) return null;
+    // Keep only origin + path. The query string and fragment are no use as a
+    // redirect target and are the part of a URL most likely to carry
+    // something private — a search term, a share token, a session id. This is
+    // enforced here rather than trusting the caller, because the value can
+    // also arrive from the `Referer` header, which the browser fills in and
+    // no attribute on a <form> can suppress.
+    return `${url.origin}${url.pathname}`;
   } catch {
     return null;
   }

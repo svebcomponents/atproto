@@ -703,7 +703,7 @@ package README.
   quoteCount: number;
 })}
   {#if writable}
-    <form class="reaction-form" method="post" referrerpolicy="origin" action="{service}/api/like">
+    <form class="reaction-form" method="post" action="{service}/api/like">
       <input type="hidden" name="uri" value={node.uri} />
       <input type="hidden" name="cid" value={node.cid} />
       {#if returnUrl}<input type="hidden" name="return" value={returnUrl} />{/if}
@@ -725,7 +725,7 @@ package README.
       >
     </form>
     ·
-    <form class="reaction-form" method="post" referrerpolicy="origin" action="{service}/api/repost">
+    <form class="reaction-form" method="post" action="{service}/api/repost">
       <input type="hidden" name="uri" value={node.uri} />
       <input type="hidden" name="cid" value={node.cid} />
       {#if returnUrl}<input type="hidden" name="return" value={returnUrl} />{/if}
@@ -798,7 +798,6 @@ package README.
         class="composer"
         part="composer"
         method="post"
-        referrerpolicy="origin"
         action="{service}/api/reply"
         onsubmit={(e) => {
           e.preventDefault();

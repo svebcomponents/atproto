@@ -34,7 +34,8 @@ all. Set `live="all"` to restore streaming for every reader.
 against a deployment. Defaults to allowing any origin, as the hosted instance
 needs.
 
-Also: `return` URLs are reduced to origin + path so query strings never reach
-the service, sign-in links and no-JS forms carry `referrerpolicy="origin"`,
+Also: `return` URLs are reduced to origin + path — enforced on the server, so
+it also covers the `Referer` fallback — meaning reader query strings never
+reach the service; the no-JS sign-in link carries `referrerpolicy="origin"`;
 and a `state` field labelled as a CSRF nonce that was never verified has been
 removed (the OAuth library owns that check).

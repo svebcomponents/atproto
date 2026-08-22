@@ -21,6 +21,9 @@ afterEach(() => {
 });
 
 const claim = {
+  // the origin the sign-in was authorized for — claims are only released to
+  // a matching Origin, so it round-trips with the rest of the handoff
+  origin: "https://blog.example",
   token: "tok",
   did: "did:plc:me",
   handle: "me.test",

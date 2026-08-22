@@ -553,13 +553,6 @@
     padding: 0.55rem 0 0.55rem 0.95rem;
     font-size: 0.94rem;
   }
-  .draft {
-    border: 1px dashed var(--accent);
-    background: var(--accent-wash);
-    border-radius: 4px;
-    padding: 0.9rem 1.1rem;
-    font-size: 0.94rem;
-  }
 
   .table-scroll {
     overflow-x: auto;

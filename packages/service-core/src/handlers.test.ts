@@ -622,6 +622,38 @@ describe("service handlers", () => {
       expect(res!.headers.get("location")).toBe(`${ORIGIN}/posts/hello`);
     });
 
+    // The query string and fragment are the part of a reader's URL most
+    // likely to carry something private. They are stripped server-side rather
+    // than trusted to the caller, because the value can also arrive from the
+    // Referer header, which the browser fills in and which no attribute on a
+    // <form> can suppress.
+    it("strips the query and fragment from an explicit return field", async () => {
+      const res = await cookieService.fetch(
+        formPost("/atproto/api/like", {
+          uri: `at://${DID}/app.bsky.feed.post/root`,
+          cid: "bafyroot234567",
+          return: `${ORIGIN}/posts/hello?session=secret&q=private#anchor`,
+        }),
+      );
+      expect(res!.status).toBe(303);
+      expect(res!.headers.get("location")).toBe(`${ORIGIN}/posts/hello`);
+    });
+
+    it("strips the query and fragment from the Referer fallback", async () => {
+      const res = await cookieService.fetch(
+        formPost(
+          "/atproto/api/like",
+          {
+            uri: `at://${DID}/app.bsky.feed.post/root`,
+            cid: "bafyroot234567",
+          },
+          `${ORIGIN}/posts/hello?session=secret#anchor`,
+        ),
+      );
+      expect(res!.status).toBe(303);
+      expect(res!.headers.get("location")).toBe(`${ORIGIN}/posts/hello`);
+    });
+
     it("shows a plain success page when neither return nor Referer is present", async () => {
       const res = await cookieService.fetch(
         formPost("/atproto/api/like", {

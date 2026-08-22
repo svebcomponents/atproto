@@ -39,7 +39,11 @@ import "@svebcomponents/atproto.comments";`;
   // Live gauges refresh by polling a small cached JSON endpoint. Deliberately
   // not an SSE stream: opening a persistent connection to show off a service
   // that avoids opening persistent connections would be a poor joke.
-  let live = $state(data.stats?.live ?? null);
+  // `polled` starts empty and wins once a refresh lands; until then the value
+  // rendered on the server shows through. Deriving rather than seeding state
+  // from `data` keeps this correct if the page ever reloads its data.
+  let polled = $state<{ threads: number; subscribers: number } | null>(null);
+  const live = $derived(polled ?? data.stats?.live ?? null);
   const totals = $derived(data.stats?.totals ?? null);
 
   $effect(() => {
@@ -51,7 +55,7 @@ import "@svebcomponents/atproto.comments";`;
         const next = (await response.json()) as {
           live?: { threads: number; subscribers: number };
         };
-        if (!cancelled && next.live) live = next.live;
+        if (!cancelled && next.live) polled = next.live;
       } catch {
         // a stalled counter is not worth surfacing to a reader
       }
