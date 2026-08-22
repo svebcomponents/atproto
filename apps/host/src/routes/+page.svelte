@@ -629,55 +629,39 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
   </section>
 
   {#if totals}
-    <section id="stats" class="section split-section stats-section">
-      <div class="section-intro">
-        <p class="kicker">Service status</p>
-        <h2>What the<br />bridge sees.</h2>
-        <p>
-          Everything the hosted service knows about its own use, published in
-          full. Counts of sites and actions, plus what is connected right now —
-          no list of which sites, and nothing that describes a reader.
-        </p>
-        <a class="text-link" href={resolve("/privacy")}
-          >How this is measured →</a
-        >
-      </div>
-      <div class="section-body">
-        <dl class="stat-grid">
-          <div class="stat">
-            <dt>Sites using it</dt>
-            <dd>{totals.sites.toLocaleString()}</dd>
-          </div>
-          <div class="stat">
-            <dt>
-              Connected now <span class="pulse" aria-hidden="true"></span>
-            </dt>
-            <dd>{(live?.subscribers ?? 0).toLocaleString()}</dd>
-          </div>
-          <div class="stat">
-            <dt>Threads watched now</dt>
-            <dd>{(live?.threads ?? 0).toLocaleString()}</dd>
-          </div>
-          <div class="stat">
-            <dt>Replies posted</dt>
-            <dd>{totals.replies.toLocaleString()}</dd>
-          </div>
-          <div class="stat">
-            <dt>Sign-ins</dt>
-            <dd>{totals.signIns.toLocaleString()}</dd>
-          </div>
-          <div class="stat">
-            <dt>Live connections opened</dt>
-            <dd>{totals.streamConnects.toLocaleString()}</dd>
-          </div>
-        </dl>
-        <p class="footnote">
-          {#if totals.since}Counted since {totals.since}.{/if} Live figures refresh
-          every 15 seconds and reflect one server process. There is deliberately no
-          visitor count: that would need an identifier per person, which is the one
-          thing this service does not keep.
-        </p>
-      </div>
+    <section id="stats" class="section metrics-section">
+      <h2>Live Bridge Metrics</h2>
+      <dl class="stat-grid">
+        <div class="stat">
+          <dt>Sites</dt>
+          <dd>{totals.sites.toLocaleString()}</dd>
+        </div>
+        <div class="stat">
+          <dt>Connected now <span class="pulse" aria-hidden="true"></span></dt>
+          <dd>{(live?.subscribers ?? 0).toLocaleString()}</dd>
+        </div>
+        <div class="stat">
+          <dt>Threads watched</dt>
+          <dd>{(live?.threads ?? 0).toLocaleString()}</dd>
+        </div>
+        <div class="stat">
+          <dt>Replies</dt>
+          <dd>{totals.replies.toLocaleString()}</dd>
+        </div>
+        <div class="stat">
+          <dt>Sign-ins</dt>
+          <dd>{totals.signIns.toLocaleString()}</dd>
+        </div>
+        <div class="stat">
+          <dt>Connections opened</dt>
+          <dd>{totals.streamConnects.toLocaleString()}</dd>
+        </div>
+      </dl>
+      <p class="footnote">
+        {#if totals.since}<span>Since {totals.since}.</span>{/if}
+        <span>This is everything the service knows about its own usage.</span>
+        <a href={resolve("/privacy")}>Privacy</a>
+      </p>
     </section>
   {/if}
 
@@ -799,13 +783,13 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
 </footer>
 
 <style>
-  .stats-section .section-intro > p {
-    max-width: 500px;
-    margin-top: 1.8rem;
+  .metrics-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
   }
-  .stats-section .section-intro > .text-link {
-    margin-top: 1.1rem;
-    display: inline-block;
+  .metrics-section h2 {
+    font-size: clamp(2rem, 3.5vw, 3rem);
   }
   .stat-grid {
     margin: 0;
@@ -917,6 +901,9 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
   .footnote {
     font-size: 0.9rem;
     color: var(--text-meta);
+  }
+  .metrics-section .footnote {
+    margin: 0;
   }
 
   /* One palette for the page. Every colour below is a role, not a shade: the
