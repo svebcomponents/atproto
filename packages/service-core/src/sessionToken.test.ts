@@ -40,10 +40,24 @@ describe("session token", () => {
     expect(await t.verify(token, "https://blog.example")).toEqual(claims);
   });
 
-  it("accepts requests with no Origin header (same-origin/non-browser)", async () => {
+  // A missing Origin header used to skip the origin check altogether, which
+  // meant any non-browser client could use an exfiltrated token from
+  // anywhere just by omitting the header — the one thing origin binding is
+  // supposed to prevent.
+  it("rejects a cross-origin token when no Origin header is sent", async () => {
     const t = issuer(makeStore(liveSession));
     const token = await t.mint(claims);
-    expect(await t.verify(token, null)).toEqual(claims);
+    expect(await t.verify(token, null)).toBeNull();
+  });
+
+  it("accepts a same-origin token when no Origin header is sent", async () => {
+    const sameOrigin = { ...liveSession, origin: "https://comments.example" };
+    const t = issuer(makeStore(sameOrigin));
+    const token = await t.mint({ ...claims, origin: sameOrigin.origin });
+    expect(await t.verify(token, null)).toEqual({
+      ...claims,
+      origin: sameOrigin.origin,
+    });
   });
 
   it("rejects a token replayed from a different origin", async () => {

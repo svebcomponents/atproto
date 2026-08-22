@@ -139,4 +139,35 @@ describe("segmentRichText", () => {
       ]),
     ).toEqual([{ type: "text", text: "weird facet" }]);
   });
+
+  // Facets are self-asserted: the record author writes them and the AppView
+  // returns them verbatim, so a link facet's uri reaches the DOM as
+  // untrusted input. Rendering `javascript:` as an href would execute on
+  // whatever page embeds the component.
+  it.each([
+    ["javascript:alert(1)"],
+    ["JavaScript:alert(1)"],
+    ["  javascript:alert(1)"],
+    ["data:text/html,<script>alert(1)</script>"],
+    ["vbscript:msgbox(1)"],
+    ["not a url at all"],
+    ["/relative/path"],
+  ])("degrades an unsafe link facet uri to plain text: %s", (uri) => {
+    expect(segmentRichText("click here", [link(0, 10, uri)])).toEqual([
+      { type: "text", text: "click here" },
+    ]);
+  });
+
+  it("keeps http and https link facets", () => {
+    expect(
+      segmentRichText("click here", [link(0, 10, "https://ok.example/x")]),
+    ).toEqual([
+      { type: "link", text: "click here", href: "https://ok.example/x" },
+    ]);
+    expect(
+      segmentRichText("click here", [link(0, 10, "http://ok.example/x")]),
+    ).toEqual([
+      { type: "link", text: "click here", href: "http://ok.example/x" },
+    ]);
+  });
 });

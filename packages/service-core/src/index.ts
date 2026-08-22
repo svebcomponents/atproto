@@ -26,7 +26,18 @@ export {
   createAtprotoCommentsService,
   type AtprotoCommentsService,
   type CreateServiceOptions,
+  type ServiceStats,
 } from "./handlers.js";
+export {
+  createMemoryMetricsStore,
+  createMetricsRecorder,
+  utcDay,
+  type MetricCounts,
+  type MetricKind,
+  type MetricsRecorder,
+  type MetricsStore,
+  type MetricsTotals,
+} from "./metrics.js";
 export {
   buildOAuthClient,
   type OAuthBridgeClient,

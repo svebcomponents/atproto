@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from "$app/paths";
   import "@svebcomponents/atproto.comments";
   import type { PageProps } from "./$types";
 
@@ -34,6 +35,41 @@ import "@svebcomponents/atproto.comments";`;
   thread="at://did:plc:…/app.bsky.feed.post/…"
   service="/atproto"
 ></atproto-comments>`;
+
+  // Live gauges refresh by polling a small cached JSON endpoint. Deliberately
+  // not an SSE stream: opening a persistent connection to show off a service
+  // that avoids opening persistent connections would be a poor joke.
+  // `polled` starts empty and wins once a refresh lands; until then the value
+  // rendered on the server shows through. Deriving rather than seeding state
+  // from `data` keeps this correct if the page ever reloads its data.
+  let polled = $state<{ threads: number; subscribers: number } | null>(null);
+  const live = $derived(polled ?? data.stats?.live ?? null);
+  const totals = $derived(data.stats?.totals ?? null);
+
+  $effect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const response = await fetch("/atproto/api/stats");
+        if (!response.ok) return;
+        const next = (await response.json()) as {
+          live?: { threads: number; subscribers: number };
+        };
+        if (!cancelled && next.live) polled = next.live;
+      } catch {
+        // a stalled counter is not worth surfacing to a reader
+      }
+    };
+    const timer = setInterval(tick, 15_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  });
+
+  const consentSnippet = `const comments = document.querySelector("atproto-comments");
+comments.live = "off";
+onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
 
   const selfHostedConfig = `createAtprotoCommentsService({
   publicUrl: "https://your.blog",
@@ -182,10 +218,16 @@ import "@svebcomponents/atproto.comments";`;
         aria-label="Live ATProto thread, rendered by this component"
       >
         {#if data.threadData}
+          <!-- live="all" because this demo is first-party: the bridge it
+               streams from is this same site, so a visitor's connection here
+               tells us nothing they weren't already telling us. The default
+               (live="signed-in") is the right one for a component embedded
+               on someone else's blog against the hosted service. -->
           <atproto-comments
             thread={threadUri}
             threadData={data.threadData}
             service="/atproto"
+            live="all"
             showRoot
           ></atproto-comments>
         {:else}
@@ -590,6 +632,43 @@ import "@svebcomponents/atproto.comments";`;
     </div>
   </section>
 
+  {#if totals}
+    <section id="stats" class="section metrics-section">
+      <h2>Live Bridge Metrics</h2>
+      <dl class="stat-grid">
+        <div class="stat">
+          <dt>Sites</dt>
+          <dd>{totals.sites.toLocaleString()}</dd>
+        </div>
+        <div class="stat">
+          <dt>Connected now <span class="pulse" aria-hidden="true"></span></dt>
+          <dd>{(live?.subscribers ?? 0).toLocaleString()}</dd>
+        </div>
+        <div class="stat">
+          <dt>Threads watched</dt>
+          <dd>{(live?.threads ?? 0).toLocaleString()}</dd>
+        </div>
+        <div class="stat">
+          <dt>Replies</dt>
+          <dd>{totals.replies.toLocaleString()}</dd>
+        </div>
+        <div class="stat">
+          <dt>Sign-ins</dt>
+          <dd>{totals.signIns.toLocaleString()}</dd>
+        </div>
+        <div class="stat">
+          <dt>Connections opened</dt>
+          <dd>{totals.streamConnects.toLocaleString()}</dd>
+        </div>
+      </dl>
+      <p class="footnote">
+        {#if totals.since}<span>Since {totals.since}.</span>{/if}
+        <span>This is everything the service knows about its own usage.</span>
+        <a href={resolve("/privacy")}>Privacy</a>
+      </p>
+    </section>
+  {/if}
+
   <section id="self-host" class="section self-host">
     <div class="self-host-copy">
       <p class="kicker">Self-hosting</p>
@@ -636,6 +715,61 @@ import "@svebcomponents/atproto.comments";`;
       >
     </div>
   </section>
+
+  <section id="privacy" class="section split-section">
+    <div class="section-intro">
+      <p class="kicker">Reader privacy</p>
+      <h2>Nobody is<br />counted at the door.</h2>
+      <p>
+        Rendering a comment section should not turn a page view into a record on
+        someone else's server. By default it doesn't: a signed-out reader's
+        browser never contacts the bridge.
+      </p>
+      <a class="text-link" href={resolve("/privacy")}>Bridge privacy policy →</a
+      >
+    </div>
+    <div class="section-body">
+      <dl class="privacy-grid">
+        <dt><code>live="signed-in"</code> <span class="pill">default</span></dt>
+        <dd>
+          Only readers who signed in stream updates. Everyone else reads from
+          the AppView, or from your own server via SSR, and makes no request to
+          the bridge at all.
+        </dd>
+        <dt><code>live="all"</code></dt>
+        <dd>
+          Every reader streams. Livelier, and a disclosure: reader IP addresses
+          and the thread being read reach the bridge. Fine when the bridge is
+          yours — this page uses it, because the bridge is this same origin.
+        </dd>
+        <dt><code>live="off"</code></dt>
+        <dd>
+          No streaming. Comments still render and still refresh after you post.
+        </dd>
+      </dl>
+
+      <div class="resource-note">
+        <strong>In the EU</strong>
+        <p>
+          Embedding a widget that calls a third party makes you a joint
+          controller for what it sends (<em>Fashion ID</em>, C-40/17), and IP
+          addresses are personal data (<em>Breyer</em>, C-582/14). The default
+          keeps signed-out readers out of scope entirely. If you want
+          <code>live="all"</code>, either disclose it or wire the attribute to
+          your consent banner — it takes effect immediately, in both directions.
+        </p>
+      </div>
+
+      <p class="code-label">Consent-managed</p>
+      <pre><code>{consentSnippet}</code></pre>
+
+      <p class="footnote">
+        Note that avatars load from Bluesky's CDN in the reader's browser
+        whatever you choose, so Bluesky sees reader IPs either way. Self-host
+        the bridge to remove the remaining third party.
+      </p>
+    </div>
+  </section>
 </main>
 
 <footer>
@@ -647,11 +781,135 @@ import "@svebcomponents/atproto.comments";`;
   <div>
     <a href="https://github.com/svebcomponents/atproto">Source</a>
     <a href="https://www.npmjs.com/org/svebcomponents">npm</a>
+    <a href={resolve("/privacy")}>Privacy</a>
     <a href="https://www.microcosm.blue/">Microcosm</a>
   </div>
 </footer>
 
 <style>
+  .metrics-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+  .metrics-section h2 {
+    font-size: clamp(2rem, 3.5vw, 3rem);
+  }
+  .stat-grid {
+    margin: 0;
+    display: grid;
+    /* Six tiles, so 3x2 or 2x3 — never a row with a gap in it. auto-fit
+       would leave an empty cell at most container widths. */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .stat {
+    background: var(--page);
+    padding: 1rem 1.15rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .stat dt {
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-meta);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .stat dd {
+    margin: 0;
+    font-size: 1.9rem;
+    line-height: 1;
+    font-weight: 600;
+    color: var(--ink-strong);
+    font-variant-numeric: tabular-nums;
+  }
+  .pulse {
+    width: 0.42rem;
+    height: 0.42rem;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+    animation: pulse 2.4s ease-out infinite;
+  }
+  @keyframes pulse {
+    70% {
+      box-shadow: 0 0 0 0.4rem transparent;
+    }
+    100% {
+      box-shadow: 0 0 0 0 transparent;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pulse {
+      animation: none;
+    }
+  }
+  @media (max-width: 60rem) {
+    .stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .section-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+    min-width: 0;
+  }
+  #privacy .section-intro > p {
+    max-width: 500px;
+    margin-top: 1.8rem;
+  }
+  #privacy .section-intro > .text-link {
+    margin-top: 1.1rem;
+    display: inline-block;
+  }
+  .privacy-grid {
+    margin: 0;
+    display: grid;
+    gap: 0.4rem 1rem;
+  }
+  .privacy-grid dt {
+    font-weight: 600;
+    color: var(--ink-strong);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .privacy-grid dt:not(:first-of-type) {
+    margin-top: 0.9rem;
+  }
+  .privacy-grid dd {
+    margin: 0;
+    color: var(--text);
+  }
+  .pill {
+    font-size: 0.66rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--accent-deep);
+    background: var(--accent-wash);
+    border-radius: 999px;
+    padding: 0.1rem 0.5rem;
+  }
+  .footnote {
+    font-size: 0.9rem;
+    color: var(--text-meta);
+  }
+  .metrics-section .footnote {
+    margin: 0;
+  }
+
   /* One palette for the page. Every colour below is a role, not a shade: the
      surfaces step down from --page, the text steps down from --ink, and the
      accent family is the only hue that carries meaning. The dark card and the

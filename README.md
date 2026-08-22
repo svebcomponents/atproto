@@ -25,15 +25,15 @@ Implemented:
   tokens stay on the server) and is mounted by `apps/host` at `/atproto`.
   The `viewer` property routes outbound profile/post links through any
   AppView (bsky.app by default, e.g. deer.social).
-- Live updates without polling: the component subscribes to the hosted SSE
-  bridge by default. One filtered Microcosm Spacedust WebSocket per bridge
-  process serves every active thread; a connection or reply event triggers a
+- Live updates without polling: signed-in readers subscribe to the SSE
+  bridge. One filtered Microcosm Spacedust WebSocket per bridge process
+  serves every active thread; a connection or reply event triggers a
   coalesced AppView refresh. A reconnect triggers a fresh read because
-  Spacedust v0 has no replay cursor.
+  Spacedust v0 has no replay cursor. Set `live="all"` to stream for signed-out
+  readers too — see [Reader privacy](#reader-privacy) for what that changes.
 
-Still open before publishing: a real-account OAuth e2e test, deploying the
-bridge to a real domain, and a security pass. See the
-[roadmap](./04-roadmap.md).
+Still open before publishing: a real-account OAuth e2e test and deploying the
+bridge to a real domain. See the [roadmap](./04-roadmap.md).
 
 ## Usage
 
@@ -57,6 +57,76 @@ serializes `threadData` so hydration renders the same comments without a
 loading flash; after connecting, the live connection performs one background
 sync. Browser-only consumers fetch immediately and then use the same
 event-driven refresh path.
+
+## Reader privacy
+
+The component is built so that reading a comment section is not an event
+anyone has to record.
+
+- **Comments are never stored by this project.** Replies are ordinary
+  `app.bsky.feed.post` records written to each commenter's own repo through
+  their own PDS. The bridge keeps no copy.
+- **Signed-out readers do not contact the bridge.** Thread content is read
+  from the AppView (or server-rendered), and the component holds no
+  connection to the service until someone signs in. `live="all"` opts every
+  reader into the live stream, which means their IP address and the page
+  they are on reach whichever bridge you point at — reasonable when that
+  bridge is your own, worth disclosing when it is the hosted one.
+- **Self-host to keep everything first-party.** Set `service` to your own
+  deployment and no third party is involved at all. Pass `allowedOrigins` so
+  only your sites can use it.
+- **The hosted bridge is a third party to your readers.** If you use the
+  default `service`, say so where you say what else your site loads.
+
+Sign-out revokes the ATProto grant, not just the browser session, and unused
+grants expire on their own. Bridge operators should truncate client IPs in
+access logs and keep retention short.
+
+## Using this in the EU
+
+Not legal advice, but the shape of the problem is well established and mostly
+comes down to one setting.
+
+Embedding a third-party widget that makes a visitor's browser talk to someone
+else's server is the pattern the CJEU addressed in *Fashion ID* (C-40/17): the
+site doing the embedding was a **joint controller** with the third party for
+the data the visitor's browser sent. IP addresses are personal data
+(*Breyer*, C-582/14), so this matters even though nothing here is tracking
+anyone.
+
+What that means in practice:
+
+- **The default is the quiet one.** With `live="signed-in"`, a signed-out
+  reader's browser makes no request to the bridge at all, so there is nothing
+  to disclose and no consent to collect. Readers who sign in have asked for the
+  service, which is a straightforward legal basis.
+- **`live="all"` is a disclosure.** Every reader's IP address and the thread
+  they are reading go to whichever bridge you point at. Say so in your privacy
+  policy and link the bridge's own policy. If you would rather ask first, wire
+  `live` to your consent banner — it can be changed at runtime:
+
+  ```js
+  const comments = document.querySelector("atproto-comments");
+  comments.live = "off";
+  onConsent((granted) => (comments.live = granted ? "all" : "off"));
+  ```
+
+  Consent here is genuinely optional — reading works fully without it — which
+  is what makes it valid consent rather than a bundled condition.
+- **Cookie banners are a separate question.** ePrivacy Art. 5(3) governs
+  storing or reading data on the device. The live connection stores nothing, so
+  it is out of scope; the sign-in token in `localStorage` is in scope but is the
+  textbook "strictly necessary for a service the user requested" case. The
+  component does not need a cookie banner on its own account.
+- **Mention Bluesky regardless of configuration.** Avatars load from Bluesky's
+  CDN directly in the reader's browser, so Bluesky sees reader IPs even with
+  `live="signed-in"`. That is inherent to rendering ATProto content, not
+  something this component routes around.
+- **Self-hosting removes the third party entirely.** Set `service` to your own
+  deployment and pass `allowedOrigins` so only your sites can use it.
+
+The hosted bridge's own policy is at
+[atproto.svebcomponents.dev/privacy](https://atproto.svebcomponents.dev/privacy).
 
 ## Planning docs
 

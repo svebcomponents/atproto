@@ -69,6 +69,7 @@ const fakeOAuthClient: OAuthBridgeClient = {
     state: JSON.stringify({ origin: ORIGIN, nonce: "n1" }),
   })),
   restore: vi.fn(async () => fakePdsSession),
+  revoke: vi.fn(async () => undefined),
 };
 
 const baseConfig = (
@@ -621,6 +622,38 @@ describe("service handlers", () => {
       expect(res!.headers.get("location")).toBe(`${ORIGIN}/posts/hello`);
     });
 
+    // The query string and fragment are the part of a reader's URL most
+    // likely to carry something private. They are stripped server-side rather
+    // than trusted to the caller, because the value can also arrive from the
+    // Referer header, which the browser fills in and which no attribute on a
+    // <form> can suppress.
+    it("strips the query and fragment from an explicit return field", async () => {
+      const res = await cookieService.fetch(
+        formPost("/atproto/api/like", {
+          uri: `at://${DID}/app.bsky.feed.post/root`,
+          cid: "bafyroot234567",
+          return: `${ORIGIN}/posts/hello?session=secret&q=private#anchor`,
+        }),
+      );
+      expect(res!.status).toBe(303);
+      expect(res!.headers.get("location")).toBe(`${ORIGIN}/posts/hello`);
+    });
+
+    it("strips the query and fragment from the Referer fallback", async () => {
+      const res = await cookieService.fetch(
+        formPost(
+          "/atproto/api/like",
+          {
+            uri: `at://${DID}/app.bsky.feed.post/root`,
+            cid: "bafyroot234567",
+          },
+          `${ORIGIN}/posts/hello?session=secret#anchor`,
+        ),
+      );
+      expect(res!.status).toBe(303);
+      expect(res!.headers.get("location")).toBe(`${ORIGIN}/posts/hello`);
+    });
+
     it("shows a plain success page when neither return nor Referer is present", async () => {
       const res = await cookieService.fetch(
         formPost("/atproto/api/like", {
@@ -820,5 +853,256 @@ describe("service handlers", () => {
     expect(res!.status).toBe(204);
     expect(res!.headers.get("access-control-allow-origin")).toBe(ORIGIN);
     expect(res!.headers.get("access-control-allow-methods")).toContain("POST");
+  });
+});
+
+/**
+ * Regression tests for the pre-release security review. Each of these
+ * reproduces a confirmed attack; before the corresponding fix they passed
+ * the attacker's assertion, not ours.
+ */
+describe("security regressions", () => {
+  /** an OAuth client whose callback echoes the state authorize() was given,
+   * so a crafted `?claim=` actually survives the round trip like it does in
+   * the real library */
+  const echoingOAuthClient = (): OAuthBridgeClient => {
+    let lastState = "";
+    return {
+      clientMetadata: { client_id: `${SERVICE}/atproto/client-metadata.json` },
+      jwks: { keys: [] },
+      authorize: vi.fn(async (_handle: string, options: { state: string }) => {
+        lastState = options.state;
+        return new URL("https://pds.example/authorize?x=1");
+      }),
+      callback: vi.fn(async () => ({
+        session: { did: DID } as OAuthPdsSession,
+        state: lastState,
+      })),
+      restore: vi.fn(async () => fakePdsSession),
+      revoke: vi.fn(async () => undefined),
+    };
+  };
+
+  const startAndComplete = async (
+    service: AtprotoCommentsService,
+    { origin, claim }: { origin: string; claim: string },
+  ): Promise<void> => {
+    await service.fetch(
+      new Request(
+        `${SERVICE}/atproto/oauth/start?origin=${encodeURIComponent(origin)}` +
+          `&claim=${encodeURIComponent(claim)}&handle=victim.test`,
+      ),
+    );
+    await service.fetch(
+      new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=xyz`),
+    );
+  };
+
+  // The claim nonce arrives as a query parameter on a public endpoint, so an
+  // attacker can craft a sign-in link carrying a nonce of their choosing,
+  // point `origin` at a site the victim trusts, and poll for the finished
+  // session. Retrieval is gated on the authorized origin for that reason.
+  it("does not release a claim to a different origin", async () => {
+    const service = createAtprotoCommentsService(baseConfig(memoryStore()), {
+      oauthClient: echoingOAuthClient(),
+    });
+    const nonce = "attacker-picked-nonce";
+    await startAndComplete(service, { origin: ORIGIN, claim: nonce });
+
+    const stolen = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session/claim?nonce=${nonce}`, {
+        headers: { origin: "https://attacker.example" },
+      }),
+    );
+    expect(stolen!.status).toBe(403);
+    expect(await stolen!.text()).not.toContain("token");
+  });
+
+  it("releases a claim to the origin it was authorized for", async () => {
+    const service = createAtprotoCommentsService(baseConfig(memoryStore()), {
+      oauthClient: echoingOAuthClient(),
+    });
+    const nonce = "opener-generated-nonce";
+    await startAndComplete(service, { origin: ORIGIN, claim: nonce });
+
+    const claimed = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session/claim?nonce=${nonce}`, {
+        headers: { origin: ORIGIN },
+      }),
+    );
+    expect(claimed!.status).toBe(200);
+    const body = (await claimed!.json()) as Record<string, unknown>;
+    expect(body["did"]).toBe(DID);
+    expect(body["token"]).toBeTruthy();
+    // the binding itself is not handed back to the browser
+    expect(body["origin"]).toBeUndefined();
+  });
+
+  // Browsers always send Origin cross-origin and cannot forge it; a
+  // non-browser client simply omits it. Treating "absent" as "nothing to
+  // check" let any leaked token create records from anywhere.
+  it("refuses to create records when no Origin header is sent", async () => {
+    const store = memoryStore();
+    const service = createAtprotoCommentsService(baseConfig(store), {
+      oauthClient: fakeOAuthClient,
+    });
+    const token = await signIn(service);
+    const before = createRecordCalls.length;
+
+    const response = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/reply`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          root: { uri: `at://${DID}/app.bsky.feed.post/r`, cid: "bafyroot" },
+          parent: { uri: `at://${DID}/app.bsky.feed.post/r`, cid: "bafyroot" },
+          text: "posted without an Origin header",
+        }),
+      }),
+    );
+
+    expect(response!.status).toBe(403);
+    expect(createRecordCalls.length).toBe(before);
+  });
+
+  it("refuses to delete records when no Origin header is sent", async () => {
+    const service = createAtprotoCommentsService(baseConfig(memoryStore()), {
+      oauthClient: fakeOAuthClient,
+    });
+    const token = await signIn(service);
+    const before = deleteRecordCalls.length;
+
+    const response = await service.fetch(
+      new Request(
+        `${SERVICE}/atproto/api/like?uri=${encodeURIComponent(
+          `at://${DID}/app.bsky.feed.like/abc`,
+        )}`,
+        { method: "DELETE", headers: { authorization: `Bearer ${token}` } },
+      ),
+    );
+
+    expect(response!.status).toBe(403);
+    expect(deleteRecordCalls.length).toBe(before);
+  });
+
+  // Signing out used to end only the browser's session with the bridge,
+  // leaving the refresh token that lets the bridge post as this account on
+  // disk indefinitely.
+  it("revokes the atproto grant on sign-out", async () => {
+    const oauthClient = echoingOAuthClient();
+    const service = createAtprotoCommentsService(baseConfig(memoryStore()), {
+      oauthClient,
+    });
+    await startAndComplete(service, { origin: ORIGIN, claim: "n" });
+    const claimed = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session/claim?nonce=n`, {
+        headers: { origin: ORIGIN },
+      }),
+    );
+    const { token } = (await claimed!.json()) as { token: string };
+
+    const response = await service.fetch(
+      post("/atproto/api/session/logout", token),
+    );
+
+    expect(response!.status).toBe(200);
+    expect(oauthClient.revoke).toHaveBeenCalledWith(DID);
+  });
+
+  // With no allowlist the bridge signs in any site on the internet under its
+  // own OAuth client identity, which is what the hosted instance wants but
+  // never what a self-hosted one does.
+  it("refuses sign-in from an origin outside allowedOrigins", async () => {
+    const service = createAtprotoCommentsService(
+      { ...baseConfig(memoryStore()), allowedOrigins: [ORIGIN] },
+      { oauthClient: echoingOAuthClient() },
+    );
+
+    const allowed = await service.fetch(
+      new Request(
+        `${SERVICE}/atproto/oauth/start?origin=${encodeURIComponent(ORIGIN)}`,
+      ),
+    );
+    expect(allowed!.status).toBe(200);
+
+    const blocked = await service.fetch(
+      new Request(
+        `${SERVICE}/atproto/oauth/start?origin=${encodeURIComponent(
+          "https://someone-elses-site.example",
+        )}`,
+      ),
+    );
+    expect(blocked!.status).toBe(400);
+  });
+});
+
+describe("operational stats", () => {
+  let service: AtprotoCommentsService;
+
+  beforeEach(() => {
+    createRecordCalls = [];
+    service = createAtprotoCommentsService(baseConfig(memoryStore()), {
+      oauthClient: fakeOAuthClient,
+    });
+  });
+
+  it("serves counts publicly, to any origin", async () => {
+    const response = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/stats`, {
+        headers: { origin: "https://anyone.example" },
+      }),
+    );
+    expect(response!.status).toBe(200);
+    expect(response!.headers.get("access-control-allow-origin")).toBe("*");
+    expect(response!.headers.get("cache-control")).toContain("max-age=");
+    expect(await response!.json()).toMatchObject({
+      live: { threads: 0, subscribers: 0 },
+      totals: { sites: 0, signIns: 0, replies: 0 },
+    });
+  });
+
+  it("counts a sign-in and a reply against the embedding site", async () => {
+    const token = await signIn(service);
+    await service.fetch(
+      post("/atproto/api/reply", token, {
+        root: { uri: `at://${DID}/app.bsky.feed.post/r`, cid: "bafyroot" },
+        parent: { uri: `at://${DID}/app.bsky.feed.post/r`, cid: "bafyroot" },
+        text: "counted",
+      }),
+    );
+
+    const stats = await service.stats();
+    expect(stats.totals).toMatchObject({ sites: 1, signIns: 1, replies: 1 });
+  });
+
+  it("does not count a reply that the PDS rejected", async () => {
+    const token = await signIn(service);
+    await service.fetch(post("/atproto/api/reply", token, { text: "" }));
+    expect((await service.stats()).totals.replies).toBe(0);
+  });
+
+  it("publishes no origins and nothing about a reader", async () => {
+    const token = await signIn(service);
+    await service.fetch(
+      post("/atproto/api/reply", token, {
+        root: { uri: `at://${DID}/app.bsky.feed.post/r`, cid: "bafyroot" },
+        parent: { uri: `at://${DID}/app.bsky.feed.post/r`, cid: "bafyroot" },
+        text: "counted",
+      }),
+    );
+
+    const body = await (await service.fetch(
+      new Request(`${SERVICE}/atproto/api/stats`),
+    ))!.text();
+
+    // the site that generated the activity must not appear in the payload,
+    // and neither may any reader identifier
+    expect(body).not.toContain(ORIGIN);
+    expect(body).not.toContain("blog.example");
+    expect(body).not.toContain(DID);
+    expect(body).not.toContain("commenter");
   });
 });

@@ -65,6 +65,21 @@ package README.
     service?: string;
     /** force read-only rendering even when a service is configured */
     readonly?: boolean;
+    /**
+     * Who gets live updates, which is the only thing that makes a reader's
+     * browser hold an open connection to the service.
+     *
+     * - `"signed-in"` (default) — only readers who have signed in. Everyone
+     *   else reads the thread straight from the AppView and never contacts
+     *   the service at all, so a passing visitor's IP address and the page
+     *   they are on stay between them and Bluesky.
+     * - `"all"` — every reader, signed in or not. Choose this when the
+     *   service is your own, or when you are willing to tell your readers
+     *   that a third party sees their visit; it is the livelier experience.
+     * - `"off"` — nobody. The thread still renders and still refreshes when
+     *   someone posts from this page.
+     */
+    live?: "signed-in" | "all" | "off";
     /** render the discussion root's own text above the replies — useful
      * standalone (e.g. a landing page demo), redundant when the host page
      * already displays that post's content itself */
@@ -89,6 +104,7 @@ package README.
     viewer = "",
     service = DEFAULT_SERVICE_URL,
     readonly = false,
+    live = "signed-in",
     showRoot = false,
     pageUrl = "",
   }: Props = $props();
@@ -122,6 +138,26 @@ package README.
     if (!pageUrl) return "";
     try {
       return new URL(pageUrl).origin;
+    } catch {
+      return "";
+    }
+  });
+
+  /**
+   * `pageUrl` reduced to origin + path, for the no-JS flows that hand the
+   * service somewhere to send the reader back to.
+   *
+   * The query string and fragment are dropped deliberately. They are no use
+   * as a redirect target and they are the part of a URL most likely to carry
+   * something private — a search term, a share token, a session id — which
+   * would otherwise travel to the service and land in its access logs just
+   * because a comment section happened to be on the page.
+   */
+  const returnUrl = $derived.by(() => {
+    if (!pageUrl) return "";
+    try {
+      const { origin, pathname } = new URL(pageUrl);
+      return `${origin}${pathname}`;
     } catch {
       return "";
     }
@@ -242,6 +278,17 @@ package README.
     if (!BROWSER || !writable) return;
     const c = new ServiceClient(service);
     client = c;
+    // Only ask the service who this is when there is something to restore.
+    // A reader who has never signed in has no session to find, and probing
+    // anyway would tell the bridge their IP address and which page they are
+    // reading on every single page load — for the hosted default, that is a
+    // third party they never opted into. Same-origin deployments still
+    // probe: the session may be an HttpOnly cookie, which is invisible here,
+    // and talking to your own server is not a disclosure.
+    if (!c.hasStoredSession && !c.isSameOrigin) {
+      session = null;
+      return;
+    }
     c.getSession()
       .then((s) => {
         session = s;
@@ -526,11 +573,24 @@ package README.
     };
   });
 
+  /**
+   * Whether to hold an open event-stream connection to the service. This is
+   * the component's only unprompted network contact with the bridge, so it
+   * is also the whole of the reader-privacy question: an anonymous reader
+   * who never streams never identifies themselves to the service at all.
+   * Signing in is treated as the opt-in, since by then the reader has chosen
+   * the service and it already knows who they are.
+   */
+  const streaming = $derived(
+    live === "all" || (live === "signed-in" && session !== null),
+  );
+
   $effect(() => {
     const currentThread = thread;
     const currentService = service;
     if (
       !BROWSER ||
+      !streaming ||
       !currentThread ||
       !currentService ||
       !parseThreadRef(currentThread)
@@ -646,7 +706,7 @@ package README.
     <form class="reaction-form" method="post" action="{service}/api/like">
       <input type="hidden" name="uri" value={node.uri} />
       <input type="hidden" name="cid" value={node.cid} />
-      {#if pageUrl}<input type="hidden" name="return" value={pageUrl} />{/if}
+      {#if returnUrl}<input type="hidden" name="return" value={returnUrl} />{/if}
       <button
         type="submit"
         class="reaction-button"
@@ -668,7 +728,7 @@ package README.
     <form class="reaction-form" method="post" action="{service}/api/repost">
       <input type="hidden" name="uri" value={node.uri} />
       <input type="hidden" name="cid" value={node.cid} />
-      {#if pageUrl}<input type="hidden" name="return" value={pageUrl} />{/if}
+      {#if returnUrl}<input type="hidden" name="return" value={returnUrl} />{/if}
       <button
         type="submit"
         class="reaction-button"
@@ -695,13 +755,14 @@ package README.
 {/snippet}
 
 {#snippet signInLink(label: string)}
-  {#if pageUrl && pageOrigin}
+  {#if returnUrl && pageOrigin}
     <a
       class="signin-button"
       part="reply-button"
+      referrerpolicy="origin"
       href="{service}/oauth/start?origin={encodeURIComponent(
         pageOrigin,
-      )}&return={encodeURIComponent(pageUrl)}"
+      )}&return={encodeURIComponent(returnUrl)}"
       onclick={(e) => {
         e.preventDefault();
         void signIn();
@@ -748,7 +809,7 @@ package README.
         <input type="hidden" name="rootCid" value={tree?.root.cid ?? ""} />
         <input type="hidden" name="parentUri" value={target.uri} />
         <input type="hidden" name="parentCid" value={target.cid} />
-        {#if pageUrl}<input type="hidden" name="return" value={pageUrl} />{/if}
+        {#if returnUrl}<input type="hidden" name="return" value={returnUrl} />{/if}
         <p class="composer-context">
           {#if target.handle}
             Replying to <strong>@{target.handle}</strong>

@@ -36,6 +36,17 @@ export const DEFAULT_SERVICE_URL = "https://atproto.svebcomponents.dev/atproto";
  * Browser-side client for the hosted OAuth/posting bridge. Holds the
  * origin-bound session token (in memory + localStorage, keyed per service),
  * runs the popup sign-in handshake, and calls the reply API.
+ *
+ * The token lives in `localStorage`, which any script on the embedding page
+ * can read. That is a deliberate, reviewed trade-off rather than an
+ * oversight: the hosted bridge is cross-origin, so SameSite rules keep an
+ * HttpOnly cookie from reaching it, and a comment widget that signed readers
+ * out on every reload would be a worse product. The exposure is bounded by a
+ * short token lifetime, by the session being revocable server-side, and by
+ * the component having no `javascript:` sink of its own (link facets are
+ * scheme-checked in `richText.ts`). A site embedding this is trusting it with
+ * reader sessions; self-hosting same-origin with `sessionMode: "cookie"`
+ * avoids browser-readable tokens entirely.
  */
 export class ServiceClient {
   #token: string | null = null;
@@ -60,6 +71,27 @@ export class ServiceClient {
 
   get #storageKey(): string {
     return `${SESSION_STORAGE_PREFIX}${this.serviceUrl}`;
+  }
+
+  /**
+   * True when this browser has a stored session for the service.
+   *
+   * Callers use this to avoid contacting the bridge at all for a reader who
+   * has never signed in: an unconditional session probe on every page load
+   * would send that reader's IP address and referring page to the service
+   * before they have done anything, which for the hosted default is a third
+   * party they never chose. False here means "nothing to restore", not
+   * "signed out" — a cookie-mode session lives in an HttpOnly cookie this
+   * cannot see, so same-origin deployments should probe regardless.
+   */
+  get hasStoredSession(): boolean {
+    return this.#token !== null;
+  }
+
+  /** True when the service shares an origin with the current page. */
+  get isSameOrigin(): boolean {
+    const here = globalThis.location?.origin;
+    return here !== undefined && new URL(this.serviceUrl).origin === here;
   }
 
   #readStoredToken(): string | null {

@@ -17,13 +17,20 @@ export interface SessionTokenIssuer {
   mint(claims: SessionTokenClaims): Promise<string>;
   /**
    * Verifies signature, expiry, audience, and session liveness. When
-   * `requestOrigin` is provided (browser requests send an Origin header) it
-   * must match the origin the token was minted for — a token exfiltrated
-   * from one site is useless on another.
+   * `requestOrigin` is a string it must match the origin the token was
+   * minted for.
+   *
+   * `null` means the request carried no `Origin` header, which a browser
+   * only does same-origin — so it is accepted only when the token was minted
+   * for the service's own origin. Callers must NOT read this as "a token
+   * exfiltrated from one site is useless on another": any non-browser client
+   * can omit the header at will, so origin binding constrains browsers only.
+   * Requests that write to the user's repo are gated on a present origin
+   * before they reach here.
    */
   verify(
     token: string,
-    requestOrigin?: string | null,
+    requestOrigin: string | null,
   ): Promise<SessionTokenClaims | null>;
 }
 
@@ -34,6 +41,7 @@ export const createSessionTokenIssuer = ({
   serviceSessionStore,
 }: {
   secret: string;
+  /** the service's own public origin — also the JWT audience */
   audience: string;
   ttlSeconds: number;
   serviceSessionStore: ServiceSessionStore;
@@ -66,7 +74,11 @@ export const createSessionTokenIssuer = ({
       if (!sub || typeof origin !== "string" || typeof sid !== "string") {
         return null;
       }
-      if (requestOrigin != null && requestOrigin !== origin) {
+      // No Origin header: only a same-origin browser request omits one, so
+      // accept it only for a token minted for the service's own origin.
+      if (
+        requestOrigin === null ? origin !== audience : requestOrigin !== origin
+      ) {
         return null;
       }
       const session = await serviceSessionStore.get(sid);

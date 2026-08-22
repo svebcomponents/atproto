@@ -3,6 +3,12 @@ import type {
   NodeSavedStateStore,
 } from "@atproto/oauth-client-node";
 import {
+  createMemoryMetricsStore,
+  createMetricsRecorder,
+  type MetricsRecorder,
+  type MetricsStore,
+} from "./metrics.js";
+import {
   resolveCommentStreamConfig,
   type CommentStreamConfig,
   type ResolvedCommentStreamConfig,
@@ -42,6 +48,16 @@ export type SessionMode = "bearer" | "cookie";
  * reliably `postMessage` back. The opener polls for the claim instead.
  */
 export interface AuthClaim {
+  /**
+   * Web origin this claim may be released to. The nonce alone is NOT a
+   * sufficient secret: it arrives as a `?claim=` query parameter on a public
+   * endpoint, so an attacker can craft a sign-in link carrying a nonce they
+   * chose, point `origin` at a site the victim trusts, and then poll for the
+   * finished session. Requiring the retrieving page's `Origin` to match the
+   * origin the flow was authorized for means a claim can only be collected
+   * by the site it was minted for.
+   */
+  origin: string;
   /** Present for cross-origin bearer sessions; omitted for cookie sessions. */
   token?: string;
   did: string;
@@ -81,6 +97,15 @@ export interface ServiceConfig {
   /** HttpOnly cookie name used by cookie session mode. */
   sessionCookieName?: string;
   /**
+   * Web origins allowed to start a sign-in and hold a session, e.g.
+   * `["https://blog.example"]`. Omit (the default) to accept any origin —
+   * what the public hosted instance needs, since it serves sites it has
+   * never seen. A self-hosted bridge almost always wants exactly one origin
+   * here: with no allowlist, any site on the internet can run its own
+   * comment section against your deployment and your OAuth client identity.
+   */
+  allowedOrigins?: readonly string[];
+  /**
    * OAuth scopes requested from the user's PDS. Default grants create on
    * replies plus create+delete on likes/reposts (the latter pair needed to
    * toggle them back off): `atproto repo:app.bsky.feed.post?action=create
@@ -117,6 +142,15 @@ export interface ServiceConfig {
    * connection until a client requests `/api/comments/stream`.
    */
   commentStream?: CommentStreamConfig;
+  /**
+   * Storage for operational counters (sites using the service, sign-ins,
+   * replies, stream connections), aggregated per embedding origin per UTC
+   * day. Defaults to in-memory, which resets with the process. Counts only —
+   * see `metrics.ts` for what is deliberately not measured.
+   */
+  metricsStore?: MetricsStore;
+  /** how long counters may sit buffered before being written (default 60s) */
+  metricsFlushIntervalMs?: number;
   /** injectable for tests */
   fetch?: typeof globalThis.fetch;
 }
@@ -134,6 +168,10 @@ export interface ResolvedServiceConfig extends ServiceConfig {
   replyRateLimiter: RateLimiter;
   reactionRateLimiter: RateLimiter;
   fetch: typeof globalThis.fetch;
+  /** buffering counter recorder, built from `metricsStore` */
+  metrics: MetricsRecorder;
+  /** normalized to bare origins; undefined means "any origin" */
+  allowedOrigins?: readonly string[];
   /** true when publicUrl is a localhost/127.0.0.1 loopback */
   isLoopback: boolean;
 }
@@ -157,10 +195,26 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
   if (!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(sessionCookieName)) {
     throw new Error("sessionCookieName contains invalid characters");
   }
+  // Normalize the allowlist up front so a typo fails at construction rather
+  // than silently refusing every sign-in at runtime.
+  const allowedOrigins = config.allowedOrigins?.map((value) => {
+    let origin: string;
+    try {
+      origin = new URL(value).origin;
+    } catch {
+      throw new Error(`allowedOrigins contains an invalid URL: ${value}`);
+    }
+    if (origin === "null") {
+      throw new Error(`allowedOrigins entry has no origin: ${value}`);
+    }
+    return origin;
+  });
+
   // Key presence is enforced in buildOAuthClient (where they're actually
   // used), not here — so an injected OAuth client can skip them entirely.
   return {
     ...config,
+    ...(allowedOrigins ? { allowedOrigins } : {}),
     publicUrl: url.origin,
     basePath: config.basePath ?? "/atproto",
     clientName: config.clientName ?? "atproto-comments",
@@ -179,6 +233,12 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     reactionRateLimiter:
       config.reactionRateLimiter ?? createMemoryRateLimiter(60, 10 * 60_000),
     fetch: config.fetch ?? globalThis.fetch,
+    metrics: createMetricsRecorder({
+      store: config.metricsStore ?? createMemoryMetricsStore(),
+      ...(config.metricsFlushIntervalMs !== undefined
+        ? { flushIntervalMs: config.metricsFlushIntervalMs }
+        : {}),
+    }),
     isLoopback,
   };
 };
