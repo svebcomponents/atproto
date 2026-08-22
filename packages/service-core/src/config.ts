@@ -3,6 +3,12 @@ import type {
   NodeSavedStateStore,
 } from "@atproto/oauth-client-node";
 import {
+  createMemoryMetricsStore,
+  createMetricsRecorder,
+  type MetricsRecorder,
+  type MetricsStore,
+} from "./metrics.js";
+import {
   resolveCommentStreamConfig,
   type CommentStreamConfig,
   type ResolvedCommentStreamConfig,
@@ -136,6 +142,15 @@ export interface ServiceConfig {
    * connection until a client requests `/api/comments/stream`.
    */
   commentStream?: CommentStreamConfig;
+  /**
+   * Storage for operational counters (sites using the service, sign-ins,
+   * replies, stream connections), aggregated per embedding origin per UTC
+   * day. Defaults to in-memory, which resets with the process. Counts only —
+   * see `metrics.ts` for what is deliberately not measured.
+   */
+  metricsStore?: MetricsStore;
+  /** how long counters may sit buffered before being written (default 60s) */
+  metricsFlushIntervalMs?: number;
   /** injectable for tests */
   fetch?: typeof globalThis.fetch;
 }
@@ -153,6 +168,8 @@ export interface ResolvedServiceConfig extends ServiceConfig {
   replyRateLimiter: RateLimiter;
   reactionRateLimiter: RateLimiter;
   fetch: typeof globalThis.fetch;
+  /** buffering counter recorder, built from `metricsStore` */
+  metrics: MetricsRecorder;
   /** normalized to bare origins; undefined means "any origin" */
   allowedOrigins?: readonly string[];
   /** true when publicUrl is a localhost/127.0.0.1 loopback */
@@ -216,6 +233,12 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     reactionRateLimiter:
       config.reactionRateLimiter ?? createMemoryRateLimiter(60, 10 * 60_000),
     fetch: config.fetch ?? globalThis.fetch,
+    metrics: createMetricsRecorder({
+      store: config.metricsStore ?? createMemoryMetricsStore(),
+      ...(config.metricsFlushIntervalMs !== undefined
+        ? { flushIntervalMs: config.metricsFlushIntervalMs }
+        : {}),
+    }),
     isLoopback,
   };
 };

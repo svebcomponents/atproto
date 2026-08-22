@@ -5,6 +5,9 @@ import { DatabaseSync } from "node:sqlite";
 import type {
   AuthClaim,
   AuthClaimStore,
+  MetricCounts,
+  MetricsStore,
+  MetricsTotals,
   NodeSavedSession,
   NodeSavedSessionStore,
   NodeSavedState,
@@ -25,6 +28,7 @@ export interface Stores {
   sessionStore: NodeSavedSessionStore;
   serviceSessionStore: ServiceSessionStore;
   authClaimStore: AuthClaimStore;
+  metricsStore: MetricsStore;
 }
 
 /** pending auth claims live at most this long */
@@ -61,6 +65,16 @@ export const createSqliteStores = (path: string): Stores => {
     CREATE TABLE IF NOT EXISTS oauth_session (did TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS service_session (sid TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS auth_claim (nonce TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS metrics_daily (
+      origin TEXT NOT NULL,
+      day TEXT NOT NULL,
+      sign_in INTEGER NOT NULL DEFAULT 0,
+      reply INTEGER NOT NULL DEFAULT 0,
+      reaction INTEGER NOT NULL DEFAULT 0,
+      stream_connect INTEGER NOT NULL DEFAULT 0,
+      rate_limited INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (origin, day)
+    );
   `);
   // Pre-existing databases created before expires_at existed on oauth_state.
   try {
@@ -196,6 +210,69 @@ export const createSqliteStores = (path: string): Stores => {
     },
   };
 
+  /**
+   * Operational counters, one row per embedding site per UTC day. These are
+   * counts about websites, not people: no IP address, user agent, thread, or
+   * per-reader row goes in here, which is why the table has no retention
+   * sweep — there is nothing in it that ages into a liability.
+   *
+   * `add` increments rather than replaces: the recorder flushes deltas and
+   * writes the same bucket repeatedly through the day.
+   */
+  const metricsAddStmt = db.prepare(
+    `INSERT INTO metrics_daily (origin, day, sign_in, reply, reaction, stream_connect, rate_limited)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(origin, day) DO UPDATE SET
+       sign_in = sign_in + excluded.sign_in,
+       reply = reply + excluded.reply,
+       reaction = reaction + excluded.reaction,
+       stream_connect = stream_connect + excluded.stream_connect,
+       rate_limited = rate_limited + excluded.rate_limited`,
+  );
+  const metricsTotalsStmt = db.prepare(
+    `SELECT COUNT(DISTINCT origin) AS sites,
+            COALESCE(SUM(sign_in), 0) AS sign_ins,
+            COALESCE(SUM(reply), 0) AS replies,
+            COALESCE(SUM(reaction), 0) AS reactions,
+            COALESCE(SUM(stream_connect), 0) AS stream_connects,
+            COALESCE(SUM(rate_limited), 0) AS rate_limited,
+            MIN(day) AS since
+     FROM metrics_daily`,
+  );
+  const metricsStore: MetricsStore = {
+    async add(origin, day, counts: MetricCounts) {
+      metricsAddStmt.run(
+        origin,
+        day,
+        counts.signIn ?? 0,
+        counts.reply ?? 0,
+        counts.reaction ?? 0,
+        counts.streamConnect ?? 0,
+        counts.rateLimited ?? 0,
+      );
+    },
+    async totals(): Promise<MetricsTotals> {
+      const row = metricsTotalsStmt.get() as {
+        sites: number;
+        sign_ins: number;
+        replies: number;
+        reactions: number;
+        stream_connects: number;
+        rate_limited: number;
+        since: string | null;
+      };
+      return {
+        sites: row.sites,
+        signIns: row.sign_ins,
+        replies: row.replies,
+        reactions: row.reactions,
+        streamConnects: row.stream_connects,
+        rateLimited: row.rate_limited,
+        ...(row.since ? { since: row.since } : {}),
+      };
+    },
+  };
+
   return {
     stateStore,
     // oauth-client-node keys sessions by `sub` (the DID)
@@ -206,5 +283,6 @@ export const createSqliteStores = (path: string): Stores => {
     ),
     serviceSessionStore: kv<ServiceSession>("service_session", "sid"),
     authClaimStore,
+    metricsStore,
   };
 };

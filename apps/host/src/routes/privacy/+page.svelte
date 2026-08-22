@@ -153,6 +153,21 @@
       results from it.
     </p>
 
+    <h3>What is counted</h3>
+    <p>
+      The service keeps running totals so its operator can see how much it is
+      being used: how many websites use it, and how many sign-ins, replies,
+      reactions and live connections there have been, grouped by website and by
+      day. These are counts about <em>sites</em>, not about people — there is no
+      visitor count, because counting distinct people would need an identifier
+      per person and that is precisely what is not kept.
+    </p>
+    <p>
+      The totals are published in full on the
+      <a href={resolve("/")}>front page</a>, without the list of which sites
+      they came from.
+    </p>
+
     <h3>What is never collected</h3>
     <p>
       No comment text, no cookies for advertising or analytics, no tracking
@@ -189,6 +204,14 @@
             <td
               >(f) legitimate interests — or consent, where the site collects it</td
             >
+          </tr>
+          <tr>
+            <td>Counting sites and actions</td>
+            <td
+              >Knowing how much the service is used and whether it is coping.
+              Counts websites, not people</td
+            >
+            <td>(f) legitimate interests</td>
           </tr>
           <tr>
             <td>Diagnostic output (crashes, restarts)</td>
@@ -240,6 +263,12 @@
             ><td>Request and access logs</td><td
               >None are kept. The service writes no access log, and no IP
               address is ever written to disk.</td
+            ></tr
+          >
+          <tr
+            ><td>Operational counters</td><td
+              >Kept indefinitely. One row per embedding site per day holding
+              counts — no IP address, user agent, thread, or per-reader record.</td
             ></tr
           >
           <tr

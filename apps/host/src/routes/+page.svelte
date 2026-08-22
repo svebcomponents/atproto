@@ -36,6 +36,33 @@ import "@svebcomponents/atproto.comments";`;
   service="/atproto"
 ></atproto-comments>`;
 
+  // Live gauges refresh by polling a small cached JSON endpoint. Deliberately
+  // not an SSE stream: opening a persistent connection to show off a service
+  // that avoids opening persistent connections would be a poor joke.
+  let live = $state(data.stats?.live ?? null);
+  const totals = $derived(data.stats?.totals ?? null);
+
+  $effect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const response = await fetch("/atproto/api/stats");
+        if (!response.ok) return;
+        const next = (await response.json()) as {
+          live?: { threads: number; subscribers: number };
+        };
+        if (!cancelled && next.live) live = next.live;
+      } catch {
+        // a stalled counter is not worth surfacing to a reader
+      }
+    };
+    const timer = setInterval(tick, 15_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  });
+
   const consentSnippet = `const comments = document.querySelector("atproto-comments");
 comments.live = "off";
 onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
@@ -601,6 +628,59 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
     </div>
   </section>
 
+  {#if totals}
+    <section id="stats" class="section split-section stats-section">
+      <div class="section-intro">
+        <p class="kicker">Service status</p>
+        <h2>What the<br />bridge sees.</h2>
+        <p>
+          Everything the hosted service knows about its own use, published in
+          full. Counts of sites and actions, plus what is connected right now —
+          no list of which sites, and nothing that describes a reader.
+        </p>
+        <a class="text-link" href={resolve("/privacy")}
+          >How this is measured →</a
+        >
+      </div>
+      <div class="section-body">
+        <dl class="stat-grid">
+          <div class="stat">
+            <dt>Sites using it</dt>
+            <dd>{totals.sites.toLocaleString()}</dd>
+          </div>
+          <div class="stat">
+            <dt>
+              Connected now <span class="pulse" aria-hidden="true"></span>
+            </dt>
+            <dd>{(live?.subscribers ?? 0).toLocaleString()}</dd>
+          </div>
+          <div class="stat">
+            <dt>Threads watched now</dt>
+            <dd>{(live?.threads ?? 0).toLocaleString()}</dd>
+          </div>
+          <div class="stat">
+            <dt>Replies posted</dt>
+            <dd>{totals.replies.toLocaleString()}</dd>
+          </div>
+          <div class="stat">
+            <dt>Sign-ins</dt>
+            <dd>{totals.signIns.toLocaleString()}</dd>
+          </div>
+          <div class="stat">
+            <dt>Live connections opened</dt>
+            <dd>{totals.streamConnects.toLocaleString()}</dd>
+          </div>
+        </dl>
+        <p class="footnote">
+          {#if totals.since}Counted since {totals.since}.{/if} Live figures refresh
+          every 15 seconds and reflect one server process. There is deliberately no
+          visitor count: that would need an identifier per person, which is the one
+          thing this service does not keep.
+        </p>
+      </div>
+    </section>
+  {/if}
+
   <section id="self-host" class="section self-host">
     <div class="self-host-copy">
       <p class="kicker">Self-hosting</p>
@@ -719,6 +799,77 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
 </footer>
 
 <style>
+  .stats-section .section-intro > p {
+    max-width: 500px;
+    margin-top: 1.8rem;
+  }
+  .stats-section .section-intro > .text-link {
+    margin-top: 1.1rem;
+    display: inline-block;
+  }
+  .stat-grid {
+    margin: 0;
+    display: grid;
+    /* Six tiles, so 3x2 or 2x3 — never a row with a gap in it. auto-fit
+       would leave an empty cell at most container widths. */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .stat {
+    background: var(--page);
+    padding: 1rem 1.15rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .stat dt {
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-meta);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .stat dd {
+    margin: 0;
+    font-size: 1.9rem;
+    line-height: 1;
+    font-weight: 600;
+    color: var(--ink-strong);
+    font-variant-numeric: tabular-nums;
+  }
+  .pulse {
+    width: 0.42rem;
+    height: 0.42rem;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+    animation: pulse 2.4s ease-out infinite;
+  }
+  @keyframes pulse {
+    70% {
+      box-shadow: 0 0 0 0.4rem transparent;
+    }
+    100% {
+      box-shadow: 0 0 0 0 transparent;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pulse {
+      animation: none;
+    }
+  }
+  @media (max-width: 60rem) {
+    .stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   .section-body {
     display: flex;
     flex-direction: column;

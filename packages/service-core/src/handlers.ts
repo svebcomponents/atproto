@@ -26,11 +26,23 @@ import {
   type PostRef,
   validateReplyRequest,
 } from "./replyValidation.js";
+import type { MetricsTotals } from "./metrics.js";
 import {
   createSessionTokenIssuer,
   type SessionTokenClaims,
   type SessionTokenIssuer,
 } from "./sessionToken.js";
+
+/**
+ * Publishable operational numbers. Counts and gauges only: no origins, no
+ * reader identifiers, nothing that describes an individual visit.
+ */
+export interface ServiceStats {
+  /** right now, in this process */
+  live: { threads: number; subscribers: number };
+  /** since the counter store was first written */
+  totals: MetricsTotals;
+}
 
 export interface AtprotoCommentsService {
   /**
@@ -38,7 +50,17 @@ export interface AtprotoCommentsService {
    * anything outside it so hosts can fall through to their own routing.
    */
   fetch(request: Request): Promise<Response | undefined>;
+  /**
+   * Operational counters, for a host that wants to render them itself.
+   *
+   * `live` is this process's view. Accurate for a single instance; behind a
+   * load balancer it describes one worker, not the deployment.
+   */
+  stats(): Promise<ServiceStats>;
 }
+
+/** how long the public stats response may be reused */
+const STATS_CACHE_MS = 30_000;
 
 const json = (body: unknown, status = 200, headers?: HeadersInit): Response =>
   new Response(JSON.stringify(body), {
@@ -268,7 +290,27 @@ export const createAtprotoCommentsService = (
     options.commentStreamBroker ??
     createCommentStreamBroker(config.commentStream, options.webSocketFactory);
 
+  const readStats = async (): Promise<ServiceStats> => {
+    const live = commentStreams.stats();
+    return {
+      live: { threads: live.threads, subscribers: live.subscribers },
+      totals: await config.metrics.totals(),
+    };
+  };
+
+  // Served to anyone, so it is cached rather than recomputed per request.
+  let statsCache: { at: number; value: ServiceStats } | undefined;
+  const cachedStats = async (): Promise<ServiceStats> => {
+    if (statsCache && Date.now() - statsCache.at < STATS_CACHE_MS) {
+      return statsCache.value;
+    }
+    const value = await readStats();
+    statsCache = { at: Date.now(), value };
+    return value;
+  };
+
   return {
+    stats: readStats,
     async fetch(request) {
       const url = new URL(request.url);
       if (
@@ -278,6 +320,15 @@ export const createAtprotoCommentsService = (
         return undefined;
       }
       const route = url.pathname.slice(config.basePath.length);
+
+      // Public, unauthenticated, and deliberately dull: whole-service counts
+      // with no origins and nothing about any reader.
+      if (request.method === "GET" && route === "/api/stats") {
+        return json(await cachedStats(), 200, {
+          "access-control-allow-origin": "*",
+          "cache-control": `public, max-age=${Math.floor(STATS_CACHE_MS / 1000)}`,
+        });
+      }
 
       // the component calls /api/* cross-origin from embedding sites
       if (route.startsWith("/api/")) {
@@ -401,6 +452,7 @@ const handleCallback = async (
     createdAt: new Date().toISOString(),
     ...profile,
   });
+  config.metrics.record(origin, "signIn");
   const token =
     config.sessionMode === "bearer"
       ? await tokens.mint({ did, origin, sid })
@@ -653,6 +705,7 @@ const handleApi = async (
     case "POST /api/reply": {
       const isForm = isFormSubmission(request);
       if (!(await config.replyRateLimiter(claims.did))) {
+        config.metrics.record(claims.origin, "rateLimited");
         return respondAction(
           isForm,
           cors,
@@ -709,6 +762,7 @@ const handleApi = async (
         );
       }
       const result = await postReply(claims.did, reply, clientPromise);
+      if (result.ok) config.metrics.record(claims.origin, "reply");
       return respondAction(isForm, cors, result, redirectTo);
     }
 
@@ -718,6 +772,7 @@ const handleApi = async (
         route === "/api/like" ? "app.bsky.feed.like" : "app.bsky.feed.repost";
       const isForm = isFormSubmission(request);
       if (!(await config.reactionRateLimiter(claims.did))) {
+        config.metrics.record(claims.origin, "rateLimited");
         return respondAction(
           isForm,
           cors,
@@ -772,6 +827,7 @@ const handleApi = async (
         subject,
         clientPromise,
       );
+      if (result.ok) config.metrics.record(claims.origin, "reaction");
       return respondAction(isForm, cors, result, redirectTo);
     }
 
@@ -838,6 +894,10 @@ const handleCommentStream = async (
 
   try {
     const stream = commentStreams.subscribe(threadUri, request.signal);
+    config.metrics.record(
+      parseOrigin(request.headers.get("origin")),
+      "streamConnect",
+    );
     return new Response(stream, {
       headers: {
         "access-control-allow-origin": "*",

@@ -1006,3 +1006,71 @@ describe("security regressions", () => {
     expect(blocked!.status).toBe(400);
   });
 });
+
+describe("operational stats", () => {
+  let service: AtprotoCommentsService;
+
+  beforeEach(() => {
+    createRecordCalls = [];
+    service = createAtprotoCommentsService(baseConfig(memoryStore()), {
+      oauthClient: fakeOAuthClient,
+    });
+  });
+
+  it("serves counts publicly, to any origin", async () => {
+    const response = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/stats`, {
+        headers: { origin: "https://anyone.example" },
+      }),
+    );
+    expect(response!.status).toBe(200);
+    expect(response!.headers.get("access-control-allow-origin")).toBe("*");
+    expect(response!.headers.get("cache-control")).toContain("max-age=");
+    expect(await response!.json()).toMatchObject({
+      live: { threads: 0, subscribers: 0 },
+      totals: { sites: 0, signIns: 0, replies: 0 },
+    });
+  });
+
+  it("counts a sign-in and a reply against the embedding site", async () => {
+    const token = await signIn(service);
+    await service.fetch(
+      post("/atproto/api/reply", token, {
+        root: { uri: `at://${DID}/app.bsky.feed.post/r`, cid: "bafyroot" },
+        parent: { uri: `at://${DID}/app.bsky.feed.post/r`, cid: "bafyroot" },
+        text: "counted",
+      }),
+    );
+
+    const stats = await service.stats();
+    expect(stats.totals).toMatchObject({ sites: 1, signIns: 1, replies: 1 });
+  });
+
+  it("does not count a reply that the PDS rejected", async () => {
+    const token = await signIn(service);
+    await service.fetch(post("/atproto/api/reply", token, { text: "" }));
+    expect((await service.stats()).totals.replies).toBe(0);
+  });
+
+  it("publishes no origins and nothing about a reader", async () => {
+    const token = await signIn(service);
+    await service.fetch(
+      post("/atproto/api/reply", token, {
+        root: { uri: `at://${DID}/app.bsky.feed.post/r`, cid: "bafyroot" },
+        parent: { uri: `at://${DID}/app.bsky.feed.post/r`, cid: "bafyroot" },
+        text: "counted",
+      }),
+    );
+
+    const body = await (await service.fetch(
+      new Request(`${SERVICE}/atproto/api/stats`),
+    ))!.text();
+
+    // the site that generated the activity must not appear in the payload,
+    // and neither may any reader identifier
+    expect(body).not.toContain(ORIGIN);
+    expect(body).not.toContain("blog.example");
+    expect(body).not.toContain(DID);
+    expect(body).not.toContain("commenter");
+  });
+});
