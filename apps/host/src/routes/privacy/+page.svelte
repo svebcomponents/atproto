@@ -71,17 +71,23 @@
 
       A postal address is required separately by Impressum law — § 5 DDG in
       Germany, the ECG in Austria — which applies based on where the operator
-      is established, not where readers are, and which wants an address that
-      legal papers can be served at (a PO box does not qualify). If that law
-      reaches you, uncomment the address line below and fill it in. If you are
-      established outside those jurisdictions, name + email is enough here.
+      is established, not where readers are. This service is operated from
+      Japan, so neither reaches it and no postal address is needed: name plus
+      a monitored mailbox is what GDPR asks for. Japan's own address-disclosure
+      rule (特定商取引法) covers commercial sales, not a free service.
+
+      Open question for a Japan-established operator offering this to EU
+      readers: GDPR Art. 27 can require an EU representative. Art. 27(2)(a)
+      exempts processing that is occasional, excludes special categories at
+      scale, and is unlikely to risk rights and freedoms — a continuously
+      running public service is arguably not "occasional". Worth confirming
+      with a lawyer; if a representative is appointed, name them here.
     -->
     <p>
-      The bridge is operated by <strong>[NAME OR ENTITY]</strong>. For anything
-      on this page, write to <a href="mailto:{contact}">{contact}</a>; that
-      mailbox is monitored and is the fastest way to reach a person.
+      The bridge is operated by <strong>Theodor Baltus Steiner</strong>. For
+      anything on this page, write to <a href="mailto:{contact}">{contact}</a>;
+      that mailbox is monitored and is the fastest way to reach a person.
     </p>
-    <!-- <p>Postal address: [ADDRESS]</p> -->
     <p class="note">
       Under the GDPR, the operator of a site that embeds the component and the
       operator of this bridge are likely <strong>joint controllers</strong> for
@@ -145,7 +151,7 @@
     </p>
   </section>
 
-  <section>
+  <section id="bases">
     <h2>Why — the legal bases</h2>
     <div class="table-scroll">
       <table>
@@ -230,7 +236,7 @@
     </div>
   </section>
 
-  <section>
+  <section id="recipients">
     <h2>Who else is involved</h2>
     <ul>
       <li>
@@ -264,13 +270,30 @@
 
   <section>
     <h2>Where the bridge runs</h2>
-    <p class="draft">
-      [The bridge runs in <strong>[REGION]</strong>.
-      <em>If that region is inside the EU/EEA:</em> no international transfer is
-      involved for readers in Europe.
-      <em>If it is outside:</em> name the country and the safeguard relied on — Standard
-      Contractual Clauses, an adequacy decision, or similar — and say how to get a
-      copy.]
+    <!--
+      Confirm the VM's actual region before publishing: `ssh exe.dev` account
+      settings, or exe.dev/account. exe.dev's region setting only applies to
+      newly created VMs, so this one is wherever it was first created;
+      support@exe.dev will relocate it on request.
+
+      Tokyo and Frankfurt are both clean answers and the paragraph below is
+      written for them. Japan holds an EU adequacy decision (in force since
+      January 2019, reaffirmed on review), so EU→Japan transfers need no
+      further safeguard; Frankfurt is inside the EEA, so no transfer occurs at
+      all. If the VM turns out to be in Los Angeles, New York, Dallas, London,
+      Sydney or Singapore, this section needs rewriting around the safeguard
+      actually relied on — and moving the VM is the easier fix.
+    -->
+    <p>
+      The service is operated from Japan and the server runs in
+      <strong>[Tokyo, Japan / Frankfurt, Germany — CONFIRM]</strong>.
+    </p>
+    <p>
+      Japan is recognised by the European Commission as providing an adequate
+      level of data protection, so personal data reaching this service from the
+      EU or EEA does not depend on Standard Contractual Clauses or any
+      additional safeguard. Where the server itself is in Frankfurt, the data
+      does not leave the EEA at all.
     </p>
   </section>
 
@@ -298,6 +321,14 @@
     <p>
       You can also complain to a supervisory authority — in the EU, the one for
       the country you live or work in.
+    </p>
+    <p>
+      This service is operated from Japan and is also subject to the Act on the
+      Protection of Personal Information (APPI). If you are in Japan, requests
+      to disclose, correct, or stop using your personal information go to the
+      same address, and the purposes it is used for are the ones set out under
+      <a href="#bases">the legal bases</a>. Nothing is provided to a third party
+      except as described under <a href="#recipients">who else is involved</a>.
     </p>
   </section>
 
