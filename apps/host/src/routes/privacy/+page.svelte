@@ -163,7 +163,7 @@
       per person and that is precisely what is not kept.
     </p>
     <p>
-      The totals are published in full on the
+      The totals are published on the
       <a href={resolve("/")}>front page</a>, without the list of which sites
       they came from.
     </p>

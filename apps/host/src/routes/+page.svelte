@@ -663,7 +663,10 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
       </dl>
       <p class="footnote">
         {#if totals.since}<span>Since {totals.since}.</span>{/if}
-        <span>This is everything the service knows about its own usage.</span>
+        <span
+          >Counts only — the per-site rows stay on the server, and no
+          visitor-level record exists beneath them.</span
+        >
         <a href={resolve("/privacy")}>Privacy</a>
       </p>
     </section>

@@ -91,10 +91,10 @@
 
     <div class="split">
       <div class="intro">
-        <h1>{heading ?? "Sign in to the ATmosphere to comment"}</h1>
+        <h1>{heading ?? "Sign in to the ATmosphere to interact"}</h1>
         <p class="hint">
-          Your provider will show what you are approving. Your password is never
-          sent here.
+          Your ATmosphere provider will show what you are approving. Your
+          password is never sent here.
         </p>
       </div>
       <div class="action">
@@ -130,11 +130,11 @@
       {#if productUrl}
         <div class="promo">
           <p>
-            <strong>Comments for your own site.</strong> Replies are stored in each
-            commenter's own account, not here. Readers who do not sign in never contact
-            the service.
+            <strong>Comments for your own site.</strong><br />
+            Drop <code>&lt;atproto-comments&gt;</code> onto your blog and your readers
+            comment with their Bluesky identity — no database, backed by ATProto.
           </p>
-          <a href={productUrl}>Documentation &rarr;</a>
+          <a href={productUrl}>See the docs &rarr;</a>
         </div>
       {/if}
     </div>
@@ -418,6 +418,15 @@
 
   .promo strong {
     color: var(--ink);
+  }
+
+  .promo code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.86em;
+    background: var(--ink);
+    color: var(--wash);
+    border-radius: 4px;
+    padding: 0.08em 0.35em;
   }
 
   .promo a {

@@ -55,7 +55,7 @@ export const getService = (): AtprotoCommentsService => {
     // shows them on its consent screen, so it needs to be the real name.
     clientName: "svebcomponents/atproto",
     oauthPage: {
-      title: "Sign in to the ATmosphere to comment",
+      title: "Sign in to the ATmosphere to interact",
       brand: {
         name: "svebcomponents/atproto",
         logoUrl: "/svebcomponents.svg",

@@ -157,7 +157,9 @@ describe("service handlers", () => {
       ),
     );
     expect(res!.headers.get("content-type")).toContain("text/html");
-    expect(await res!.text()).toContain("Sign in to the ATmosphere to comment");
+    expect(await res!.text()).toContain(
+      "Sign in to the ATmosphere to interact",
+    );
   });
 
   it("rejects oauth/start without a valid origin", async () => {

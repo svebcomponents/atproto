@@ -445,7 +445,7 @@ const signInPageProps = (
   return {
     clientName: config.clientName,
     documentTitle: pageTitle ?? `Sign in to ${config.clientName}`,
-    title: pageTitle ?? "Sign in to the ATmosphere to comment",
+    title: pageTitle ?? "Sign in to the ATmosphere to interact",
     brandName: brand?.name ?? config.clientName,
     showBrand: Boolean(brand || config.productUrl),
     ...(brand?.logoUrl ? { brandLogoUrl: brand.logoUrl } : {}),
