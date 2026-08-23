@@ -155,7 +155,7 @@ describe("service handlers", () => {
       ),
     );
     expect(res!.headers.get("content-type")).toContain("text/html");
-    expect(await res!.text()).toContain("Sign in to comment");
+    expect(await res!.text()).toContain("Sign in to the ATmosphere to comment");
   });
 
   it("rejects oauth/start without a valid origin", async () => {
@@ -1144,7 +1144,7 @@ describe("sign-in consent screen", () => {
   });
 
   it("omits the privacy link when none is configured", async () => {
-    expect(await signInHtml()).not.toContain("What this service stores");
+    expect(await signInHtml()).not.toContain("/privacy");
   });
 
   // The pitch is a footer note on a page where someone is midway through a
@@ -1153,8 +1153,8 @@ describe("sign-in consent screen", () => {
     const html = await signInHtml({
       productUrl: "https://atproto.svebcomponents.dev",
     });
-    expect(html).toContain("Want comments on your own blog?");
-    expect(html.indexOf("Want comments on your own blog?")).toBeGreaterThan(
+    expect(html).toContain("Comments for your own site.");
+    expect(html.indexOf("Comments for your own site.")).toBeGreaterThan(
       html.indexOf('<button type="submit">'),
     );
   });
@@ -1163,7 +1163,7 @@ describe("sign-in consent screen", () => {
   // branding and the pitch are opt-in together.
   it("shows no branding or pitch when productUrl is unset", async () => {
     const html = await signInHtml();
-    expect(html).not.toContain("Want comments on your own blog?");
+    expect(html).not.toContain("Comments for your own site.");
     expect(html).not.toContain('class="brand"');
   });
 });

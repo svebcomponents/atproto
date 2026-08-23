@@ -5,9 +5,9 @@
 The bridge's own pages now use the documentation site's design, and can carry
 a short project pitch.
 
-New `productUrl` option. When set, the sign-in, callback, error and success
-pages show a brand header and the sign-in page gains a footer note pointing at
-the project. Unset by default, so a self-hosted bridge does not advertise
+New `productUrl` option. When set, the bridge's pages show a brand header and
+the sign-in page gains a footer note pointing at the project. `privacyUrl` is
+linked from that header rather than from under the card. Unset by default, so a self-hosted bridge does not advertise
 someone else's project on its own sign-in screen — the branding and the pitch
 are opt-in together.
 

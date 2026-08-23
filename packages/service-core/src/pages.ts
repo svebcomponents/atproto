@@ -30,12 +30,20 @@ const wordmark = (name: string): string => {
  * fallbacks, and loading a webfont from a third party on a consent screen for
  * a privacy-preserving service would be a poor look.
  */
-const page = (
-  title: string,
-  body: string,
-  brand?: { name: string; url?: string },
+const page = ({
+  title,
+  body,
+  brand,
+  nav = [],
   wide = false,
-): string => `<!doctype html>
+}: {
+  title: string;
+  body: string;
+  brand?: { name: string; url?: string };
+  /** header links, laid out like the documentation site's nav */
+  nav?: readonly { href: string; label: string }[];
+  wide?: boolean;
+}): string => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -94,11 +102,19 @@ const page = (
     .intro { padding-top: .35rem; }
     .action { position: sticky; top: 3rem; }
   }
+  .site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    margin-bottom: 1.75rem;
+    border-bottom: 1px solid var(--line);
+  }
   .brand {
     display: flex;
     align-items: center;
     gap: .5rem;
-    margin-bottom: 1.25rem;
     font-size: .95rem;
     font-weight: 600;
     color: var(--ink);
@@ -106,6 +122,14 @@ const page = (
   }
   .brand svg { width: 1.35rem; height: 1.45rem; flex: none; }
   .brand .muted { color: var(--meta); font-weight: 500; }
+  .site-header nav { display: flex; align-items: center; gap: 1.25rem; margin-left: auto; }
+  .site-header nav a {
+    font-size: .86rem;
+    font-weight: 600;
+    color: var(--ink);
+    text-decoration: none;
+  }
+  .site-header nav a:hover { color: var(--accent-deep); }
   .card {
     background: var(--card);
     border: 1px solid var(--line);
@@ -183,8 +207,6 @@ const page = (
     border: 1px solid light-dark(#f3c9c9, #4a2426);
   }
   .action { display: flex; flex-direction: column; }
-  .after { margin-top: .85rem; font-size: .85rem; text-align: center; }
-  .after a { color: var(--accent-deep); }
   .promo {
     margin-top: 1.5rem;
     padding: .95rem 1.05rem;
@@ -204,8 +226,16 @@ const page = (
 <body>
 <div class="shell${wide ? " wide" : ""}">
 ${
-  brand
-    ? `<${brand.url ? `a class="brand" href="${escapeHtml(brand.url)}"` : `div class="brand"`}>${BRAND_MARK}<span>${wordmark(brand.name)}</span></${brand.url ? "a" : "div"}>`
+  brand || nav.length > 0
+    ? `<header class="site-header">${
+        brand
+          ? `<${brand.url ? `a class="brand" href="${escapeHtml(brand.url)}"` : `div class="brand"`}>${BRAND_MARK}<span>${wordmark(brand.name)}</span></${brand.url ? "a" : "div"}>`
+          : ""
+      }${
+        nav.length > 0
+          ? `<nav>${nav.map((link) => `<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`).join("")}</nav>`
+          : ""
+      }</header>`
     : ""
 }
 ${body}
@@ -254,18 +284,21 @@ export const signInPage = ({
   productUrl?: string;
   error?: string;
 }): string =>
-  page(
-    `Sign in — ${clientName}`,
-    `<div class="split">
+  page({
+    title: `Sign in to ${clientName}`,
+    ...(productUrl ? { brand: { name: clientName, url: productUrl } } : {}),
+    ...(privacyUrl ? { nav: [{ href: privacyUrl, label: "Privacy" }] } : {}),
+    wide: true,
+    body: `<div class="split">
 <div class="intro">
-<h1>Sign in to comment</h1>
-<p class="hint">You will be sent to your own account provider to approve this. Your password is never seen by ${escapeHtml(clientName)}.</p>
+<h1>Sign in to the ATmosphere to comment</h1>
+<p class="hint">You approve this at your own account provider. Your password is never sent to ${escapeHtml(clientName)}.</p>
 <p class="hint" style="margin-bottom:.4rem">Approving lets ${escapeHtml(clientName)}:</p>
 <ul class="grants">
   <li>create posts, likes and reposts in your repository, as you</li>
   <li>keep doing so on any site using this service, until you sign out</li>
 </ul>
-<p class="hint">This service only ever posts replies to the thread you are reading, but the permission your provider grants is broader than that — it will show you the exact scopes before you approve.</p>
+<p class="hint">This service only posts replies to the thread you are reading. The permission itself is broader. Your provider shows the exact scopes before you approve.</p>
 </div>
 <div class="action">
 <div class="card">
@@ -283,20 +316,17 @@ ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
   <button type="submit">Continue</button>
 </form>
 </div>
-${privacyUrl ? `<p class="after"><a href="${escapeHtml(privacyUrl)}">What this service stores</a></p>` : ""}
 </div>
 ${
   productUrl
     ? `<div class="promo">
-  <p><strong>Want comments on your own blog?</strong> A drop-in comment section built on ATProto. Replies live in your commenters' own accounts, and readers who never sign in never touch the service.</p>
-  <a href="${escapeHtml(productUrl)}">See how it works &rarr;</a>
+  <p><strong>Comments for your own site.</strong> Replies are stored in each commenter's own account, not here. Readers who do not sign in never contact the service.</p>
+  <a href="${escapeHtml(productUrl)}">Documentation &rarr;</a>
 </div>`
     : ""
 }
 </div>`,
-    productUrl ? { name: clientName, url: productUrl } : undefined,
-    true,
-  );
+  });
 
 /**
  * Callback landing page: posts the freshly minted session to the opener with
@@ -313,11 +343,11 @@ export const callbackPage = ({
     type: "atproto-comments:session",
     ...payload,
   }).replaceAll("<", "\\u003C");
-  return page(
-    "Signed in",
-    `<div class="card">
+  return page({
+    title: "Signed in",
+    body: `<div class="card">
 <h1>✓ Signed in</h1>
-<p class="hint">This window should close by itself. If it doesn't, close it and return to the page you were on — it picks up your session automatically.</p>
+<p class="hint">This window should close by itself. If it does not, close it and return to the page you were on. It picks up your session automatically.</p>
 </div>
 <script>
   (function () {
@@ -344,18 +374,18 @@ export const callbackPage = ({
     }, 500);
   })();
 </script>`,
-  );
+  });
 };
 
 export const errorPage = (message: string): string =>
-  page(
-    "Something went wrong",
-    `<div class="card"><h1>Something went wrong</h1><p class="hint">${escapeHtml(message)}</p></div>`,
-  );
+  page({
+    title: "Something went wrong",
+    body: `<div class="card"><h1>Something went wrong</h1><p class="hint">${escapeHtml(message)}</p></div>`,
+  });
 
 /** shown after a no-JS form submission succeeds with no return url to bounce back to */
 export const successPage = (): string =>
-  page(
-    "Done",
-    `<div class="card"><h1>✓ Done</h1><p class="hint">You can close this tab and return to the page you were on.</p></div>`,
-  );
+  page({
+    title: "Done",
+    body: `<div class="card"><h1>✓ Done</h1><p class="hint">You can close this tab and return to the page you were on.</p></div>`,
+  });
