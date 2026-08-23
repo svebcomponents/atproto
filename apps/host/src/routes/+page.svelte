@@ -104,6 +104,13 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
         "Hides in-page sign-in and posting. Live updates remain enabled.",
     },
     {
+      name: "live",
+      type: "signed-in | all | off",
+      default: "signed-in",
+      description:
+        "Who gets live updates — the only feature that connects a reader's browser to the service. all means every reader; see Reader privacy.",
+    },
+    {
       name: "sort",
       type: "oldest | newest | likes",
       default: "oldest",
@@ -132,6 +139,19 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
       type: "URL",
       default: "public.api.bsky.app",
       description: "Public AppView used to fetch thread snapshots.",
+    },
+    {
+      name: "show-root",
+      type: "boolean",
+      default: "false",
+      description: "Render the discussion root's own text above the replies.",
+    },
+    {
+      name: "page-url",
+      type: "string",
+      default: "—",
+      description:
+        "The embedding page's canonical URL. Enables no-JavaScript sign-in on a same-origin, cookie-mode service.",
     },
   ];
 
@@ -186,8 +206,8 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
     <span>svebcomponents<span class="brand-muted">/atproto</span></span>
   </a>
   <nav aria-label="Main navigation">
-    <a href="#tiers">Get started</a>
-    <a href="#start">Quickstart</a>
+    <a href="#start">Get started</a>
+    <a href="#tiers">Setup options</a>
     <a href="#reference">Reference</a>
     <a href="#self-host">Self-host</a>
     <a
@@ -215,6 +235,7 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
       </div>
       <div
         class="thread-panel"
+        role="region"
         aria-label="Live ATProto thread, rendered by this component"
       >
         {#if data.threadData}
@@ -247,7 +268,11 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
       </div>
     </div>
 
-    <div class="hero-code" aria-label="Code needed to render this thread">
+    <div
+      class="hero-code"
+      role="region"
+      aria-label="Code needed to render this thread"
+    >
       <div class="window-bar">
         <button class="copy-button" type="button" onclick={copySnippet}>
           <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -256,7 +281,7 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
               d="M10.5 3V2.5a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5V10A1.5 1.5 0 0 0 4 11.5h.5"
             />
           </svg>
-          {copied ? "Copied" : "Copy HTML"}
+          <span role="status">{copied ? "Copied" : "Copy HTML"}</span>
         </button>
       </div>
       <pre class="hero-demo-code"><code bind:this={snippetEl}
@@ -388,10 +413,10 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
         <span aria-hidden="true">✦</span>
         <p>
           <strong>svebcomponents/atproto is phoning home.</strong><br />
-          the component uses <i>a hosted bridge</i> <br />
-          (<code>https://atproto.svebcomponents.dev/atproto</code>)<br /> to
-          receive live events and facilitate sign-in.<br />
-          <a href="#self-host">self-host to make it run on your origin ↓</a>
+          The component uses a hosted bridge (<code
+            >https://atproto.svebcomponents.dev/atproto</code
+          >) to receive live events and handle sign-in.
+          <a href="#self-host">Self-host to keep it on your origin ↓</a>
         </p>
       </aside>
     </div>
@@ -712,7 +737,7 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
       <pre><code>{selfHostedConfig}</code></pre>
       <a
         class="text-link"
-        href="https://github.com/svebcomponents/atproto/blob/main/03-oauth-service.md#self-hosting"
+        href="https://github.com/svebcomponents/atproto/blob/main/packages/service-core/README.md"
         target="_blank"
         rel="noreferrer">Read the deployment guide ↗</a
       >
@@ -948,8 +973,12 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
   }
 
   :global(html) {
-    scroll-behavior: smooth;
     color-scheme: light;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html) {
+      scroll-behavior: smooth;
+    }
   }
 
   :global(body) {

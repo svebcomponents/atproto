@@ -1,23 +1,13 @@
 <script lang="ts">
   import { resolve } from "$app/paths";
 
-  // Read this before changing what the service stores or logs — the page has
-  // to keep matching the code. Two statements here are load-bearing and are
-  // true only as long as nobody adds request logging: the service writes no
-  // access log, and no IP address is ever written to disk. The bridge makes
-  // no console calls at all, and adapter-node prints only two startup lines.
-  //
-  // Requires on the VM, once: a journald cap so diagnostic output does not
-  // accumulate forever.
-  //   sudo mkdir -p /etc/systemd/journald.conf.d
-  //   printf '[Journal]\nMaxRetentionSec=30day\n' \
-  //     | sudo tee /etc/systemd/journald.conf.d/retention.conf
-  //   sudo systemctl restart systemd-journald
-  //
-  // Note that operating this bridge at all is what creates these obligations.
-  // Shipping the component with no default service — self-hosting only — is
-  // the one option that removes them rather than documenting them.
-  const lastUpdated = "22 August 2026";
+  // Read this before changing what the service stores or logs — this page
+  // has to keep matching the code, including the retention table below.
+  // Two statements here are load-bearing and are true only as long as
+  // nobody adds request logging: the service writes no access log, and no
+  // IP address is ever written to disk. Deployment notes live in
+  // apps/host/deploy/.
+  const lastUpdated = "23 August 2026";
   const contact = "svebcomponents@theosteiner.de";
 </script>
 
@@ -73,28 +63,6 @@
 
   <section>
     <h2>Who is responsible</h2>
-    <!--
-      GDPR Art. 13(1)(a) asks for the controller's identity and contact
-      details. A name plus a monitored email address satisfies that; it does
-      not by itself require a postal address.
-
-      A postal address is required separately by Impressum law — § 5 DDG in
-      Germany, the ECG in Austria — which applies based on where the operator
-      is established, not where readers are. This service is operated from
-      Japan, so neither reaches it and no postal address is needed: name plus
-      a monitored mailbox is what GDPR asks for. Japan's own address-disclosure
-      rule (特定商取引法) covers commercial sales, not a free service.
-
-      GDPR Art. 27 can require a non-EU controller to appoint an EU
-      representative. The operator has assessed this service as falling within
-      the Art. 27(2)(a) exemption: the processing is low-risk and minimal —
-      no special categories, no profiling, no advertising, no comment content
-      stored, nothing written to disk for readers who do not sign in, and
-      identifiers limited to the public parts of a profile the person chose to
-      sign in with. Revisit if the service starts retaining more, or if usage
-      grows to a scale where "occasional" stops being arguable. If a
-      representative is ever appointed, name them here.
-    -->
     <p>
       The bridge is operated by <strong>Theodor Baltus Steiner</strong>. For
       anything on this page, write to <a href="mailto:{contact}">{contact}</a>;
@@ -238,8 +206,10 @@
         <thead><tr><th>Data</th><th>Kept for</th></tr></thead>
         <tbody>
           <tr
-            ><td>Browser session</td><td
-              >1 hour, renewed while you're active; deleted on sign-out</td
+            ><td>Sign-in session</td><td
+              >Access tokens last 1 hour each and are renewed automatically
+              while you're active. The session record is deleted the moment you
+              sign out, and expires on its own after 30 days without a visit.</td
             ></tr
           >
           <tr
@@ -318,20 +288,6 @@
 
   <section>
     <h2>Where the bridge runs</h2>
-    <!--
-      Confirm the VM's actual region before publishing: `ssh exe.dev` account
-      settings, or exe.dev/account. exe.dev's region setting only applies to
-      newly created VMs, so this one is wherever it was first created;
-      support@exe.dev will relocate it on request.
-
-      Tokyo and Frankfurt are both clean answers and the paragraph below is
-      written for them. Japan holds an EU adequacy decision (in force since
-      January 2019, reaffirmed on review), so EU→Japan transfers need no
-      further safeguard; Frankfurt is inside the EEA, so no transfer occurs at
-      all. If the VM turns out to be in Los Angeles, New York, Dallas, London,
-      Sydney or Singapore, this section needs rewriting around the safeguard
-      actually relied on — and moving the VM is the easier fix.
-    -->
     <p>
       The service is operated from Japan and the server runs in
       <strong>Tokyo, Japan</strong>.
