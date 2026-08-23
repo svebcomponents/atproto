@@ -155,7 +155,7 @@ describe("service handlers", () => {
       ),
     );
     expect(res!.headers.get("content-type")).toContain("text/html");
-    expect(await res!.text()).toContain("Sign in with your atmosphere account");
+    expect(await res!.text()).toContain("Sign in to the ATmosphere to comment");
   });
 
   it("rejects oauth/start without a valid origin", async () => {
@@ -1104,5 +1104,70 @@ describe("operational stats", () => {
     expect(body).not.toContain("blog.example");
     expect(body).not.toContain(DID);
     expect(body).not.toContain("commenter");
+  });
+});
+
+describe("sign-in consent screen", () => {
+  const signInHtml = async (
+    over: Partial<ServiceConfig> = {},
+  ): Promise<string> => {
+    const svc = createAtprotoCommentsService(
+      { ...baseConfig(memoryStore()), ...over },
+      { oauthClient: fakeOAuthClient },
+    );
+    const res = await svc.fetch(
+      new Request(
+        `${SERVICE}/atproto/oauth/start?origin=${encodeURIComponent(ORIGIN)}`,
+      ),
+    );
+    return res!.text();
+  };
+
+  it("names the site the comment section is on", async () => {
+    expect(await signInHtml()).toContain(ORIGIN);
+  });
+
+  // The OAuth grant is collection-level: create any app.bsky.feed.post, not
+  // just replies, and not just on this site. Saying otherwise would understate
+  // what is being authorized at the one moment the reader decides.
+  // The reader's own provider enumerates the scopes on the next screen, so
+  // this page does not repeat them. What it must not do is describe the grant
+  // as narrower than it is: the authorization covers creating any post, on
+  // any site using the bridge, not just replies here.
+  it("makes no claim that the grant is narrower than it is", async () => {
+    const html = await signInHtml();
+    expect(html).toContain("Your provider will show what you are approving");
+    expect(html).not.toMatch(/posting replies on your behalf/i);
+    expect(html).not.toMatch(/only posts replies/i);
+  });
+
+  it("links the privacy policy when one is configured", async () => {
+    expect(await signInHtml({ privacyUrl: "/privacy" })).toContain(
+      `${SERVICE}/privacy`,
+    );
+  });
+
+  it("omits the privacy link when none is configured", async () => {
+    expect(await signInHtml()).not.toContain("/privacy");
+  });
+
+  // The pitch is a footer note on a page where someone is midway through a
+  // security decision. It must never outrank the thing they came here to do.
+  it("keeps the project pitch below the sign-in form", async () => {
+    const html = await signInHtml({
+      productUrl: "https://atproto.svebcomponents.dev",
+    });
+    expect(html).toContain("Comments for your own site.");
+    expect(html.indexOf("Comments for your own site.")).toBeGreaterThan(
+      html.indexOf('<button type="submit">'),
+    );
+  });
+
+  // A self-hosted bridge should not advertise someone else's project, so the
+  // branding and the pitch are opt-in together.
+  it("shows no branding or pitch when productUrl is unset", async () => {
+    const html = await signInHtml();
+    expect(html).not.toContain("Comments for your own site.");
+    expect(html).not.toContain('class="brand"');
   });
 });

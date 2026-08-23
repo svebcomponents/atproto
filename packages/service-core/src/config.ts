@@ -85,6 +85,20 @@ export interface ServiceConfig {
   basePath?: string;
   /** shown on the sign-in page and in client metadata */
   clientName?: string;
+  /**
+   * Link to the operator's privacy policy, shown on the sign-in page. An
+   * absolute URL, or a path resolved against `publicUrl` (e.g. "/privacy").
+   * Omit and the link is not rendered — but a public deployment asking
+   * strangers for posting authority should say what it stores.
+   */
+  privacyUrl?: string;
+  /**
+   * The project's own site. When set, the bridge's pages show its brand
+   * header and a short footer pitch beneath the sign-in card. Leave unset for
+   * a self-hosted deployment that should not advertise someone else's
+   * project on its sign-in screen.
+   */
+  productUrl?: string;
   /** HS256 secret for the service's own bearer tokens (>= 32 chars) */
   sessionSecret: string;
   /** bearer token lifetime in seconds (default: 3600) */
@@ -172,6 +186,10 @@ export interface ResolvedServiceConfig extends ServiceConfig {
   metrics: MetricsRecorder;
   /** normalized to bare origins; undefined means "any origin" */
   allowedOrigins?: readonly string[];
+  /** absolute privacy policy URL, resolved against publicUrl */
+  privacyUrl?: string;
+  /** the project's own site, enabling brand header and footer pitch */
+  productUrl?: string;
   /** true when publicUrl is a localhost/127.0.0.1 loopback */
   isLoopback: boolean;
 }
@@ -217,6 +235,9 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     ...(allowedOrigins ? { allowedOrigins } : {}),
     publicUrl: url.origin,
     basePath: config.basePath ?? "/atproto",
+    ...(config.privacyUrl
+      ? { privacyUrl: new URL(config.privacyUrl, url.origin).toString() }
+      : {}),
     clientName: config.clientName ?? "atproto-comments",
     sessionTtlSeconds: config.sessionTtlSeconds ?? 3600,
     sessionMode: config.sessionMode ?? "bearer",
