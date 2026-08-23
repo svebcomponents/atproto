@@ -51,6 +51,7 @@ export const getService = (): AtprotoCommentsService => {
     // The sign-in page asks strangers for posting authority, so it links to
     // what this service stores. Served by apps/host at /privacy.
     privacyUrl: "/privacy",
+    productUrl: "https://atproto.svebcomponents.dev",
     sessionSecret,
     sessionMode: env["SESSION_MODE"] === "cookie" ? "cookie" : "bearer",
     commentStream: {

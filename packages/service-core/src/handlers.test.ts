@@ -1146,4 +1146,24 @@ describe("sign-in consent screen", () => {
   it("omits the privacy link when none is configured", async () => {
     expect(await signInHtml()).not.toContain("What this service stores");
   });
+
+  // The pitch is a footer note on a page where someone is midway through a
+  // security decision. It must never outrank the thing they came here to do.
+  it("keeps the project pitch below the sign-in form", async () => {
+    const html = await signInHtml({
+      productUrl: "https://atproto.svebcomponents.dev",
+    });
+    expect(html).toContain("Want comments on your own blog?");
+    expect(html.indexOf("Want comments on your own blog?")).toBeGreaterThan(
+      html.indexOf('<button type="submit">'),
+    );
+  });
+
+  // A self-hosted bridge should not advertise someone else's project, so the
+  // branding and the pitch are opt-in together.
+  it("shows no branding or pitch when productUrl is unset", async () => {
+    const html = await signInHtml();
+    expect(html).not.toContain("Want comments on your own blog?");
+    expect(html).not.toContain('class="brand"');
+  });
 });

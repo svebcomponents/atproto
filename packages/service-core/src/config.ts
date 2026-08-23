@@ -92,6 +92,13 @@ export interface ServiceConfig {
    * strangers for posting authority should say what it stores.
    */
   privacyUrl?: string;
+  /**
+   * The project's own site. When set, the bridge's pages show its brand
+   * header and a short footer pitch beneath the sign-in card. Leave unset for
+   * a self-hosted deployment that should not advertise someone else's
+   * project on its sign-in screen.
+   */
+  productUrl?: string;
   /** HS256 secret for the service's own bearer tokens (>= 32 chars) */
   sessionSecret: string;
   /** bearer token lifetime in seconds (default: 3600) */
@@ -181,6 +188,8 @@ export interface ResolvedServiceConfig extends ServiceConfig {
   allowedOrigins?: readonly string[];
   /** absolute privacy policy URL, resolved against publicUrl */
   privacyUrl?: string;
+  /** the project's own site, enabling brand header and footer pitch */
+  productUrl?: string;
   /** true when publicUrl is a localhost/127.0.0.1 loopback */
   isLoopback: boolean;
 }
