@@ -31,7 +31,14 @@ const prepare: SsrPrepare = ({ props, setProperty }) => {
   };
 
   return fetchCommentTree(thread, options)
-    .then((threadData) => setProperty("threadData", threadData))
+    .then((threadData) => {
+      setProperty("threadData", threadData);
+      // Stamp the fetch time so the hydrated component can tell whether its
+      // snapshot is still inside `staleTime`, or should revalidate once on
+      // mount. Numbers serialize through the rich-prop transport like any
+      // other prepared value.
+      setProperty("fetchedAt", Date.now());
+    })
     .catch((error: unknown) => {
       // Keep SSR resilient. With no prepared data, the hydrated component uses
       // its existing browser fetch path (including its visible error/retry UI).

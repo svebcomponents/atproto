@@ -124,6 +124,8 @@ live updates.
 | `viewer`    | bsky.app       | outbound profile/post viewer                            |
 | `appview`   | public AppView | public thread-read endpoint                             |
 | `page-url`  | —              | embedding page's canonical URL; enables no-JS sign-in on a same-origin cookie-mode service |
+| `fetched-at` | —             | when `threadData` was fetched (epoch ms or ISO); stamped automatically by SSR prefetch |
+| `stale-time` | `60000`       | ms a preloaded snapshot is trusted before one client refresh; `Infinity` disables |
 
 `threadData` is a JavaScript-only `CommentTree` property for a preloaded
 snapshot.
@@ -132,6 +134,13 @@ With the default `live="signed-in"`, only readers who sign in hold a connection
 to the service; signed-out visitors read the thread straight from the AppView.
 Set `live="all"` to stream for everyone (reasonable when the bridge is your
 own), or `live="off"` to disable the stream entirely.
+
+"Not live" does not mean "stale": when the component mounts with a preloaded
+snapshot older than `stale-time`, it runs one background revalidation against
+the public AppView, so a signed-out reader still sees current comments without
+ever connecting to the service. The SSR prefetch stamps `fetched-at`
+automatically; hosts passing their own `threadData` can supply it too (or set
+`stale-time={Infinity}` to trust their snapshot until a live event arrives).
 
 ## Events
 

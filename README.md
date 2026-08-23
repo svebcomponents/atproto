@@ -33,6 +33,10 @@ Implemented:
   coalesced AppView refresh. A reconnect triggers a fresh read because
   Spacedust v0 has no replay cursor. Set `live="all"` to stream for signed-out
   readers too — see [Reader privacy](#reader-privacy) for what that changes.
+  And "not live" never means "stale": if the server-rendered snapshot is
+  older than `stale-time` (one minute by default), a mounting client runs
+  one background refresh straight from the public AppView, so signed-out
+  visitors see current comments without ever contacting the bridge.
 
 ## Usage
 

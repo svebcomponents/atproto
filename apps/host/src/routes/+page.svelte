@@ -153,6 +153,20 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
       description:
         "The embedding page's canonical URL. Enables no-JavaScript sign-in on a same-origin, cookie-mode service.",
     },
+    {
+      name: "fetched-at",
+      type: "epoch ms | ISO date",
+      default: "—",
+      description:
+        "When threadData was fetched. Set automatically by SSR prefetch; age older than stale-time triggers one background refresh.",
+    },
+    {
+      name: "stale-time",
+      type: "number (ms)",
+      default: "60000",
+      description:
+        "How long a preloaded snapshot is trusted before one client-side refresh from the public AppView. Infinity disables it.",
+    },
   ];
 
   const events = [
@@ -247,6 +261,7 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
           <atproto-comments
             thread={threadUri}
             threadData={data.threadData}
+            fetchedAt={data.fetchedAt ?? undefined}
             service="/atproto"
             live="all"
             showRoot

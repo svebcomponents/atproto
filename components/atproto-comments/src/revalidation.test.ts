@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CommentNode, CommentTree } from "@svebcomponents/atproto.client";
 import {
+  DEFAULT_STALE_TIME_MS,
   LiveRefreshScheduler,
   reconcileOptimisticReplies,
   RefreshCoordinator,
+  snapshotIsStale,
   treeContainsUri,
 } from "./revalidation.js";
 
@@ -198,5 +200,44 @@ describe("LiveRefreshScheduler", () => {
     inFlight.resolve(tree());
 
     await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("snapshotIsStale", () => {
+  const NOW = 1_000_000_000;
+
+  it("trusts a snapshot inside the stale window without refetching", () => {
+    expect(snapshotIsStale(NOW - 1_000, DEFAULT_STALE_TIME_MS, NOW)).toBe(
+      false,
+    );
+    // exactly at the boundary still counts as fresh
+    expect(
+      snapshotIsStale(NOW - DEFAULT_STALE_TIME_MS, DEFAULT_STALE_TIME_MS, NOW),
+    ).toBe(false);
+  });
+
+  it("revalidates once the snapshot outlives the stale window", () => {
+    expect(
+      snapshotIsStale(NOW - DEFAULT_STALE_TIME_MS - 1, DEFAULT_STALE_TIME_MS, NOW),
+    ).toBe(true);
+  });
+
+  it("treats an unknown fetch time as stale so content stays fresh by default", () => {
+    // hosts passing threadData without fetchedAt (or with garbage) get one
+    // background refresh rather than a page that renders yesterday's comments
+    expect(snapshotIsStale(undefined, DEFAULT_STALE_TIME_MS, NOW)).toBe(true);
+    expect(snapshotIsStale(Number.NaN, DEFAULT_STALE_TIME_MS, NOW)).toBe(true);
+  });
+
+  it("honours a custom staleTime of zero as always-revalidate", () => {
+    // any real elapsed age exceeds zero
+    expect(snapshotIsStale(NOW - 1, 0, NOW)).toBe(true);
+  });
+
+  it("never revalidates when staleTime is Infinity (opt-out)", () => {
+    expect(snapshotIsStale(undefined, Number.POSITIVE_INFINITY, NOW)).toBe(
+      false,
+    );
+    expect(snapshotIsStale(0, Number.POSITIVE_INFINITY, NOW)).toBe(false);
   });
 });

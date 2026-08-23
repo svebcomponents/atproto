@@ -36,9 +36,11 @@ package README.
     type ServiceSessionInfo,
   } from "@svebcomponents/atproto.client";
   import {
+    DEFAULT_STALE_TIME_MS,
     LiveRefreshScheduler,
     reconcileOptimisticReplies,
     RefreshCoordinator,
+    snapshotIsStale,
     type OptimisticReplies,
   } from "./revalidation.js";
 
@@ -92,6 +94,23 @@ package README.
      * works with JS; a no-JS visitor's sign-in link just can't be rendered
      * (falls back to needing JS for that one step). */
     pageUrl?: string;
+    /**
+     * When the preloaded snapshot was fetched: epoch milliseconds or an ISO
+     * date string. The component's own SSR prefetch sets this automatically;
+     * hosts supplying their own `threadData` can pass when they fetched it.
+     * Without it, the snapshot's age is unknown, which counts as stale (see
+     * `staleTime`).
+     */
+    fetchedAt?: string | number;
+    /**
+     * How long (milliseconds) a preloaded snapshot is trusted before the
+     * client runs one background revalidation on mount. Default 60_000. The
+     * refresh reads the public AppView directly — never the service — so
+     * signed-out visitors get current comments without a live connection or
+     * any polling. Set `Infinity` (property only) to trust the snapshot until
+     * a live event says otherwise.
+     */
+    staleTime?: number;
   }
 
   let {
@@ -107,6 +126,8 @@ package README.
     live = "signed-in",
     showRoot = false,
     pageUrl = "",
+    fetchedAt = "",
+    staleTime = DEFAULT_STALE_TIME_MS,
   }: Props = $props();
 
   let fetched = $state<CommentTree | undefined>(undefined);
@@ -121,6 +142,20 @@ package README.
   let optimisticThread = "";
 
   const tree = $derived(fetched ?? threadData);
+
+  /**
+   * `fetchedAt` normalized to epoch ms. Accepts a number (epoch ms), an ISO
+   * date string (the attribute form), or empty/invalid = unknown age, which
+   * {@link snapshotIsStale} treats as unboundedly old.
+   */
+  const snapshotFetchedAt = $derived.by((): number | undefined => {
+    if (typeof fetchedAt === "number") {
+      return Number.isFinite(fetchedAt) ? fetchedAt : undefined;
+    }
+    if (fetchedAt === "") return undefined;
+    const parsed = Date.parse(fetchedAt);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  });
 
   /** label for outbound links: "Bluesky" for the default viewer, else its hostname */
   const viewerName = $derived.by(() => {
@@ -576,14 +611,24 @@ package README.
     }
 
     if (!currentThread) return;
-    // A serialized SSR snapshot renders immediately. The live connection's
-    // `connected` status is the freshness boundary and triggers one sync;
-    // without a snapshot, fetch immediately so the component never waits on
-    // the event service for its initial content.
+    // A serialized SSR snapshot renders immediately. Without one, fetch now so
+    // the component never waits on the event service for its initial content.
     if (snapshot === undefined) {
       void untrack(refreshThread).catch(() => {
         // State and the public error event are handled by refreshThread.
       });
+    } else if (
+      untrack(() =>
+        snapshotIsStale(snapshotFetchedAt, staleTime),
+      )
+    ) {
+      // Freshness boundary for viewers without a live connection: the SSR
+      // snapshot may predate this page load, and "not live" should not mean
+      // "stale". One coalesced background read against the public AppView —
+      // current comments stay visible, no skeleton, and the bridge is never
+      // contacted, so signed-out visitors remain request-free as far as the
+      // service is concerned.
+      liveRefreshes.synchronize();
     }
 
     return () => {

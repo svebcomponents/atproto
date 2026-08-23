@@ -9,7 +9,8 @@ export const load: PageServerLoad = async ({ url }) => {
   const thread = url.searchParams.get("thread") ?? DEFAULT_THREAD;
 
   // Counts only, and never the origins themselves — which sites embed the
-  // component is their business, not this page's. See metrics.ts.
+  // component is their business, not this page's.
+  // See packages/service-core/src/metrics.ts.
   const stats = await getService()
     .stats()
     .catch(() => null);
@@ -19,9 +20,13 @@ export const load: PageServerLoad = async ({ url }) => {
       thread,
       stats,
       threadData: await fetchCommentTree(thread),
+      // when the snapshot was taken, so the client can skip its mount-time
+      // revalidation while this data is still inside the component's
+      // staleTime window
+      fetchedAt: Date.now(),
     };
   } catch (error) {
     console.error("Documentation demo prefetch failed:", error);
-    return { thread, stats, threadData: null };
+    return { thread, stats, threadData: null, fetchedAt: null };
   }
 };

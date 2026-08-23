@@ -197,3 +197,27 @@ export class LiveRefreshScheduler {
     }
   }
 }
+
+/** How long a preloaded snapshot is trusted before the client refreshes it. */
+export const DEFAULT_STALE_TIME_MS = 60_000;
+
+/**
+ * Whether a client mounting with a preloaded (`threadData`) snapshot should
+ * run one background revalidation from the AppView.
+ *
+ * The snapshot's age counts against `staleTime`. An unknown fetch time is
+ * treated as unboundedly old, so content stays fresh by default for hosts who
+ * pass `threadData` without saying when they fetched it; set `staleTime` to
+ * `Infinity` to disable mount-time revalidation entirely. This is a one-shot
+ * read against the public AppView — it never contacts the bridge, so signed-out
+ * visitors stay untracked by the service either way.
+ */
+export const snapshotIsStale = (
+  fetchedAt: number | undefined,
+  staleTime: number = DEFAULT_STALE_TIME_MS,
+  now: number = Date.now(),
+): boolean => {
+  if (staleTime === Number.POSITIVE_INFINITY) return false;
+  if (fetchedAt === undefined || !Number.isFinite(fetchedAt)) return true;
+  return now - fetchedAt > staleTime;
+};
