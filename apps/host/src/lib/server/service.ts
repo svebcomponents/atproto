@@ -48,6 +48,9 @@ export const getService = (): AtprotoCommentsService => {
 
   cached = createAtprotoCommentsService({
     publicUrl: serviceUrl,
+    // The sign-in page asks strangers for posting authority, so it links to
+    // what this service stores. Served by apps/host at /privacy.
+    privacyUrl: "/privacy",
     sessionSecret,
     sessionMode: env["SESSION_MODE"] === "cookie" ? "cookie" : "bearer",
     commentStream: {

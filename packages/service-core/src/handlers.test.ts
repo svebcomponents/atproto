@@ -155,7 +155,7 @@ describe("service handlers", () => {
       ),
     );
     expect(res!.headers.get("content-type")).toContain("text/html");
-    expect(await res!.text()).toContain("Sign in with your atmosphere account");
+    expect(await res!.text()).toContain("Sign in to comment");
   });
 
   it("rejects oauth/start without a valid origin", async () => {
@@ -1104,5 +1104,46 @@ describe("operational stats", () => {
     expect(body).not.toContain("blog.example");
     expect(body).not.toContain(DID);
     expect(body).not.toContain("commenter");
+  });
+});
+
+describe("sign-in consent screen", () => {
+  const signInHtml = async (
+    over: Partial<ServiceConfig> = {},
+  ): Promise<string> => {
+    const svc = createAtprotoCommentsService(
+      { ...baseConfig(memoryStore()), ...over },
+      { oauthClient: fakeOAuthClient },
+    );
+    const res = await svc.fetch(
+      new Request(
+        `${SERVICE}/atproto/oauth/start?origin=${encodeURIComponent(ORIGIN)}`,
+      ),
+    );
+    return res!.text();
+  };
+
+  it("names the site the comment section is on", async () => {
+    expect(await signInHtml()).toContain(ORIGIN);
+  });
+
+  // The OAuth grant is collection-level: create any app.bsky.feed.post, not
+  // just replies, and not just on this site. Saying otherwise would understate
+  // what is being authorized at the one moment the reader decides.
+  it("describes the grant it actually asks for, not the narrower thing it does", async () => {
+    const html = await signInHtml();
+    expect(html).toContain("create posts, likes and reposts");
+    expect(html).toContain("any site using this service");
+    expect(html).not.toMatch(/approve posting replies on your behalf/i);
+  });
+
+  it("links the privacy policy when one is configured", async () => {
+    expect(await signInHtml({ privacyUrl: "/privacy" })).toContain(
+      `${SERVICE}/privacy`,
+    );
+  });
+
+  it("omits the privacy link when none is configured", async () => {
+    expect(await signInHtml()).not.toContain("What this service stores");
   });
 });

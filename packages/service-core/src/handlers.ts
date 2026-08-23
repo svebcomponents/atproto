@@ -388,6 +388,7 @@ const handleStart = async (
         clientName: config.clientName,
         actionUrl: startUrl,
         origin,
+        ...(config.privacyUrl ? { privacyUrl: config.privacyUrl } : {}),
         // preserved as hidden fields so the handle submission carries them back
         ...(claim ? { claim } : {}),
         ...(returnTo ? { returnTo } : {}),
@@ -415,6 +416,7 @@ const handleStart = async (
         clientName: config.clientName,
         actionUrl: startUrl,
         origin,
+        ...(config.privacyUrl ? { privacyUrl: config.privacyUrl } : {}),
         ...(claim ? { claim } : {}),
         ...(returnTo ? { returnTo } : {}),
         error: `Could not start sign-in for "${handle}" — check the handle and try again.`,
