@@ -199,7 +199,21 @@ package README.
   );
 
   // --- authenticated posting (only when `service` is set and not readonly) ---
+  // dispatched on the host element itself, so consumers listen on
+  // <atproto-comments> as documented ($host() is undefined during SSR;
+  // emit only runs from client-side effects and handlers)
+  const emit = (type: string, detail: unknown) => {
+    $host()?.dispatchEvent(new CustomEvent(type, { detail, bubbles: true }));
+  };
+
   const MAX_GRAPHEMES = 300;
+  /**
+   * <textarea maxlength> counts UTF-16 code units, not graphemes, so this is
+   * only a loose pre-truncation guard for the no-JS form flow (a ZWJ emoji
+   * sequence is many units); the grapheme counter below is the real limit,
+   * matching what the bridge enforces server-side.
+   */
+  const MAX_GRAPHEMES_UTF16_CEILING = MAX_GRAPHEMES * 4;
   const graphemeSegmenter = new Intl.Segmenter(undefined, {
     granularity: "grapheme",
   });
@@ -334,61 +348,74 @@ package README.
     closeComposer();
   };
 
-  const toggleLike = async (node: { uri: string; cid: string }) => {
+  /** shared optimistic-toggle skeleton behind the like and repost buttons:
+   * requires a session, flips local state first, restores it if the service
+   * call fails. `run` performs the create (no argument) or the delete
+   * (record uri), returning the created record's uri on create. */
+  const toggleReaction = async (
+    node: { uri: string; cid: string },
+    records: Record<string, string>,
+    setRecords: (next: Record<string, string>) => void,
+    action: {
+      run: (existing: string | undefined) => Promise<string | undefined>;
+      labels: { add: string; remove: string };
+    },
+  ): Promise<void> => {
     if (!(await ensureSignedIn())) return;
     const svc = client;
     if (!svc) return;
-    const existing = liked[node.uri];
-    if (existing) {
-      const { [node.uri]: _removed, ...rest } = liked;
-      liked = rest;
+    const existing = records[node.uri];
+    if (!existing) {
       try {
-        await svc.unlike(existing);
-      } catch (error) {
-        liked = { ...liked, [node.uri]: existing };
-        emit("atproto-comments:error", {
-          message: error instanceof Error ? error.message : "Could not unlike",
-        });
-      }
-    } else {
-      try {
-        const created = await svc.like({ uri: node.uri, cid: node.cid });
-        liked = { ...liked, [node.uri]: created.uri };
+        const created = await action.run(undefined);
+        if (created) setRecords({ ...records, [node.uri]: created });
       } catch (error) {
         emit("atproto-comments:error", {
-          message: error instanceof Error ? error.message : "Could not like",
+          message:
+            error instanceof Error
+              ? error.message
+              : `Could not ${action.labels.add}`,
         });
       }
+      return;
+    }
+    const { [node.uri]: _removed, ...rest } = records;
+    setRecords(rest);
+    try {
+      await action.run(existing);
+    } catch (error) {
+      setRecords({ ...records, [node.uri]: existing });
+      emit("atproto-comments:error", {
+        message:
+          error instanceof Error
+            ? error.message
+            : `Could not ${action.labels.remove}`,
+      });
     }
   };
 
-  const toggleRepost = async (node: { uri: string; cid: string }) => {
-    if (!(await ensureSignedIn())) return;
+  const toggleLike = (node: { uri: string; cid: string }): Promise<void> => {
     const svc = client;
-    if (!svc) return;
-    const existing = reposted[node.uri];
-    if (existing) {
-      const { [node.uri]: _removed, ...rest } = reposted;
-      reposted = rest;
-      try {
-        await svc.unrepost(existing);
-      } catch (error) {
-        reposted = { ...reposted, [node.uri]: existing };
-        emit("atproto-comments:error", {
-          message:
-            error instanceof Error ? error.message : "Could not undo repost",
-        });
-      }
-    } else {
-      try {
-        const created = await svc.repost({ uri: node.uri, cid: node.cid });
-        reposted = { ...reposted, [node.uri]: created.uri };
-      } catch (error) {
-        emit("atproto-comments:error", {
-          message: error instanceof Error ? error.message : "Could not repost",
-        });
-      }
-    }
+    if (!svc) return Promise.resolve();
+    return toggleReaction(node, liked, (next) => (liked = next), {
+      run: (existing) =>
+        existing
+          ? svc.unlike(existing).then(() => undefined)
+          : svc.like({ uri: node.uri, cid: node.cid }).then((r) => r.uri),
+      labels: { add: "like", remove: "unlike" },
+    });
+  };
+
+  const toggleRepost = (node: { uri: string; cid: string }): Promise<void> => {
+    const svc = client;
+    if (!svc) return Promise.resolve();
+    return toggleReaction(node, reposted, (next) => (reposted = next), {
+      run: (existing) =>
+        existing
+          ? svc.unrepost(existing).then(() => undefined)
+          : svc.repost({ uri: node.uri, cid: node.cid }).then((r) => r.uri),
+      labels: { add: "repost", remove: "undo repost" },
+    });
   };
 
   const submitReply = async () => {
@@ -463,15 +490,14 @@ package README.
     }
   };
 
-  // dispatched on the host element itself, so consumers listen on
-  // <atproto-comments> as documented ($host() is undefined during SSR;
-  // emit only runs from client-side effects and handlers)
-  const emit = (type: string, detail: unknown) => {
-    $host()?.dispatchEvent(new CustomEvent(type, { detail, bubbles: true }));
-  };
+  /** Refresh the current public thread directly from the configured AppView. */
+  export function revalidate(): Promise<CommentTree | undefined> {
+    return refreshThread();
+  }
+
+  const liveRefreshes = new LiveRefreshScheduler(revalidate);
 
   const requestKey = (): string => JSON.stringify([thread, appview, viewer]);
-
   const refreshThread = (): Promise<CommentTree | undefined> => {
     if (!BROWSER || !thread) return Promise.resolve(undefined);
 
@@ -524,13 +550,6 @@ package README.
       },
     );
   };
-
-  /** Refresh the current public thread directly from the configured AppView. */
-  export function revalidate(): Promise<CommentTree | undefined> {
-    return refreshThread();
-  }
-
-  const liveRefreshes = new LiveRefreshScheduler(revalidate);
 
   $effect(() => {
     // Capture every input that identifies or configures the public fetch.
@@ -609,6 +628,16 @@ package README.
       if (source || document.hidden) return;
       source = new EventSource(streamClient.commentsStreamUrl(currentThread));
 
+      source.addEventListener("error", () => {
+        // EventSource reconnects transient failures on its own; CLOSED means
+        // it has given up permanently (fatal status, proxy kill). Drop the
+        // reference so the next visibility change opens a fresh connection
+        // instead of silently holding a dead one.
+        if (source?.readyState !== EventSource.CLOSED) return;
+        source = undefined;
+        emit("atproto-comments:live-status", { upstream: undefined });
+      });
+
       source.addEventListener("status", (event) => {
         let upstream: string | undefined;
         try {
@@ -657,6 +686,8 @@ package README.
     numeric: "auto",
   });
 
+  // divisors for successive relative-time units; weeks/months use mean
+  // calendar lengths (30.4169 days ≈ 4.34524 weeks)
   const DIVISIONS: [number, Intl.RelativeTimeFormatUnit][] = [
     [60, "seconds"],
     [60, "minutes"],
@@ -693,6 +724,11 @@ package README.
 
   const isHidden = (node: CommentNode): boolean =>
     node.kind === "comment" && node.labels.length > 0 && labels === "hide";
+
+  /** each-block key: bare uri for comments, kind-prefixed for tombstones so
+   * two tombstone kinds sharing one uri can't collide */
+  const nodeKey = (node: CommentNode): string =>
+    node.kind === "comment" ? node.uri : `${node.kind}-${node.uri}`;
 </script>
 
 {#snippet reactionButtons(node: {
@@ -713,7 +749,9 @@ package README.
         class:active={Boolean(liked[node.uri])}
         part="like-button"
         aria-pressed={Boolean(liked[node.uri])}
-        aria-label={liked[node.uri] ? "Unlike" : "Like"}
+        aria-label={liked[node.uri]
+          ? `Undo like, ${compactNumber.format(node.likeCount + 1)} likes`
+          : `Like, ${compactNumber.format(node.likeCount)} likes`}
         onclick={(e) => {
           e.preventDefault();
           void toggleLike(node);
@@ -735,7 +773,15 @@ package README.
         class:active={Boolean(reposted[node.uri])}
         part="repost-button"
         aria-pressed={Boolean(reposted[node.uri])}
-        aria-label={reposted[node.uri] ? "Undo repost" : "Repost"}
+        aria-label={
+          reposted[node.uri]
+            ? `Undo repost, ${compactNumber.format(
+                node.repostCount + node.quoteCount + 1,
+              )} reposts`
+            : `Repost, ${compactNumber.format(
+                node.repostCount + node.quoteCount,
+              )} reposts`
+        }
         onclick={(e) => {
           e.preventDefault();
           void toggleRepost(node);
@@ -791,6 +837,9 @@ package README.
     part="dialog"
     onclose={() => {
       if (replyTarget?.uri === target.uri) replyTarget = undefined;
+      // clear with the dialog so a half-written reply doesn't follow the
+      // reader into a different comment's composer
+      draft = "";
     }}
   >
     {#if session}
@@ -822,7 +871,8 @@ package README.
           part="composer-input"
           rows="3"
           placeholder="Write a reply…"
-          maxlength={MAX_GRAPHEMES * 4}
+          aria-label="Write a reply"
+          maxlength={MAX_GRAPHEMES_UTF16_CEILING}
           value={isActive ? draft : ""}
           oninput={(e) => {
             replyTarget = target;
@@ -832,22 +882,18 @@ package README.
         ></textarea>
         <p class="composer-notice">
           Posting publicly as <strong>@{session.handle ?? "you"}</strong> from your
-          atmosphere account.
+          ATmosphere account.
         </p>
         {#if isActive && postError}
-          <p class="composer-error" part="error">{postError}</p>
+          <p class="composer-error" role="alert" part="error">{postError}</p>
         {/if}
         <div class="composer-actions">
           {#if isActive}
-            <span class="counter" class:over={remaining < 0}>{remaining}</span>
+            <span class="counter" class:over={remaining < 0} role="status"
+              >{remaining}</span
+            >
           {/if}
-          <button
-            type="button"
-            class="link-button muted"
-            command="close"
-            commandfor={id}
-            onclick={closeComposer}
-          >
+          <button type="button" class="link-button muted" command="close" commandfor={id}>
             Cancel
           </button>
           <button
@@ -864,23 +910,17 @@ package README.
       <div class="composer signin-prompt" part="composer">
         <p class="composer-notice">
           {#if target.handle}
-            Sign in with your atmosphere account to reply to
+            Sign in with your ATmosphere account to reply to
             <strong>@{target.handle}</strong>.
           {:else}
-            Sign in with your atmosphere account to join the conversation.
+            Sign in with your ATmosphere account to join the conversation.
           {/if}
         </p>
         {#if isActive && postError}
-          <p class="composer-error" part="error">{postError}</p>
+          <p class="composer-error" role="alert" part="error">{postError}</p>
         {/if}
         <div class="composer-actions">
-          <button
-            type="button"
-            class="link-button muted"
-            command="close"
-            commandfor={id}
-            onclick={closeComposer}
-          >
+          <button type="button" class="link-button muted" command="close" commandfor={id}>
             Cancel
           </button>
           {@render signInLink("Sign in")}
@@ -928,6 +968,7 @@ package README.
           target="_blank"
           rel="noopener noreferrer"
           title={absoluteTime(node.createdAt)}
+          aria-label={absoluteTime(node.createdAt)}
         >
           <time datetime={node.createdAt}>{relativeTime(node.createdAt)}</time>
         </a>
@@ -950,7 +991,7 @@ package README.
               type="button"
               class="reply-link link-button"
               part="reply-button"
-              aria-label="Reply"
+              aria-label={`Reply, ${compactNumber.format(node.replyCount)} replies`}
               command="show-modal"
               commandfor={dialogId(node.uri)}
               onclick={() =>
@@ -969,7 +1010,7 @@ package README.
             <a
               class="reply-link"
               part="reply-button"
-              aria-label="Reply"
+              aria-label={`Reply on ${viewerName}, ${compactNumber.format(node.replyCount)} replies`}
               href={node.url}
               target="_blank"
               rel="noopener noreferrer"
@@ -1005,7 +1046,7 @@ package README.
           {#if (node.replies.length > 0 && depth < maxDepth) || optimisticReplies.length > 0}
             <ul class="replies">
               {#if depth < maxDepth}
-                {#each node.replies as reply (reply.kind === "comment" ? reply.uri : `${reply.kind}-${reply.uri}`)}
+                {#each node.replies as reply (nodeKey(reply))}
                   {@render commentNode(reply, depth + 1)}
                 {/each}
               {/if}
@@ -1037,7 +1078,7 @@ package README.
       </div>
     {/if}
     <header class="header" part="header">
-      <span class="stats">
+      <div class="stats">
         {@render reactionButtons(tree.root)}
         ·
         {#if writable}
@@ -1045,7 +1086,7 @@ package README.
             type="button"
             class="reply-link link-button"
             part="reply-button"
-            aria-label="Reply"
+            aria-label={`Reply, ${compactNumber.format(tree.root.replyCount)} replies`}
             command="show-modal"
             commandfor={dialogId(tree.root.uri)}
             onclick={() => {
@@ -1057,14 +1098,14 @@ package README.
           <a
             class="reply-link"
             part="reply-button"
-            aria-label="Reply"
+            aria-label={`Reply on ${viewerName}, ${compactNumber.format(tree.root.replyCount)} replies`}
             href={tree.root.url}
             target="_blank"
             rel="noopener noreferrer"
             >↩ {compactNumber.format(tree.root.replyCount)}</a
           >
         {/if}
-      </span>
+      </div>
       {#if writable && session}
         <span class="signed-in" part="signed-in">
           <span class="as-handle">@{session.handle ?? "you"}</span>
@@ -1096,7 +1137,7 @@ package README.
       </p>
     {:else}
       <ul class="comments" part="comments">
-        {#each comments as node (node.kind === "comment" ? node.uri : `${node.kind}-${node.uri}`)}
+        {#each comments as node (nodeKey(node))}
           {@render commentNode(node, 1)}
         {/each}
       </ul>
@@ -1107,9 +1148,9 @@ package README.
       <button type="button" onclick={() => (retryToken += 1)}>Retry</button>
     </p>
   {:else if loading || thread}
-    <div class="skeleton" part="skeleton" aria-hidden="true">
+    <div class="skeleton" part="skeleton" role="status" aria-label="Loading comments">
       {#each [0, 1, 2] as i (i)}
-        <div class="skeleton-row">
+        <div class="skeleton-row" aria-hidden="true">
           <span class="avatar skeleton-block"></span>
           <span class="skeleton-lines">
             <span class="skeleton-block line"></span>
