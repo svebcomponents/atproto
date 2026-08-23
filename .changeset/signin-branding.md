@@ -11,6 +11,11 @@ the project. Unset by default, so a self-hosted bridge does not advertise
 someone else's project on its own sign-in screen — the branding and the pitch
 are opt-in together.
 
+On viewports wide enough for it, the sign-in page lays out as two columns —
+the explanation on the left, the form on the right — rather than a narrow
+column centred in empty space. Narrower viewports keep a single column at a
+readable measure, stacking explanation, then form, then pitch.
+
 The shared page shell now uses the docs site's palette, its Georgia display
 face for headings, and the same Inter-with-system-fallback body stack. No
 webfont is fetched: the docs site relies on the same fallbacks, and pulling a

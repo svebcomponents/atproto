@@ -50,6 +50,10 @@ export const getService = (): AtprotoCommentsService => {
     publicUrl: serviceUrl,
     // The sign-in page asks strangers for posting authority, so it links to
     // what this service stores. Served by apps/host at /privacy.
+    // The product is svebcomponents/atproto; "atproto-comments" is only the
+    // custom element's tag name. This is also what the reader's own provider
+    // shows them on its consent screen, so it needs to be the real name.
+    clientName: "svebcomponents/atproto",
     privacyUrl: "/privacy",
     productUrl: "https://atproto.svebcomponents.dev",
     sessionSecret,
