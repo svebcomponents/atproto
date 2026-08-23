@@ -46,7 +46,12 @@
   },
   "scripts": {
     "build": "svebcomponents",
-    "lint": "eslint .",
+    "lint": "pnpm /^lint:.*/",
+    "lint:eslint": "eslint .",
+    "lint:format": "prettier --check .",
+    "fix": "pnpm /^fix:.*/",
+    "fix:eslint": "eslint . --fix",
+    "fix:format": "prettier --write .",
     "check": "svelte-check",
     "test": "vitest run",
     "test:dev": "vitest --watch"

@@ -624,11 +624,7 @@ package README.
       void untrack(refreshThread).catch(() => {
         // State and the public error event are handled by refreshThread.
       });
-    } else if (
-      untrack(() =>
-        snapshotIsStale(snapshotFetchedAt, staleTime),
-      )
-    ) {
+    } else if (untrack(() => snapshotIsStale(snapshotFetchedAt, staleTime))) {
       // Freshness boundary for viewers without a live connection: the SSR
       // snapshot may predate this page load, and "not live" should not mean
       // "stale". One coalesced background read against the public AppView —
@@ -794,7 +790,11 @@ package README.
     <form class="reaction-form" method="post" action="{service}/api/like">
       <input type="hidden" name="uri" value={node.uri} />
       <input type="hidden" name="cid" value={node.cid} />
-      {#if returnUrl}<input type="hidden" name="return" value={returnUrl} />{/if}
+      {#if returnUrl}<input
+          type="hidden"
+          name="return"
+          value={returnUrl}
+        />{/if}
       <button
         type="submit"
         class="reaction-button"
@@ -818,22 +818,24 @@ package README.
     <form class="reaction-form" method="post" action="{service}/api/repost">
       <input type="hidden" name="uri" value={node.uri} />
       <input type="hidden" name="cid" value={node.cid} />
-      {#if returnUrl}<input type="hidden" name="return" value={returnUrl} />{/if}
+      {#if returnUrl}<input
+          type="hidden"
+          name="return"
+          value={returnUrl}
+        />{/if}
       <button
         type="submit"
         class="reaction-button"
         class:active={Boolean(reposted[node.uri])}
         part="repost-button"
         aria-pressed={Boolean(reposted[node.uri])}
-        aria-label={
-          reposted[node.uri]
-            ? `Undo repost, ${compactNumber.format(
-                node.repostCount + node.quoteCount + 1,
-              )} reposts`
-            : `Repost, ${compactNumber.format(
-                node.repostCount + node.quoteCount,
-              )} reposts`
-        }
+        aria-label={reposted[node.uri]
+          ? `Undo repost, ${compactNumber.format(
+              node.repostCount + node.quoteCount + 1,
+            )} reposts`
+          : `Repost, ${compactNumber.format(
+              node.repostCount + node.quoteCount,
+            )} reposts`}
         onclick={(e) => {
           e.preventDefault();
           void toggleRepost(node);
@@ -910,7 +912,11 @@ package README.
         <input type="hidden" name="rootCid" value={tree?.root.cid ?? ""} />
         <input type="hidden" name="parentUri" value={target.uri} />
         <input type="hidden" name="parentCid" value={target.cid} />
-        {#if returnUrl}<input type="hidden" name="return" value={returnUrl} />{/if}
+        {#if returnUrl}<input
+            type="hidden"
+            name="return"
+            value={returnUrl}
+          />{/if}
         <p class="composer-context">
           {#if target.handle}
             Replying to <strong>@{target.handle}</strong>
@@ -945,7 +951,12 @@ package README.
               >{remaining}</span
             >
           {/if}
-          <button type="button" class="link-button muted" command="close" commandfor={id}>
+          <button
+            type="button"
+            class="link-button muted"
+            command="close"
+            commandfor={id}
+          >
             Cancel
           </button>
           <button
@@ -972,7 +983,12 @@ package README.
           <p class="composer-error" role="alert" part="error">{postError}</p>
         {/if}
         <div class="composer-actions">
-          <button type="button" class="link-button muted" command="close" commandfor={id}>
+          <button
+            type="button"
+            class="link-button muted"
+            command="close"
+            commandfor={id}
+          >
             Cancel
           </button>
           {@render signInLink("Sign in")}
@@ -1200,7 +1216,12 @@ package README.
       <button type="button" onclick={() => (retryToken += 1)}>Retry</button>
     </p>
   {:else if loading || thread}
-    <div class="skeleton" part="skeleton" role="status" aria-label="Loading comments">
+    <div
+      class="skeleton"
+      part="skeleton"
+      role="status"
+      aria-label="Loading comments"
+    >
       {#each [0, 1, 2] as i (i)}
         <div class="skeleton-row" aria-hidden="true">
           <span class="avatar skeleton-block"></span>

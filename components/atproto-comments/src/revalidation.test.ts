@@ -218,7 +218,11 @@ describe("snapshotIsStale", () => {
 
   it("revalidates once the snapshot outlives the stale window", () => {
     expect(
-      snapshotIsStale(NOW - DEFAULT_STALE_TIME_MS - 1, DEFAULT_STALE_TIME_MS, NOW),
+      snapshotIsStale(
+        NOW - DEFAULT_STALE_TIME_MS - 1,
+        DEFAULT_STALE_TIME_MS,
+        NOW,
+      ),
     ).toBe(true);
   });
 

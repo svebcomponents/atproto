@@ -37,9 +37,8 @@ describe("atproto-comments SSR prepare", () => {
     expect(setProperty).toHaveBeenCalledWith("threadData", tree);
     // the fetch-time stamp lets the hydrated component decide whether the
     // snapshot is still inside its staleTime window
-    const [stampedName, stampedAt] = setProperty.mock.calls.find(
-      ([name]) => name === "fetchedAt",
-    ) ?? [];
+    const [stampedName, stampedAt] =
+      setProperty.mock.calls.find(([name]) => name === "fetchedAt") ?? [];
     expect(stampedName).toBe("fetchedAt");
     expect(Number(stampedAt)).not.toBeNaN();
     expect(Number(stampedAt)).toBeLessThanOrEqual(Date.now());
