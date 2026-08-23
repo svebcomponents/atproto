@@ -7,8 +7,12 @@
   // nobody adds request logging: the service writes no access log, and no
   // IP address is ever written to disk. Deployment notes live in
   // apps/host/deploy/.
-  const lastUpdated = "23 August 2026";
+  const lastUpdated = "24 August 2026";
   const contact = "svebcomponents@theosteiner.de";
+
+  const consentSnippet = `const comments = document.querySelector("atproto-comments");
+comments.live = "off";
+onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
 </script>
 
 <svelte:head>
@@ -342,10 +346,13 @@
   <section id="site-operators">
     <h2>For site operators</h2>
     <p>
-      If you embed <code>&lt;atproto-comments&gt;</code> pointed at this bridge, you
-      are making a decision about your readers' data, and in the EU that most likely
-      makes you a joint controller with the bridge operator for what reaches it from
-      your site.
+      If you embed <code>&lt;atproto-comments&gt;</code> pointed at this bridge,
+      you are making a decision about your readers' data, and in the EU that
+      most likely makes you a joint controller with the bridge operator for what
+      reaches it from your site. Embedding a widget that calls a third party
+      makes you a joint controller for what it sends (<em>Fashion ID</em>,
+      C-40/17), and IP addresses are personal data (<em>Breyer</em>, C-582/14).
+      The default keeps signed-out readers out of scope entirely.
     </p>
     <ul>
       <li>
@@ -357,8 +364,10 @@
       <li>
         <strong>If you set <code>live="all"</code>,</strong> say so in your
         privacy policy: readers' IP addresses go to this service, and link here.
-        Consider wiring the <code>live</code> attribute to your consent banner instead
-        — it can be changed at runtime and takes effect immediately.
+        Or wire the <code>live</code> attribute to your consent banner instead —
+        it can be changed at runtime and takes effect immediately, in both
+        directions.
+        <pre><code>{consentSnippet}</code></pre>
       </li>
       <li>
         <strong>Mention the AppView either way.</strong> Avatars load from the
@@ -507,6 +516,21 @@
     background: var(--accent-wash);
     border-radius: 3px;
     padding: 0.08em 0.32em;
+  }
+
+  pre {
+    margin: 0.7rem 0 0;
+    overflow-x: auto;
+    background: var(--accent-wash);
+    border-radius: 4px;
+    padding: 0.75rem 0.9rem;
+    font-size: 0.84rem;
+    line-height: 1.55;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: inherit;
   }
 
   .note {

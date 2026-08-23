@@ -67,10 +67,6 @@ import "@svebcomponents/atproto.comments";`;
     };
   });
 
-  const consentSnippet = `const comments = document.querySelector("atproto-comments");
-comments.live = "off";
-onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
-
   const selfHostedConfig = `createAtprotoCommentsService({
   publicUrl: "https://your.blog",
   basePath: "/atproto",
@@ -109,7 +105,7 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
       type: "signed-in | all | off",
       default: "signed-in",
       description:
-        "Who gets live updates — the only feature that connects a reader's browser to the service. all means every reader; see Reader privacy.",
+        "Who gets live updates — the only feature that connects a reader's browser to the service. all means every reader; see the privacy policy.",
     },
     {
       name: "sort",
@@ -232,6 +228,7 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
     <a href="#tiers">Setup options</a>
     <a href="#reference">Reference</a>
     <a href="#self-host">Self-host</a>
+    <a href={resolve("/privacy")}>Privacy</a>
     <a
       class="github-link"
       href="https://github.com/svebcomponents/atproto"
@@ -346,26 +343,31 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
   <section class="principles" aria-label="Design notes">
     <article>
       <span class="number">01</span>
-      <h2>No data store</h2>
+      <h2>Privacy Respecting</h2>
       <p>
-        Comments are ordinary <code>app.bsky.feed.post</code> records — Bluesky posts
-        — written to each commenter's repo. Deleting the record deletes the comment.
+        By default, <code>&lt;atproto-comments&gt;</code> only sends requests to
+        its hosted bridge if the user signs in and therefore explicitly opts
+        into using the service. It stores only what it needs and is commited to
+        respecting your <a href="/privacy">privacy</a>.
       </p>
     </article>
     <article>
       <span class="number">02</span>
-      <h2>Styleable</h2>
+      <h2>Customizable</h2>
       <p>
-        Styles are scoped by shadow DOM. CSS custom properties and parts adapt
-        the component to the typography of the host page.
+        The styles for <code>&lt;atproto-comments&gt;</code> are scoped by shadow
+        DOM. CSS custom properties and parts adapt the component to the typography
+        of the host page.
       </p>
     </article>
     <article>
       <span class="number">03</span>
       <h2>Event-driven updates</h2>
       <p>
-        The component does not poll. Bridge events trigger one coalesced AppView
-        refresh per change, retried briefly while new replies index.
+        Once users sign in, they receive live updates via server sent events
+        from the hosted bridge.<br />
+        You can also self-host the bridge for advanced security (cookie based auth)
+        and control every layer of the stack.
       </p>
     </article>
   </section>
@@ -438,7 +440,11 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
           <strong>svebcomponents/atproto is phoning home.</strong><br />
           The component uses a hosted bridge (<code
             >https://atproto.svebcomponents.dev/atproto</code
-          >) to receive live events and handle sign-in.
+          >) to receive live events and handle sign-in. With the default
+          settings, signed-out clients make no request to the bridge at all. The
+          hosted bridge is committed to protecting your users'
+          <a href={resolve("/privacy")}>privacy →</a>
+          <br />
           <a href="#self-host">Self-host to keep it on your origin ↓</a>
         </p>
       </aside>
@@ -729,20 +735,14 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
         and the SSE stream. One value switches between the hosted service and your
         own deployment.
       </p>
-      <ul>
-        <li>
-          In cross-origin deployments the component holds a short-lived,
-          origin-bound bridge JWT. ATProto OAuth tokens never leave the server.
-        </li>
-        <li>
-          Same-origin deployments use an HttpOnly SameSite cookie instead, which
-          page JavaScript cannot read.
-        </li>
-        <li>
-          Both modes run the same open-source bridge code, which stores no
-          comment bodies.
-        </li>
-      </ul>
+      <p>
+        In cross-origin deployments the component holds a short-lived,
+        origin-bound bridge JWT. ATProto OAuth tokens never leave the server. <br
+        />
+        Same-origin deployments use an HttpOnly SameSite cookie instead, which page
+        JavaScript cannot read.<br /> Both modes run the same open-source bridge code,
+        which stores no comment bodies.
+      </p>
       <div class="resource-note">
         <strong>Spacedust usage</strong>
         <p>
@@ -764,63 +764,6 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
         target="_blank"
         rel="noreferrer">Read the deployment guide ↗</a
       >
-    </div>
-  </section>
-
-  <section id="privacy" class="section split-section">
-    <div class="section-intro">
-      <p class="kicker">Reader privacy</p>
-      <h2>Nobody is<br />counted at the door.</h2>
-      <p>
-        Rendering a comment section should not turn a page view into a record on
-        someone else's server. By default it doesn't: a signed-out reader's
-        browser never contacts the bridge.
-      </p>
-      <a class="text-link" href={resolve("/privacy")}>Bridge privacy policy →</a
-      >
-    </div>
-    <div class="section-body">
-      <dl class="privacy-grid">
-        <dt><code>live="signed-in"</code> <span class="pill">default</span></dt>
-        <dd>
-          Only readers who signed in stream updates. Everyone else reads from
-          the AppView, or from your own server via SSR, and makes no request to
-          the bridge at all.
-        </dd>
-        <dt><code>live="all"</code></dt>
-        <dd>
-          Every reader streams. Livelier, and a disclosure: reader IP addresses
-          and the thread being read reach the bridge. Fine when the bridge is
-          yours — this page uses it, because the bridge is this same origin.
-        </dd>
-        <dt><code>live="off"</code></dt>
-        <dd>
-          No streaming. Comments still render and still refresh after you post.
-        </dd>
-      </dl>
-
-      <div class="resource-note">
-        <strong>In the EU</strong>
-        <p>
-          Embedding a widget that calls a third party makes you a joint
-          controller for what it sends (<em>Fashion ID</em>, C-40/17), and IP
-          addresses are personal data (<em>Breyer</em>, C-582/14). The default
-          keeps signed-out readers out of scope entirely. If you want
-          <code>live="all"</code>, either disclose it or wire the attribute to
-          your consent banner — it takes effect immediately, in both directions.
-        </p>
-      </div>
-
-      <p class="code-label">Consent-managed</p>
-      <pre><code>{consentSnippet}</code></pre>
-
-      <p class="footnote">
-        Note that avatar URLs come from the AppView's own responses and load in
-        the reader's browser whatever you choose, so whoever runs that AppView
-        sees reader IPs either way — Bluesky, unless you set
-        <code>appview</code>. Self-host the bridge to remove the remaining third
-        party.
-      </p>
     </div>
   </section>
 </main>
@@ -911,50 +854,6 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
     }
   }
 
-  .section-body {
-    display: flex;
-    flex-direction: column;
-    gap: 1.6rem;
-    min-width: 0;
-  }
-  #privacy .section-intro > p {
-    max-width: 500px;
-    margin-top: 1.8rem;
-  }
-  #privacy .section-intro > .text-link {
-    margin-top: 1.1rem;
-    display: inline-block;
-  }
-  .privacy-grid {
-    margin: 0;
-    display: grid;
-    gap: 0.4rem 1rem;
-  }
-  .privacy-grid dt {
-    font-weight: 600;
-    color: var(--ink-strong);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-  .privacy-grid dt:not(:first-of-type) {
-    margin-top: 0.9rem;
-  }
-  .privacy-grid dd {
-    margin: 0;
-    color: var(--text);
-  }
-  .pill {
-    font-size: 0.66rem;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    font-weight: 600;
-    color: var(--accent-deep);
-    background: var(--accent-wash);
-    border-radius: 999px;
-    padding: 0.1rem 0.5rem;
-  }
   .footnote {
     font-size: 0.9rem;
     color: var(--text-meta);
