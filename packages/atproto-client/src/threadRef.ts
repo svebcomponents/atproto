@@ -45,14 +45,22 @@ const parseAtUri = (input: string): ThreadRef | undefined => {
   return makeThreadRef(authority, collection, rkey);
 };
 
-const parseBskyAppUrl = (input: string): ThreadRef | undefined => {
+/**
+ * Parses a web viewer's post permalink. Deliberately host-agnostic: the
+ * hostname is discarded once `authority` and `rkey` are extracted, and the
+ * resulting `at://` URI is always resolved through the caller's configured
+ * AppView. So the host carries no authority here — gating on it would only
+ * reject viewers we happen not to know about (mu.social, a self-hosted
+ * AppView frontend) while buying no safety.
+ */
+const parseViewerPostUrl = (input: string): ThreadRef | undefined => {
   let url;
   try {
     url = new URL(input);
   } catch {
     return undefined;
   }
-  if (url.protocol !== "https:" || url.hostname !== "bsky.app") {
+  if (url.protocol !== "https:") {
     return undefined;
   }
   const match = /^\/profile\/([^/]+)\/post\/([^/]+)\/?$/.exec(url.pathname);
@@ -71,14 +79,15 @@ const parseBskyAppUrl = (input: string): ThreadRef | undefined => {
 };
 
 /**
- * Parses user-provided thread identifiers: either an `at://` URI or a
- * `https://bsky.app/profile/…/post/…` URL. Returns `undefined` for
- * anything else.
+ * Parses user-provided thread identifiers: either an `at://` URI or any
+ * viewer post URL using the `/profile/…/post/…` scheme (bsky.app,
+ * mu.social, a self-hosted frontend). Returns `undefined` for anything
+ * else.
  */
 export const parseThreadRef = (input: string): ThreadRef | undefined => {
   const trimmed = input.trim();
   if (trimmed.startsWith("at://")) {
     return parseAtUri(trimmed);
   }
-  return parseBskyAppUrl(trimmed);
+  return parseViewerPostUrl(trimmed);
 };

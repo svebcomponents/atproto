@@ -132,7 +132,7 @@
           <p>
             <strong>Comments for your own site.</strong><br />
             Drop <code>&lt;atproto-comments&gt;</code> onto your blog and your readers
-            comment with their Bluesky identity — no database, backed by ATProto.
+            comment with their own ATmosphere identity — no database, backed by ATProto.
           </p>
           <a href={productUrl}>See the docs &rarr;</a>
         </div>

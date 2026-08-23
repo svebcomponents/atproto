@@ -87,7 +87,8 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
       name: "thread",
       type: "string",
       default: "—",
-      description: "An AT URI or bsky.app post URL.",
+      description:
+        "An AT URI, or a post URL from any viewer using the /profile/…/post/… scheme.",
     },
     {
       name: "service",
@@ -133,6 +134,13 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
       type: "URL",
       default: "bsky.app",
       description: "Viewer used for profile and post links.",
+    },
+    {
+      name: "viewer-name",
+      type: "string",
+      default: "viewer's hostname",
+      description:
+        "What outbound links call the viewer — “Reply on …”. Defaults to Bluesky for the default viewer.",
     },
     {
       name: "appview",
@@ -190,12 +198,12 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
   <title>atproto-comments — svebcomponents</title>
   <meta
     name="description"
-    content="A web component that renders an AT Protocol thread as a comment section. Server-rendered and hydratable, with sign-in, replies, live updates, and a self-hostable backend."
+    content="A web component that renders an AT Protocol (Bluesky) thread as a comment section. Server-rendered and hydratable, with sign-in, replies, live updates, and a self-hostable backend."
   />
   <meta property="og:title" content="atproto-comments" />
   <meta
     property="og:description"
-    content="Renders an AT Protocol thread as a comment section. Supports SSR, sign-in, replies, and live updates."
+    content="Renders an AT Protocol (Bluesky) thread as a comment section. Supports SSR, sign-in, replies, and live updates."
   />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://atproto.svebcomponents.dev/" />
@@ -237,7 +245,7 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
   <section class="hero">
     <h1 class="sr-only">
       &lt;atproto-comments&gt;, a web component that renders an AT Protocol
-      thread as a comment section
+      (Bluesky) thread as a comment section
     </h1>
 
     <div class="thread-showcase">
@@ -340,8 +348,8 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
       <span class="number">01</span>
       <h2>No data store</h2>
       <p>
-        Comments are ordinary <code>app.bsky.feed.post</code> records written to each
-        commenter's repo. Deleting the record deletes the comment.
+        Comments are ordinary <code>app.bsky.feed.post</code> records — Bluesky posts
+        — written to each commenter's repo. Deleting the record deletes the comment.
       </p>
     </article>
     <article>
@@ -807,9 +815,11 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
       <pre><code>{consentSnippet}</code></pre>
 
       <p class="footnote">
-        Note that avatars load from Bluesky's CDN in the reader's browser
-        whatever you choose, so Bluesky sees reader IPs either way. Self-host
-        the bridge to remove the remaining third party.
+        Note that avatar URLs come from the AppView's own responses and load in
+        the reader's browser whatever you choose, so whoever runs that AppView
+        sees reader IPs either way — Bluesky, unless you set
+        <code>appview</code>. Self-host the bridge to remove the remaining third
+        party.
       </p>
     </div>
   </section>

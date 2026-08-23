@@ -29,6 +29,23 @@ const service = createAtprotoCommentsService({
 const response = await service.fetch(request);
 ```
 
+## AppView
+
+Unauthenticated profile lookups and handle resolution go through `appView`,
+which defaults to `https://public.api.bsky.app`. Point it at any AppView
+serving the `app.bsky.*` lexicons — a mirror, or your own deployment:
+
+```ts
+createAtprotoCommentsService({
+  // ...
+  appView: "https://appview.example.com",
+});
+```
+
+This is independent of the component's own `appview` property, which decides
+where the reader's browser reads thread snapshots from. Set both when you are
+moving off the default.
+
 ## OAuth page branding
 
 The bridge renders its handle-entry page with Svelte SSR. Self-hosted
@@ -168,7 +185,9 @@ events.addEventListener("comment", ({ data }) => {
 });
 ```
 
-The endpoint also accepts a bsky.app post URL.
+The endpoint also accepts a post URL from any viewer using the
+`/profile/…/post/…` scheme; the host is discarded and the thread is resolved
+through the configured AppView.
 
 ### Upstream responsibility
 

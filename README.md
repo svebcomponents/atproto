@@ -4,7 +4,7 @@
 > Alpha: the component, hosted-backend contract, and self-hosted bridge work
 > end-to-end, but the packages and public service have not been announced yet.
 
-A web component that renders an AT Protocol (Bluesky) post thread as a comment section, built with [svebcomponents](https://svebcomponents.dev). Supports server-side rendering and hydration. Readers can sign in with an ATProto account and reply from the page; replies are ordinary `app.bsky.feed.post` records in each commenter's own repo, and neither the component nor the bridge stores comment content.
+A web component that renders an AT Protocol post thread as a comment section, built with [svebcomponents](https://svebcomponents.dev). Point it at a Bluesky post and it works with no configuration: it reads the public Bluesky AppView and links back to bsky.app by default. Every endpoint is a property, so the same component runs against any AppView serving the `app.bsky.*` lexicons. Supports server-side rendering and hydration. Readers can sign in with an ATProto account and reply from the page; replies are ordinary `app.bsky.feed.post` records in each commenter's own repo, and neither the component nor the bridge stores comment content.
 
 ## Status
 
@@ -26,7 +26,10 @@ Implemented:
   `packages/service-core` (framework-agnostic OAuth and posting; ATProto
   tokens stay on the server) and is mounted by `apps/host` at `/atproto`.
   The `viewer` property routes outbound profile/post links through any
-  AppView (bsky.app by default, e.g. deer.social).
+  viewer using the `/profile/…/post/…` URL scheme (bsky.app by default, e.g.
+  mu.social); `viewer-name` sets what those links call it. Thread URLs from
+  any such viewer are accepted as `thread` too, and `appview` picks which
+  AppView the thread itself is read from.
 - Live updates without polling: signed-in readers subscribe to the SSE
   bridge. One filtered Microcosm Spacedust WebSocket per bridge process
   serves every active thread; a connection or reply event triggers a
@@ -91,10 +94,10 @@ Not legal advice, but the shape of the problem is well established and mostly
 comes down to one setting.
 
 Embedding a third-party widget that makes a visitor's browser talk to someone
-else's server is the pattern the CJEU addressed in *Fashion ID* (C-40/17): the
+else's server is the pattern the CJEU addressed in _Fashion ID_ (C-40/17): the
 site doing the embedding was a **joint controller** with the third party for
 the data the visitor's browser sent. IP addresses are personal data
-(*Breyer*, C-582/14), so this matters even though nothing here is tracking
+(_Breyer_, C-582/14), so this matters even though nothing here is tracking
 anyone.
 
 What that means in practice:
@@ -116,15 +119,19 @@ What that means in practice:
 
   Consent here is genuinely optional — reading works fully without it — which
   is what makes it valid consent rather than a bundled condition.
+
 - **Cookie banners are a separate question.** ePrivacy Art. 5(3) governs
   storing or reading data on the device. The live connection stores nothing, so
   it is out of scope; the sign-in token in `localStorage` is in scope but is the
   textbook "strictly necessary for a service the user requested" case. The
   component does not need a cookie banner on its own account.
-- **Mention Bluesky regardless of configuration.** Avatars load from Bluesky's
-  CDN directly in the reader's browser, so Bluesky sees reader IPs even with
-  `live="signed-in"`. That is inherent to rendering ATProto content, not
-  something this component routes around.
+- **Mention the AppView regardless of configuration.** Avatar URLs come from
+  the AppView's own responses and load directly in the reader's browser, so
+  whoever runs that AppView and its CDN sees reader IPs even with
+  `live="signed-in"`. With the default `appview` that is Bluesky. Naming the
+  right party is the operator's job, since `appview` decides who it is; that
+  a third party sees those requests at all is inherent to rendering ATProto
+  content, not something this component routes around.
 - **Self-hosting removes the third party entirely.** Set `service` to your own
   deployment and pass `allowedOrigins` so only your sites can use it. The
   bridge's `oauthPage` config accepts your title, brand name/logo/home link,
@@ -142,7 +149,7 @@ The hosted bridge's own policy is at
 │        │ read (public AppView, CORS)        │ auth + write (bearer/cookie)│
 └────────┼────────────────────────────────────┼──────────────────────────────┘
          ▼                                    ▼
-  public.api.bsky.app                 the bridge (packages/service-core,
+  the AppView you point at            the bridge (packages/service-core,
   app.bsky.feed.getPostThread         mounted by apps/host at /atproto)
           │                            ├─ ATProto OAuth (confidential client)
           ▼                            ├─ session + token stores (SQLite)
@@ -154,9 +161,11 @@ The hosted bridge's own policy is at
    (reply signals fan out to browser SSE viewers)
 ```
 
-Reads never touch the bridge. Writes always go through it. The bridge stores
-OAuth/session state, never comment content — replies land in the commenter's
-own ATProto repo and flow back into the thread through the network.
+The AppView is whatever `appview` names — `public.api.bsky.app` by default,
+any other AppView if you set it. Reads never touch the bridge. Writes always
+go through it. The bridge stores OAuth/session state, never comment content —
+replies land in the commenter's own ATProto repo and flow back into the thread
+through the network.
 
 Design notes that shape the code:
 
@@ -206,6 +215,6 @@ pnpm build
 pnpm test       # unit tests (vitest)
 
 # e2e: hydration guarantees against the built adapter-node server
-# (requires network access — the showcase renders a live Bluesky thread)
+# (requires network access — the showcase renders a live thread)
 pnpm build && pnpm --filter atproto-host test:e2e
 ```

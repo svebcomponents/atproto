@@ -1,4 +1,5 @@
-// Wire types for the subset of the Bluesky AppView API we consume.
+// Wire types for the subset of the AppView API we consume. These are
+// `app.bsky.*` lexicon shapes, so they hold for any AppView serving them.
 // Grounded against real `app.bsky.feed.getPostThread` responses from
 // public.api.bsky.app (2026-07) and the app.bsky.feed.defs lexicon.
 

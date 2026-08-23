@@ -67,6 +67,59 @@ describe("segmentRichText", () => {
     ]);
   });
 
+  it.each(["bsky.app", "mu.social"])(
+    "routes mention and tag links through viewer %s",
+    (host) => {
+      expect(
+        segmentRichText(
+          "hi @alice #svelte https://example.com",
+          [
+            {
+              index: { byteStart: 3, byteEnd: 9 },
+              features: [
+                {
+                  $type: "app.bsky.richtext.facet#mention",
+                  did: "did:plc:abc",
+                },
+              ],
+            },
+            {
+              index: { byteStart: 10, byteEnd: 17 },
+              features: [
+                { $type: "app.bsky.richtext.facet#tag", tag: "svelte" },
+              ],
+            },
+            link(18, 37, "https://example.com"),
+          ],
+          `https://${host}`,
+        ),
+      ).toEqual([
+        { type: "text", text: "hi " },
+        {
+          type: "mention",
+          text: "@alice",
+          did: "did:plc:abc",
+          href: `https://${host}/profile/did%3Aplc%3Aabc`,
+        },
+        { type: "text", text: " " },
+        {
+          type: "tag",
+          text: "#svelte",
+          tag: "svelte",
+          href: `https://${host}/hashtag/svelte`,
+        },
+        { type: "text", text: " " },
+        // an external link keeps its own URI — the viewer only owns
+        // mention and tag destinations
+        {
+          type: "link",
+          text: "https://example.com",
+          href: "https://example.com",
+        },
+      ]);
+    },
+  );
+
   it("uses UTF-8 byte offsets, not JS string indices (emoji)", () => {
     // "Hi 👋 @alice.test": "Hi " = 3 bytes, 👋 = 4 bytes, " " = 1 byte
     // → mention starts at byte 8, "@alice.test" = 11 bytes → byteEnd 19

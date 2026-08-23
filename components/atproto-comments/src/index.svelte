@@ -1,7 +1,9 @@
 <svelte:options customElement="atproto-comments" />
 
 <!-- @component
-Renders an ATProto/Bluesky post thread as a live comment section.
+Renders an ATProto post thread as a live comment section. Defaults target
+Bluesky — the public AppView for reads, bsky.app for outbound links — and
+`appview` / `viewer` retarget both.
 
 Every event below is dispatched on the host element through one shared helper,
 so the build's source scan cannot see them; they are declared here instead.
@@ -45,7 +47,7 @@ package README.
   } from "./revalidation.js";
 
   interface Props {
-    /** AT URI (at://…) or bsky.app post URL of the discussion root */
+    /** AT URI (at://…) or viewer post URL of the discussion root */
     thread?: string;
     /** preloaded thread (SSR / build-time prefetch) — used as the initial snapshot */
     threadData?: CommentTree | undefined;
@@ -58,10 +60,14 @@ package README.
     /** AppView base URL override */
     appview?: string;
     /** web viewer base URL for outbound links (bsky.app by default) — any
-     * viewer using bsky.app's URL scheme works (e.g. deer.social). URLs in a
-     * preloaded threadData are baked at normalization: pass the same viewer
-     * to fetchCommentTree when prefetching. */
+     * viewer using the same `/profile/…/post/…` URL scheme works (e.g.
+     * mu.social). URLs in a preloaded threadData are baked at normalization:
+     * pass the same viewer to fetchCommentTree when prefetching. */
     viewer?: string;
+    /** what to call the viewer in outbound link text ("Reply on …"). Defaults
+     * to "Bluesky" for the default viewer, and to the configured viewer's
+     * hostname otherwise. */
+    viewerName?: string;
     /** OAuth, posting, and live-event backend. Defaults to the free hosted
      * service; set one URL here to self-host both auth and live updates. */
     service?: string;
@@ -74,7 +80,7 @@ package README.
      * - `"signed-in"` (default) — only readers who have signed in. Everyone
      *   else reads the thread straight from the AppView and never contacts
      *   the service at all, so a passing visitor's IP address and the page
-     *   they are on stay between them and Bluesky.
+     *   they are on stay between them and whichever AppView you point at.
      * - `"all"` — every reader, signed in or not. Choose this when the
      *   service is your own, or when you are willing to tell your readers
      *   that a third party sees their visit; it is the livelier experience.
@@ -121,6 +127,7 @@ package README.
     labels = "collapse",
     appview = "",
     viewer = "",
+    viewerName = "",
     service = DEFAULT_SERVICE_URL,
     readonly = false,
     live = "signed-in",
@@ -157,8 +164,10 @@ package README.
     return Number.isNaN(parsed) ? undefined : parsed;
   });
 
-  /** label for outbound links: "Bluesky" for the default viewer, else its hostname */
-  const viewerName = $derived.by(() => {
+  /** label for outbound links: an explicit `viewerName` wins; otherwise
+   * "Bluesky" for the default viewer, or the configured viewer's hostname */
+  const viewerLabel = $derived.by(() => {
+    if (viewerName) return viewerName;
     if (!viewer) return "Bluesky";
     try {
       return new URL(viewer).hostname;
@@ -539,9 +548,7 @@ package README.
     const existing = fetched ?? threadData;
     const background = existing !== undefined;
     if (!parseThreadRef(thread)) {
-      const error = new Error(
-        `Not a valid AT URI or bsky.app post URL: ${thread}`,
-      );
+      const error = new Error(`Not a valid AT URI or post URL: ${thread}`);
       if (!background) errorMessage = error.message;
       emit("atproto-comments:error", {
         message: error.message,
@@ -1055,7 +1062,7 @@ package README.
             <a
               class="reply-link"
               part="reply-button"
-              aria-label={`Reply on ${viewerName}, ${compactNumber.format(node.replyCount)} replies`}
+              aria-label={`Reply on ${viewerLabel}, ${compactNumber.format(node.replyCount)} replies`}
               href={node.url}
               target="_blank"
               rel="noopener noreferrer"
@@ -1105,7 +1112,7 @@ package README.
           {#if node.hasMoreReplies || (node.replies.length > 0 && depth >= maxDepth)}
             <p class="continue">
               <a href={node.url} target="_blank" rel="noopener noreferrer"
-                >Continue this thread on {viewerName} →</a
+                >Continue this thread on {viewerLabel} →</a
               >
             </p>
           {/if}
@@ -1143,7 +1150,7 @@ package README.
           <a
             class="reply-link"
             part="reply-button"
-            aria-label={`Reply on ${viewerName}, ${compactNumber.format(tree.root.replyCount)} replies`}
+            aria-label={`Reply on ${viewerLabel}, ${compactNumber.format(tree.root.replyCount)} replies`}
             href={tree.root.url}
             target="_blank"
             rel="noopener noreferrer"
@@ -1166,7 +1173,7 @@ package README.
           part="reply-button"
           href={tree.root.url}
           target="_blank"
-          rel="noopener noreferrer">Reply on {viewerName}</a
+          rel="noopener noreferrer">Reply on {viewerLabel}</a
         >
       {/if}
     </header>
@@ -1177,7 +1184,7 @@ package README.
       <p class="empty" part="empty">
         No comments yet.
         <a href={tree.root.url} target="_blank" rel="noopener noreferrer"
-          >Be the first to reply on {viewerName}</a
+          >Be the first to reply on {viewerLabel}</a
         >
       </p>
     {:else}

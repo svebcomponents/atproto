@@ -946,7 +946,7 @@ const handleCommentStream = async (
     return jsonError(
       400,
       "InvalidThread",
-      "thread must be an AT URI or bsky.app post URL",
+      "thread must be an AT URI or post URL",
       { "access-control-allow-origin": "*" },
     );
   }

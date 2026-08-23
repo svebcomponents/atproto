@@ -107,7 +107,7 @@ export interface FetchCommentTreeOptions extends GetPostThreadOptions {
 }
 
 /**
- * One-call convenience: parse a thread identifier (at:// URI or bsky.app
+ * One-call convenience: parse a thread identifier (at:// URI or viewer post
  * URL), resolve handles, fetch the thread from the AppView, and normalize it
  * into a renderable {@link CommentTree}.
  */
@@ -117,9 +117,7 @@ export const fetchCommentTree = async (
 ): Promise<CommentTree> => {
   const ref = typeof thread === "string" ? parseThreadRef(thread) : thread;
   if (!ref) {
-    throw new Error(
-      `Not a valid AT URI or bsky.app post URL: ${String(thread)}`,
-    );
+    throw new Error(`Not a valid AT URI or post URL: ${String(thread)}`);
   }
   const uri = await resolveThreadUri(ref, options);
   const { thread: rawThread } = await getPostThread(uri, options);

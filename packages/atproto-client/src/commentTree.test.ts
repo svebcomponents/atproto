@@ -105,17 +105,17 @@ describe("normalizeThread", () => {
   });
 
   it("routes every outbound link through a custom viewer", () => {
-    const tree = normalizeThread(fixture, "https://deer.social/");
+    const tree = normalizeThread(fixture, "https://mu.social/");
     expect(tree.root.url).toBe(
-      "https://deer.social/profile/author.test/post/root",
+      "https://mu.social/profile/author.test/post/root",
     );
     expect(tree.root.author.profileUrl).toBe(
-      "https://deer.social/profile/author.test",
+      "https://mu.social/profile/author.test",
     );
     const first = tree.comments[0];
     if (first?.kind !== "comment") throw new Error("expected a comment");
-    expect(first.url).toContain("https://deer.social/profile/");
-    expect(first.author.profileUrl).toContain("https://deer.social/profile/");
+    expect(first.url).toContain("https://mu.social/profile/");
+    expect(first.author.profileUrl).toContain("https://mu.social/profile/");
     // nothing in the tree links to the default viewer
     expect(JSON.stringify(tree)).not.toContain("https://bsky.app");
   });

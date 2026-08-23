@@ -8,7 +8,7 @@ import { expect, test } from "@playwright/test";
 // Server/Client anchor asymmetry, duplicated svelte runtimes, and missing
 // rich-prop porting.
 //
-// Requires network access: the page server-fetches a live Bluesky thread.
+// Requires network access: the page server-fetches a live thread from the AppView.
 test("SSR'd comments hydrate in place", async ({ page }) => {
   // delay the app bundle so the SSR'd shadow DOM can be stamped before any
   // JavaScript (SvelteKit's hydration or the element's) runs

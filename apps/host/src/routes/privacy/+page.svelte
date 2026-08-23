@@ -84,8 +84,9 @@
     <h3>If you only read comments</h3>
     <p>
       On a default installation (<code>live="signed-in"</code>) nothing is sent
-      to this service. Comments are fetched from the Bluesky AppView, or
-      rendered by the site's own server before the page reaches you.
+      to this service. Comments are fetched from an AppView — Bluesky's public
+      AppView unless the site sets another — or rendered by the site's own
+      server before the page reaches you.
     </p>
     <p>
       A site can choose to switch live updates on for everyone (<code
@@ -260,10 +261,13 @@
         posts are written there. Its own policy governs.
       </li>
       <li>
-        <strong>Bluesky.</strong> Public comment content and profile pictures are
-        fetched from the Bluesky AppView and CDN. Because avatars load directly in
-        your browser, Bluesky receives your IP address when a comment section renders
-        — whether or not you sign in, and whether or not live updates are on. This
+        <strong>An AppView — Bluesky's by default.</strong> Public comment
+        content and profile pictures are fetched from an AppView and its CDN.
+        Because avatars load directly in your browser, that AppView receives
+        your IP address when a comment section renders — whether or not you sign
+        in, and whether or not live updates are on. Sites choose which AppView
+        via the component's
+        <code>appview</code> property; unset, it is Bluesky's public AppView. This
         is inherent to displaying ATProto content and is not something this service
         mediates.
       </li>
@@ -357,8 +361,9 @@
         — it can be changed at runtime and takes effect immediately.
       </li>
       <li>
-        <strong>Mention Bluesky either way.</strong> Avatars load from Bluesky's CDN
-        for every reader regardless of configuration.
+        <strong>Mention the AppView either way.</strong> Avatars load from the
+        AppView's CDN for every reader regardless of configuration — Bluesky's
+        unless you set <code>appview</code>.
       </li>
       <li>
         <strong>Self-host to avoid all of this.</strong> Point

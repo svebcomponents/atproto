@@ -1,6 +1,6 @@
 import { parseThreadRef } from "@svebcomponents/atproto.client";
 
-/** Bluesky's post length limit, counted in graphemes */
+/** the `app.bsky.feed.post` lexicon's maxGraphemes, counted in graphemes */
 export const MAX_REPLY_GRAPHEMES = 300;
 
 const graphemeSegmenter = new Intl.Segmenter(undefined, {

@@ -1,7 +1,8 @@
 # @svebcomponents/atproto.comments
 
-A hydratable web component that renders an ATProto/Bluesky post thread as a
-live comment section.
+A hydratable web component that renders an ATProto post thread as a
+live comment section. Reads Bluesky's public AppView and links to bsky.app
+out of the box; `appview` and `viewer` point it at any other.
 
 Four tiers, in order of how much you want to set up. Each one builds on the
 last — self-hosting the backend is a switch you can flip from any of them.
@@ -111,21 +112,22 @@ live updates.
 
 ## Properties
 
-| Property    | Default        | Description                                             |
-| ----------- | -------------- | ------------------------------------------------------- |
-| `thread`    | —              | AT URI or bsky.app post URL                             |
-| `service`   | hosted         | OAuth, posting, and SSE bridge URL                      |
-| `readonly`  | `false`        | hide sign-in and in-page replies                        |
-| `live`      | `signed-in`    | who gets live updates: `signed-in`, `all`, or `off`     |
-| `show-root` | `false`        | render the discussion root's own post above the replies |
-| `max-depth` | `6`            | maximum nested depth                                    |
-| `sort`      | `oldest`       | `oldest`, `newest`, or `likes`                          |
-| `labels`    | `collapse`     | `hide`, `collapse`, or `show`                           |
-| `viewer`    | bsky.app       | outbound profile/post viewer                            |
-| `appview`   | public AppView | public thread-read endpoint                             |
-| `page-url`  | —              | embedding page's canonical URL; enables no-JS sign-in on a same-origin cookie-mode service |
-| `fetched-at` | —             | when `threadData` was fetched (epoch ms or ISO); stamped automatically by SSR prefetch |
-| `stale-time` | `60000`       | ms a preloaded snapshot is trusted before one client refresh; `Infinity` disables |
+| Property      | Default        | Description                                                                                |
+| ------------- | -------------- | ------------------------------------------------------------------------------------------ |
+| `thread`      | —              | AT URI or any viewer's `/profile/…/post/…` URL                                             |
+| `service`     | hosted         | OAuth, posting, and SSE bridge URL                                                         |
+| `readonly`    | `false`        | hide sign-in and in-page replies                                                           |
+| `live`        | `signed-in`    | who gets live updates: `signed-in`, `all`, or `off`                                        |
+| `show-root`   | `false`        | render the discussion root's own post above the replies                                    |
+| `max-depth`   | `6`            | maximum nested depth                                                                       |
+| `sort`        | `oldest`       | `oldest`, `newest`, or `likes`                                                             |
+| `labels`      | `collapse`     | `hide`, `collapse`, or `show`                                                              |
+| `viewer`      | bsky.app       | outbound profile/post viewer                                                               |
+| `viewer-name` | viewer's host  | what outbound links call the viewer ("Reply on …")                                         |
+| `appview`     | public AppView | public thread-read endpoint                                                                |
+| `page-url`    | —              | embedding page's canonical URL; enables no-JS sign-in on a same-origin cookie-mode service |
+| `fetched-at`  | —              | when `threadData` was fetched (epoch ms or ISO); stamped automatically by SSR prefetch     |
+| `stale-time`  | `60000`        | ms a preloaded snapshot is trusted before one client refresh; `Infinity` disables          |
 
 `threadData` is a JavaScript-only `CommentTree` property for a preloaded
 snapshot.

@@ -6,7 +6,7 @@ export const DEFAULT_VIEWER = "https://bsky.app";
 /**
  * Normalizes a viewer base URL (no trailing slash). Any viewer using the
  * bsky.app URL scheme (`/profile/…/post/…`, `/hashtag/…`) works — e.g.
- * deer.social or a self-hosted AppView frontend.
+ * mu.social or a self-hosted AppView frontend.
  */
 const viewerBase = (viewer?: string): string =>
   (viewer ?? DEFAULT_VIEWER).replace(/\/+$/, "");
