@@ -34,8 +34,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\" && tsc",
-    "check": "tsc --noEmit",
+    "build": "vite build && tsc --emitDeclarationOnly",
+    "check": "svelte-check && tsc --noEmit",
     "lint": "pnpm /^lint:.*/",
     "lint:eslint": "eslint .",
     "lint:format": "prettier --check .",
@@ -52,11 +52,15 @@
     "jose": "^6.2.3"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "catalog:",
     "@svebcomponents/eslint-config": "workspace:*",
     "@svebcomponents/prettier-config": "workspace:*",
     "@svebcomponents/typescript-config": "workspace:*",
     "@types/node": "catalog:",
+    "svelte": "catalog:",
+    "svelte-check": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }

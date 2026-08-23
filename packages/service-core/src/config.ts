@@ -40,6 +40,36 @@ export interface ServiceSessionStore {
 export type RateLimiter = (key: string) => Promise<boolean> | boolean;
 export type SessionMode = "bearer" | "cookie";
 
+export interface OAuthPageBrandConfig {
+  /** Name shown in the bridge's sign-in page header (defaults to clientName). */
+  name?: string;
+  /** Logo URL, absolute or resolved against publicUrl. */
+  logoUrl?: string;
+  /** Destination for the brand link, absolute or resolved against publicUrl. */
+  homeUrl?: string;
+}
+
+export interface OAuthPageThemeConfig {
+  /** CSS color used for buttons, links, and focus rings. */
+  accent?: string;
+}
+
+export interface OAuthPageLinksConfig {
+  /** Privacy-policy URL, absolute or resolved against publicUrl. */
+  privacy?: string;
+  /** Support URL, absolute or resolved against publicUrl. */
+  support?: string;
+}
+
+/** Presentation-only customization for the bridge-owned OAuth sign-in page. */
+export interface OAuthPageConfig {
+  /** Main sign-in heading. Also used as the document title when configured. */
+  title?: string;
+  brand?: OAuthPageBrandConfig;
+  theme?: OAuthPageThemeConfig;
+  links?: OAuthPageLinksConfig;
+}
+
 /**
  * A freshly-minted session waiting to be claimed by the tab that started
  * sign-in. Keyed by an unguessable nonce (the claim's bearer secret) because
@@ -85,6 +115,8 @@ export interface ServiceConfig {
   basePath?: string;
   /** shown on the sign-in page and in client metadata */
   clientName?: string;
+  /** Branding, theme, and operator links for the OAuth sign-in page. */
+  oauthPage?: OAuthPageConfig;
   /**
    * Link to the operator's privacy policy, shown on the sign-in page. An
    * absolute URL, or a path resolved against `publicUrl` (e.g. "/privacy").
@@ -190,6 +222,8 @@ export interface ResolvedServiceConfig extends ServiceConfig {
   privacyUrl?: string;
   /** the project's own site, enabling brand header and footer pitch */
   productUrl?: string;
+  /** OAuth page config with every configured URL made absolute. */
+  oauthPage?: OAuthPageConfig;
   /** true when publicUrl is a localhost/127.0.0.1 loopback */
   isLoopback: boolean;
 }
@@ -227,6 +261,67 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     }
     return origin;
   });
+  const oauthPage = config.oauthPage
+    ? {
+        ...(config.oauthPage.title
+          ? { title: config.oauthPage.title.trim() }
+          : {}),
+        ...(config.oauthPage.brand
+          ? {
+              brand: {
+                ...(config.oauthPage.brand.name
+                  ? { name: config.oauthPage.brand.name.trim() }
+                  : {}),
+                ...(config.oauthPage.brand.logoUrl
+                  ? {
+                      logoUrl: new URL(
+                        config.oauthPage.brand.logoUrl,
+                        url.origin,
+                      ).toString(),
+                    }
+                  : {}),
+                ...(config.oauthPage.brand.homeUrl
+                  ? {
+                      homeUrl: new URL(
+                        config.oauthPage.brand.homeUrl,
+                        url.origin,
+                      ).toString(),
+                    }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(config.oauthPage.theme?.accent
+          ? {
+              theme: {
+                accent: resolveAccent(config.oauthPage.theme.accent),
+              },
+            }
+          : {}),
+        ...(config.oauthPage.links
+          ? {
+              links: {
+                ...(config.oauthPage.links.privacy
+                  ? {
+                      privacy: new URL(
+                        config.oauthPage.links.privacy,
+                        url.origin,
+                      ).toString(),
+                    }
+                  : {}),
+                ...(config.oauthPage.links.support
+                  ? {
+                      support: new URL(
+                        config.oauthPage.links.support,
+                        url.origin,
+                      ).toString(),
+                    }
+                  : {}),
+              },
+            }
+          : {}),
+      }
+    : undefined;
 
   // Key presence is enforced in buildOAuthClient (where they're actually
   // used), not here — so an injected OAuth client can skip them entirely.
@@ -238,6 +333,10 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     ...(config.privacyUrl
       ? { privacyUrl: new URL(config.privacyUrl, url.origin).toString() }
       : {}),
+    ...(config.productUrl
+      ? { productUrl: new URL(config.productUrl, url.origin).toString() }
+      : {}),
+    ...(oauthPage ? { oauthPage } : {}),
     clientName: config.clientName ?? "atproto-comments",
     sessionTtlSeconds: config.sessionTtlSeconds ?? 3600,
     sessionMode: config.sessionMode ?? "bearer",
@@ -262,6 +361,14 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     }),
     isLoopback,
   };
+};
+
+const resolveAccent = (value: string): string => {
+  const accent = value.trim();
+  if (!accent || /[;{}]/.test(accent)) {
+    throw new Error("oauthPage.theme.accent must be a CSS color");
+  }
+  return accent;
 };
 
 /** in-memory single-read claim store with TTL expiry */

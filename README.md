@@ -123,7 +123,10 @@ What that means in practice:
   `live="signed-in"`. That is inherent to rendering ATProto content, not
   something this component routes around.
 - **Self-hosting removes the third party entirely.** Set `service` to your own
-  deployment and pass `allowedOrigins` so only your sites can use it.
+  deployment and pass `allowedOrigins` so only your sites can use it. The
+  bridge's `oauthPage` config accepts your title, brand name/logo/home link,
+  accent color, privacy policy, and support link; a server-side
+  `renderSignInPage` hook is available when you need complete markup control.
 
 The hosted bridge's own policy is at
 [atproto.svebcomponents.dev/privacy](https://atproto.svebcomponents.dev/privacy).

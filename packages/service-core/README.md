@@ -29,6 +29,43 @@ const service = createAtprotoCommentsService({
 const response = await service.fetch(request);
 ```
 
+## OAuth page branding
+
+The bridge renders its handle-entry page with Svelte SSR. Self-hosted
+deployments can customize the normal presentation without taking ownership of
+the OAuth callback or browser session handoff:
+
+```ts
+createAtprotoCommentsService({
+  // ...
+  clientName: "Acme Comments",
+  oauthPage: {
+    title: "Sign in to join the conversation",
+    brand: {
+      name: "Acme",
+      logoUrl: "/brand.svg",
+      homeUrl: "https://www.acme.example",
+    },
+    theme: { accent: "#7c3aed" },
+    links: {
+      privacy: "/privacy",
+      support: "/support",
+    },
+  },
+});
+```
+
+Relative logo and link URLs resolve against `publicUrl`. `clientName` remains
+the OAuth client identity shown by the user's provider; `brand.name` changes
+only the bridge page.
+
+For complete markup control, pass `renderSignInPage` as the second argument to
+`createAtprotoCommentsService`. It receives the normalized presentation values
+plus the bridge-owned form values. A custom form must submit `handle`, preserve
+`origin` and `claim` in same-named hidden inputs, preserve `returnTo` in an
+input named `return`, and use the supplied `actionUrl`. Only this handle-entry
+page is replaceable; the callback and token handoff remain bridge-owned.
+
 ## Session modes
 
 The default `sessionMode: "bearer"` is for a bridge embedded cross-origin. The

@@ -9,9 +9,11 @@ import { createMemoryRateLimiter } from "./config.js";
 import {
   createAtprotoCommentsService,
   type AtprotoCommentsService,
+  type CreateServiceOptions,
 } from "./handlers.js";
 import type { CommentStreamBroker } from "./commentStream.js";
 import type { OAuthBridgeClient, OAuthPdsSession } from "./oauthClient.js";
+import type { SignInPageRenderer } from "./pages.js";
 
 const ORIGIN = "https://blog.example";
 const SERVICE = "https://comments.example";
@@ -401,7 +403,9 @@ describe("service handlers", () => {
     );
     const body = await res!.text();
     // targetOrigin must be the exact embedding origin, never "*"
-    expect(body).toContain(`postMessage(data, "${ORIGIN}")`);
+    expect(body).toContain("postMessage(data, targetOrigin)");
+    expect(body).toContain(`<textarea id="target-origin">${ORIGIN}</textarea>`);
+    expect(body).not.toContain('postMessage(data, "*")');
     expect(body).toContain('"handle":"commenter.test"');
   });
 
@@ -1110,10 +1114,11 @@ describe("operational stats", () => {
 describe("sign-in consent screen", () => {
   const signInHtml = async (
     over: Partial<ServiceConfig> = {},
+    options: CreateServiceOptions = {},
   ): Promise<string> => {
     const svc = createAtprotoCommentsService(
       { ...baseConfig(memoryStore()), ...over },
-      { oauthClient: fakeOAuthClient },
+      { oauthClient: fakeOAuthClient, ...options },
     );
     const res = await svc.fetch(
       new Request(
@@ -1149,6 +1154,49 @@ describe("sign-in consent screen", () => {
 
   it("omits the privacy link when none is configured", async () => {
     expect(await signInHtml()).not.toContain("/privacy");
+  });
+
+  it("applies structured self-host branding, links, title, and theme", async () => {
+    const html = await signInHtml({
+      oauthPage: {
+        title: "Sign in to Acme Comments",
+        brand: {
+          name: "Acme/Comments",
+          logoUrl: "/brand.svg",
+          homeUrl: "/comments",
+        },
+        theme: { accent: "#7c3aed" },
+        links: { privacy: "/legal/privacy", support: "/help" },
+      },
+    });
+
+    expect(html).toContain("<title>Sign in to Acme Comments</title>");
+    expect(html).toMatch(/<h1[^>]*>Sign in to Acme Comments<\/h1>/);
+    expect(html).toContain(`src="${SERVICE}/brand.svg"`);
+    expect(html).toContain(`href="${SERVICE}/comments"`);
+    expect(html).toContain(`href="${SERVICE}/legal/privacy"`);
+    expect(html).toContain(`href="${SERVICE}/help"`);
+    expect(html).toContain("#7c3aed");
+    expect(html).toContain("Acme");
+    expect(html).toContain("/Comments");
+  });
+
+  it("allows an async custom renderer for only the handle-entry page", async () => {
+    const renderSignInPage = vi.fn<SignInPageRenderer>(
+      async ({ actionUrl, origin }) =>
+        `<!doctype html><title>Custom</title><form action="${actionUrl}"><input name="origin" value="${origin}"></form>`,
+    );
+
+    const html = await signInHtml({}, { renderSignInPage });
+
+    expect(html).toContain("<title>Custom</title>");
+    expect(renderSignInPage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionUrl: "/atproto/oauth/start",
+        origin: ORIGIN,
+        clientName: "atproto-comments",
+      }),
+    );
   });
 
   // The pitch is a footer note on a page where someone is midway through a

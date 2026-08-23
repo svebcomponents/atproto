@@ -54,7 +54,16 @@ export const getService = (): AtprotoCommentsService => {
     // custom element's tag name. This is also what the reader's own provider
     // shows them on its consent screen, so it needs to be the real name.
     clientName: "svebcomponents/atproto",
-    privacyUrl: "/privacy",
+    oauthPage: {
+      title: "Sign in to the ATmosphere to comment",
+      brand: {
+        name: "svebcomponents/atproto",
+        logoUrl: "/svebcomponents.svg",
+        homeUrl: "https://atproto.svebcomponents.dev",
+      },
+      theme: { accent: "#2980c2" },
+      links: { privacy: "/privacy" },
+    },
     productUrl: "https://atproto.svebcomponents.dev",
     sessionSecret,
     sessionMode: env["SESSION_MODE"] === "cookie" ? "cookie" : "bearer",

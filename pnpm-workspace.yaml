@@ -3,6 +3,12 @@ packages:
   - components/*
   - packages/*
   - configs/*
+
+allowBuilds:
+  core-js: false
+  esbuild: true
+  svelte-preprocess: true
+
 catalog:
   "@changesets/cli": 2.31.1
   "@eslint/compat": 2.1.0
@@ -31,9 +37,7 @@ catalog:
   vite: 8.1.5
   vitest: 4.1.10
 
-# Our own scope: released from svebcomponents/svebcomponents by the same people
-# who maintain this repo, so a release-age delay buys nothing and only blocks us
-# from consuming a release we just cut. pnpm 10 does not enforce the policy at
-# all; this is here so bumping pnpm does not turn into a mystery failure.
+# Our own scope is released by this project, so a release-age delay only blocks
+# us from consuming a release we just cut.
 minimumReleaseAgeExclude:
   - '@svebcomponents/*'

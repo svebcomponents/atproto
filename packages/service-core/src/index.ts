@@ -4,6 +4,10 @@ export {
   resolveConfig,
   type AuthClaim,
   type AuthClaimStore,
+  type OAuthPageBrandConfig,
+  type OAuthPageConfig,
+  type OAuthPageLinksConfig,
+  type OAuthPageThemeConfig,
   type RateLimiter,
   type SessionMode,
   type ServiceConfig,
@@ -43,6 +47,7 @@ export {
   type OAuthBridgeClient,
   type OAuthPdsSession,
 } from "./oauthClient.js";
+export type { SignInPageRenderer, SignInPageRenderProps } from "./pages.js";
 export {
   MAX_REPLY_GRAPHEMES,
   ReplyValidationError,

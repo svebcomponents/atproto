@@ -15,7 +15,14 @@ import {
   type ResolvedServiceConfig,
 } from "./config.js";
 import { buildOAuthClient, type OAuthBridgeClient } from "./oauthClient.js";
-import { callbackPage, errorPage, signInPage, successPage } from "./pages.js";
+import {
+  callbackPage,
+  errorPage,
+  signInPage,
+  successPage,
+  type SignInPageRenderer,
+  type SignInPageRenderProps,
+} from "./pages.js";
 import {
   ReactionValidationError,
   validateOwnRecordUri,
@@ -276,6 +283,11 @@ export interface CreateServiceOptions {
   webSocketFactory?: WebSocketFactory;
   /** test seam: bypasses the default shared per-thread stream broker */
   commentStreamBroker?: CommentStreamBroker;
+  /**
+   * Replaces only the handle-entry page. OAuth callbacks and session handoff
+   * remain bridge-owned. The renderer may return a complete HTML document.
+   */
+  renderSignInPage?: SignInPageRenderer;
 }
 
 export const createAtprotoCommentsService = (
@@ -283,6 +295,7 @@ export const createAtprotoCommentsService = (
   options: CreateServiceOptions = {},
 ): AtprotoCommentsService => {
   const config = resolveConfig(serviceConfig);
+  const renderSignInPage = options.renderSignInPage ?? signInPage;
   const clientPromise: Promise<OAuthBridgeClient> = options.oauthClient
     ? Promise.resolve(options.oauthClient)
     : buildOAuthClient(config);
@@ -355,7 +368,7 @@ export const createAtprotoCommentsService = (
         case "GET /jwks.json":
           return json((await clientPromise).jwks);
         case "GET /oauth/start":
-          return handleStart(url, config, clientPromise);
+          return handleStart(url, config, clientPromise, renderSignInPage);
         case "GET /oauth/callback":
           return handleCallback(url, config, tokens, clientPromise);
         default:
@@ -369,6 +382,7 @@ const handleStart = async (
   url: URL,
   config: ResolvedServiceConfig,
   clientPromise: Promise<OAuthBridgeClient>,
+  renderSignInPage: SignInPageRenderer,
 ): Promise<Response> => {
   const origin = parseAllowedOrigin(url.searchParams.get("origin"), config);
   if (!origin) {
@@ -384,12 +398,8 @@ const handleStart = async (
 
   if (!handle) {
     return html(
-      signInPage({
-        clientName: config.clientName,
-        actionUrl: startUrl,
-        origin,
-        ...(config.privacyUrl ? { privacyUrl: config.privacyUrl } : {}),
-        ...(config.productUrl ? { productUrl: config.productUrl } : {}),
+      await renderSignInPage({
+        ...signInPageProps(config, startUrl, origin),
         // preserved as hidden fields so the handle submission carries them back
         ...(claim ? { claim } : {}),
         ...(returnTo ? { returnTo } : {}),
@@ -413,12 +423,8 @@ const handleStart = async (
     });
   } catch {
     return html(
-      signInPage({
-        clientName: config.clientName,
-        actionUrl: startUrl,
-        origin,
-        ...(config.privacyUrl ? { privacyUrl: config.privacyUrl } : {}),
-        ...(config.productUrl ? { productUrl: config.productUrl } : {}),
+      await renderSignInPage({
+        ...signInPageProps(config, startUrl, origin),
         ...(claim ? { claim } : {}),
         ...(returnTo ? { returnTo } : {}),
         error: `Could not start sign-in for "${handle}" — check the handle and try again.`,
@@ -426,6 +432,37 @@ const handleStart = async (
       400,
     );
   }
+};
+
+const signInPageProps = (
+  config: ResolvedServiceConfig,
+  actionUrl: string,
+  origin: string,
+): SignInPageRenderProps => {
+  const pageTitle = config.oauthPage?.title;
+  const brand = config.oauthPage?.brand;
+  const links = config.oauthPage?.links;
+  return {
+    clientName: config.clientName,
+    documentTitle: pageTitle ?? `Sign in to ${config.clientName}`,
+    title: pageTitle ?? "Sign in to the ATmosphere to comment",
+    brandName: brand?.name ?? config.clientName,
+    showBrand: Boolean(brand || config.productUrl),
+    ...(brand?.logoUrl ? { brandLogoUrl: brand.logoUrl } : {}),
+    ...(brand?.homeUrl || config.productUrl
+      ? { brandHomeUrl: brand?.homeUrl ?? config.productUrl }
+      : {}),
+    ...(config.oauthPage?.theme?.accent
+      ? { accent: config.oauthPage.theme.accent }
+      : {}),
+    actionUrl,
+    origin,
+    ...(links?.privacy || config.privacyUrl
+      ? { privacyUrl: links?.privacy ?? config.privacyUrl }
+      : {}),
+    ...(links?.support ? { supportUrl: links.support } : {}),
+    ...(config.productUrl ? { productUrl: config.productUrl } : {}),
+  };
 };
 
 const handleCallback = async (
