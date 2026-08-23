@@ -29,6 +29,13 @@ export interface ServiceSession {
 /**
  * Persists {@link ServiceSession}s keyed by session id. Deleting a session
  * revokes its bearer tokens (verification checks liveness).
+ *
+ * Implementations should age out entries that are not re-`set` within some
+ * retention window (the reference SQLite store uses 30 days): sign-out
+ * revocation alone would otherwise leave a row behind forever for everyone
+ * who never returns. The bridge calls `set` again on activity — session
+ * reads and token refreshes — so an engaged reader keeps their session while
+ * abandoned ones eventually disappear.
  */
 export interface ServiceSessionStore {
   set(sid: string, session: ServiceSession): Promise<void>;
@@ -376,7 +383,13 @@ export const createMemoryAuthClaimStore = (ttlMs: number): AuthClaimStore => {
   const claims = new Map<string, { claim: AuthClaim; expiresAt: number }>();
   return {
     async set(nonce, claim) {
-      claims.set(nonce, { claim, expiresAt: Date.now() + ttlMs });
+      // Evict expired entries so claims that are never taken don't
+      // accumulate (mirrors the sweep-on-write the SQLite store does).
+      const now = Date.now();
+      for (const [key, entry] of claims) {
+        if (entry.expiresAt <= now) claims.delete(key);
+      }
+      claims.set(nonce, { claim, expiresAt: now + ttlMs });
     },
     async take(nonce) {
       const entry = claims.get(nonce);

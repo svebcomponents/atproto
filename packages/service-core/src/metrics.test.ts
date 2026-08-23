@@ -94,6 +94,18 @@ describe("metrics recorder", () => {
     expect(await store.totals()).toMatchObject({ replies: 2 });
   });
 
+  it("coalesces concurrent flushes into a single write", async () => {
+    // two overlapping flush() calls must share one write-through, or deltas
+    // buffered between them can be counted twice
+    const store = createMemoryMetricsStore();
+    const add = vi.spyOn(store, "add");
+    const recorder = createMetricsRecorder({ store, flushIntervalMs: 60_000 });
+    recorder.record(ORIGIN, "reply");
+
+    await Promise.all([recorder.flush(), recorder.flush()]);
+    expect(add).toHaveBeenCalledTimes(1);
+  });
+
   it("attributes events with no origin without dropping them", async () => {
     const recorder = createMetricsRecorder({
       store: createMemoryMetricsStore(),

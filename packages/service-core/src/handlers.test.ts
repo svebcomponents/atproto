@@ -19,10 +19,18 @@ const ORIGIN = "https://blog.example";
 const SERVICE = "https://comments.example";
 const DID = "did:plc:commenter";
 
-const memoryStore = (): ServiceSessionStore => {
+type MemoryServiceSessionStore = ServiceSessionStore & {
+  keys(): string[];
+  /** number of set() calls — stores slide their retention window on write */
+  writes: number;
+};
+
+const memoryStore = (): MemoryServiceSessionStore => {
   const map = new Map<string, ServiceSession>();
   return {
+    writes: 0,
     async set(sid, session) {
+      this.writes += 1;
       map.set(sid, session);
     },
     async get(sid) {
@@ -30,6 +38,9 @@ const memoryStore = (): ServiceSessionStore => {
     },
     async del(sid) {
       map.delete(sid);
+    },
+    keys() {
+      return [...map.keys()];
     },
   };
 };
@@ -125,7 +136,7 @@ const del = (path: string, token: string) =>
 
 describe("service handlers", () => {
   let service: AtprotoCommentsService;
-  let store: ServiceSessionStore;
+  let store: MemoryServiceSessionStore;
 
   beforeEach(() => {
     createRecordCalls = [];
@@ -167,6 +178,51 @@ describe("service handlers", () => {
       new Request(`${SERVICE}/atproto/oauth/start`),
     );
     expect(res!.status).toBe(400);
+  });
+
+  it("renders the sign-in-failed page for an unusable callback", async () => {
+    // garbage state: the OAuth client cannot resolve it to a completed flow
+    const failingClient: OAuthBridgeClient = {
+      ...fakeOAuthClient,
+      callback: async () => {
+        throw new Error("unknown state");
+      },
+    };
+    const svc = createAtprotoCommentsService(baseConfig(memoryStore()), {
+      oauthClient: failingClient,
+    });
+    const res = await svc.fetch(
+      new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=garbage`),
+    );
+    expect(res!.status).toBe(400);
+    const html = await res!.text();
+    expect(html).toContain("Sign-in failed");
+  });
+
+  it("ignores a non-string claim nonce in callback state", async () => {
+    // a hostile or buggy provider can echo arbitrary shapes back in `state`;
+    // the claim key must be validated before it reaches the store
+    const claimStore = {
+      set: vi.fn(async () => undefined),
+      take: vi.fn(async () => undefined),
+    };
+    const echoingClient: OAuthBridgeClient = {
+      ...fakeOAuthClient,
+      callback: async () => ({
+        session: { did: DID } as OAuthPdsSession,
+        state: JSON.stringify({ origin: ORIGIN, claim: { nested: true } }),
+      }),
+    };
+    const svc = createAtprotoCommentsService(
+      { ...baseConfig(memoryStore()), authClaimStore: claimStore },
+      { oauthClient: echoingClient },
+    );
+    const res = await svc.fetch(
+      new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=x`),
+    );
+    // sign-in itself completes; nothing is written to the claim store
+    expect(res!.status).toBe(200);
+    expect(claimStore.set).not.toHaveBeenCalled();
   });
 
   it("redirects to the PDS when a handle is provided", async () => {
@@ -849,6 +905,43 @@ describe("service handlers", () => {
     expect(after!.status).toBe(401);
   });
 
+  it("refresh renews the stored session row", async () => {
+    const token = await signIn(service);
+    const sid = store.keys()[0]!;
+    const writesBefore = store.writes;
+    const res = await service.fetch(
+      post("/atproto/api/session/refresh", token),
+    );
+    expect(res!.status).toBe(200);
+    // Stores age entries out between writes, so renewal is a write; it must
+    // preserve the session (and profile snapshot) it is renewing.
+    expect(store.writes).toBeGreaterThan(writesBefore);
+    expect(await store.get(sid)).toMatchObject({ did: DID, origin: ORIGIN });
+  });
+
+  it("refresh with a deleted session is rejected", async () => {
+    const token = await signIn(service);
+    for (const sid of store.keys()) await store.del(sid);
+    const res = await service.fetch(
+      post("/atproto/api/session/refresh", token),
+    );
+    expect(res!.status).toBe(401);
+    const body = await res!.json();
+    expect(body.error).toBe("InvalidSession");
+  });
+
+  it("reading the session renews its row (sliding retention)", async () => {
+    const token = await signIn(service);
+    const writesBefore = store.writes;
+    const res = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session`, {
+        headers: { authorization: `Bearer ${token}`, origin: ORIGIN },
+      }),
+    );
+    expect(res!.status).toBe(200);
+    expect(store.writes).toBeGreaterThan(writesBefore);
+  });
+
   it("answers CORS preflight", async () => {
     const res = await service.fetch(
       new Request(`${SERVICE}/atproto/api/reply`, {
@@ -1143,7 +1236,9 @@ describe("sign-in consent screen", () => {
   // any site using the bridge, not just replies here.
   it("makes no claim that the grant is narrower than it is", async () => {
     const html = await signInHtml();
-    expect(html).toContain("Your provider will show what you are approving");
+    expect(html).toContain(
+      "ATmosphere provider will show what you are approving",
+    );
     expect(html).not.toMatch(/posting replies on your behalf/i);
     expect(html).not.toMatch(/only posts replies/i);
   });

@@ -33,6 +33,7 @@ export {
   DEFAULT_SERVICE_URL,
   ServiceClient,
   ServiceError,
+  type CreatedRecord,
   type PostedReply,
   type PostRef,
   type ServiceSessionInfo,

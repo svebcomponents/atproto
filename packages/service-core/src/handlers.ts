@@ -14,7 +14,11 @@ import {
   type ServiceConfig,
   type ResolvedServiceConfig,
 } from "./config.js";
-import { buildOAuthClient, type OAuthBridgeClient } from "./oauthClient.js";
+import {
+  buildOAuthClient,
+  type OAuthBridgeClient,
+  type OAuthPdsSession,
+} from "./oauthClient.js";
 import {
   callbackPage,
   errorPage,
@@ -483,7 +487,14 @@ const handleCallback = async (
     const parsedOrigin = parseAllowedOrigin(parsedState.origin ?? null, config);
     if (!parsedOrigin) throw new Error("state is missing an allowed origin");
     origin = parsedOrigin;
-    claimNonce = parsedState.claim;
+    // The claim nonce becomes a store key and ends up in a redirect URL, so
+    // it must be a plain short string — the callback accepts whatever the
+    // OAuth server echoes back in `state`, and a hostile value here would
+    // otherwise reach the store unvalidated.
+    claimNonce =
+      typeof parsedState.claim === "string" && parsedState.claim.length <= 128
+        ? parsedState.claim
+        : undefined;
     returnTo = parseReturnUrl(parsedState.return ?? null, origin) ?? undefined;
   } catch {
     return html(
@@ -688,6 +699,12 @@ const handleApi = async (
   switch (`${request.method} ${route}`) {
     case "GET /api/session": {
       const session = await config.serviceSessionStore.get(claims.sid);
+      if (session) {
+        // The component calls this on every page load to restore its
+        // session — treat it as activity and renew the store's sliding
+        // retention window (a no-op for stores that don't age entries out).
+        await config.serviceSessionStore.set(claims.sid, session);
+      }
       return json(
         {
           did: claims.did,
@@ -701,15 +718,19 @@ const handleApi = async (
     }
 
     case "POST /api/session/refresh": {
+      const session = await config.serviceSessionStore.get(claims.sid);
+      if (!session) {
+        return jsonError(401, "InvalidSession", "Session expired", cors);
+      }
+      await config.serviceSessionStore.set(
+        claims.sid,
+        config.sessionMode === "cookie"
+          ? // Cookie mode has a short server-enforced idle window: refresh
+            // is what "still here" looks like, so restart it.
+            { ...session, createdAt: new Date().toISOString() }
+          : session,
+      );
       if (config.sessionMode === "cookie") {
-        const session = await config.serviceSessionStore.get(claims.sid);
-        if (!session) {
-          return jsonError(401, "InvalidSession", "Session expired", cors);
-        }
-        await config.serviceSessionStore.set(claims.sid, {
-          ...session,
-          createdAt: new Date().toISOString(),
-        });
         return json({ ok: true }, 200, {
           ...cors,
           "set-cookie": sessionCookie(
@@ -719,6 +740,9 @@ const handleApi = async (
           ),
         });
       }
+      // Bearer mode: minting a fresh token is itself activity; the rewrite
+      // above pushed the session row's expiry out so a reader who keeps
+      // engaging never hits the retention backstop.
       const token = await tokens.mint(claims);
       return json({ token }, 200, cors);
     }
@@ -966,59 +990,94 @@ const handleCommentStream = async (
   }
 };
 
-const postReply = async (
+/**
+ * Restores the commenter's ATProto session, or null when the stored grant
+ * can no longer be restored (expired or revoked). Callers turn null into
+ * their response shape of "sign in again".
+ */
+const restorePdsSession = async (
   did: string,
-  reply: ReturnType<typeof validateReplyRequest>,
   clientPromise: Promise<OAuthBridgeClient>,
-): Promise<ActionResult> => {
-  let session;
+): Promise<OAuthPdsSession | null> => {
   try {
     const client = await clientPromise;
-    session = await client.restore(did);
+    return await client.restore(did);
   } catch {
-    return {
-      ok: false,
-      status: 401,
-      error: "SessionExpired",
-      message: "Your atmosphere authorization expired — sign in again",
-    };
+    return null;
   }
+};
 
-  const record = {
-    $type: "app.bsky.feed.post",
-    text: reply.text,
-    createdAt: new Date().toISOString(),
-    reply: { root: reply.root, parent: reply.parent },
-    ...(reply.langs ? { langs: reply.langs } : {}),
-  };
+/** the ActionResult shared by every handler whose PDS grant has lapsed */
+const SESSION_EXPIRED_RESULT = {
+  ok: false as const,
+  status: 401 as const,
+  error: "SessionExpired" as const,
+  message: "Your atmosphere authorization expired — sign in again",
+};
 
-  const response = await session.fetchHandler(
-    "/xrpc/com.atproto.repo.createRecord",
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        repo: did,
-        collection: "app.bsky.feed.post",
-        record,
-      }),
-    },
-  );
-
+/**
+ * One XRPC procedure call against the user's PDS, with the PDS's error shape
+ * mapped onto ours: a rate limit passes its 429 through, anything else maps
+ * to 502 so upstream hiccups don't masquerade as client mistakes.
+ */
+const callPds = async (
+  session: OAuthPdsSession,
+  procedure:
+    | "/xrpc/com.atproto.repo.createRecord"
+    | "/xrpc/com.atproto.repo.deleteRecord",
+  body: Record<string, unknown>,
+): Promise<
+  { ok: true; body: unknown } | { ok: false; status: number; message: string }
+> => {
+  const response = await session.fetchHandler(procedure, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as {
+    const errorBody = (await response.json().catch(() => ({}))) as {
       message?: string;
     };
     return {
       ok: false,
       status: response.status === 429 ? 429 : 502,
-      error: "PdsError",
       message:
-        body.message ?? `PDS rejected the post (HTTP ${response.status})`,
+        errorBody.message ??
+        `PDS rejected the request (HTTP ${response.status})`,
+    };
+  }
+  return { ok: true, body: (await response.json()) as unknown };
+};
+
+const postReply = async (
+  did: string,
+  reply: ReturnType<typeof validateReplyRequest>,
+  clientPromise: Promise<OAuthBridgeClient>,
+): Promise<ActionResult> => {
+  const session = await restorePdsSession(did, clientPromise);
+  if (!session) return { ...SESSION_EXPIRED_RESULT };
+
+  const result = await callPds(session, "/xrpc/com.atproto.repo.createRecord", {
+    repo: did,
+    collection: "app.bsky.feed.post",
+    record: {
+      $type: "app.bsky.feed.post",
+      text: reply.text,
+      createdAt: new Date().toISOString(),
+      reply: { root: reply.root, parent: reply.parent },
+      ...(reply.langs ? { langs: reply.langs } : {}),
+    },
+  });
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: result.status,
+      error: "PdsError",
+      message: result.message,
     };
   }
 
-  const created = (await response.json()) as { uri: string; cid: string };
+  const created = result.body as { uri: string; cid: string };
   return { ok: true, uri: created.uri, cid: created.cid };
 };
 
@@ -1030,48 +1089,28 @@ const createReaction = async (
   subject: PostRef,
   clientPromise: Promise<OAuthBridgeClient>,
 ): Promise<ActionResult> => {
-  let session;
-  try {
-    const client = await clientPromise;
-    session = await client.restore(did);
-  } catch {
-    return {
-      ok: false,
-      status: 401,
-      error: "SessionExpired",
-      message: "Your atmosphere authorization expired — sign in again",
-    };
-  }
+  const session = await restorePdsSession(did, clientPromise);
+  if (!session) return { ...SESSION_EXPIRED_RESULT };
 
-  const record = {
-    $type: collection,
-    subject: { uri: subject.uri, cid: subject.cid },
-    createdAt: new Date().toISOString(),
-  };
-
-  const response = await session.fetchHandler(
-    "/xrpc/com.atproto.repo.createRecord",
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ repo: did, collection, record }),
+  const result = await callPds(session, "/xrpc/com.atproto.repo.createRecord", {
+    repo: did,
+    collection,
+    record: {
+      $type: collection,
+      subject: { uri: subject.uri, cid: subject.cid },
+      createdAt: new Date().toISOString(),
     },
-  );
-
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as {
-      message?: string;
-    };
+  });
+  if (!result.ok) {
     return {
       ok: false,
-      status: response.status === 429 ? 429 : 502,
+      status: result.status,
       error: "PdsError",
-      message:
-        body.message ?? `PDS rejected the request (HTTP ${response.status})`,
+      message: result.message,
     };
   }
 
-  const created = (await response.json()) as { uri: string; cid: string };
+  const created = result.body as { uri: string; cid: string };
   return { ok: true, uri: created.uri, cid: created.cid };
 };
 
@@ -1082,38 +1121,23 @@ const deleteReaction = async (
   clientPromise: Promise<OAuthBridgeClient>,
   cors: HeadersInit,
 ): Promise<Response> => {
-  let session;
-  try {
-    const client = await clientPromise;
-    session = await client.restore(did);
-  } catch {
+  const session = await restorePdsSession(did, clientPromise);
+  if (!session) {
     return jsonError(
       401,
       "SessionExpired",
-      "Your atmosphere authorization expired — sign in again",
+      SESSION_EXPIRED_RESULT.message,
       cors,
     );
   }
 
-  const response = await session.fetchHandler(
-    "/xrpc/com.atproto.repo.deleteRecord",
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ repo: did, collection, rkey }),
-    },
-  );
-
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as {
-      message?: string;
-    };
-    return jsonError(
-      response.status === 429 ? 429 : 502,
-      "PdsError",
-      body.message ?? `PDS rejected the request (HTTP ${response.status})`,
-      cors,
-    );
+  const result = await callPds(session, "/xrpc/com.atproto.repo.deleteRecord", {
+    repo: did,
+    collection,
+    rkey,
+  });
+  if (!result.ok) {
+    return jsonError(result.status, "PdsError", result.message, cors);
   }
 
   return json({ ok: true }, 200, cors);

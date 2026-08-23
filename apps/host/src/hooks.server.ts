@@ -3,7 +3,14 @@ import type { Handle } from "@sveltejs/kit";
 let registration: Promise<unknown> | undefined;
 
 const ensureAtprotoCommentsRenderer = (): Promise<unknown> => {
-  registration ??= import("@svebcomponents/atproto.comments/ssr");
+  registration ??= import("@svebcomponents/atproto.comments/ssr").catch(
+    (error) => {
+      // Don't cache a rejection: a transient failure at startup would
+      // otherwise poison every future request until process restart.
+      registration = undefined;
+      throw error;
+    },
+  );
   return registration;
 };
 

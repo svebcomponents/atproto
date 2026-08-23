@@ -54,6 +54,18 @@ const OAUTH_SESSION_TTL_MS = 30 * 24 * 60 * 60_000;
  */
 const STATE_TTL_MS = 10 * 60_000;
 
+/**
+ * How long a browser session may sit unused before its row ages out.
+ * Renewed whenever the reader is active (the component revalidates its
+ * session on page load and refreshes its bearer token while in use), so an
+ * engaged reader never notices; a session abandoned for this long is gone —
+ * matching the OAuth grant backstop above, so "sign out" plus inactivity are
+ * both sufficient to end the bridge's access. Without it the sid rows would
+ * live forever: revocation on sign-out exists, but nothing else ever
+ * deleted them.
+ */
+const SERVICE_SESSION_TTL_MS = 30 * 24 * 60 * 60_000;
+
 export const createSqliteStores = (path: string): Stores => {
   if (path !== ":memory:") {
     mkdirSync(dirname(path), { recursive: true });
@@ -94,32 +106,18 @@ export const createSqliteStores = (path: string): Stores => {
   } catch {
     // column already present
   }
-
-  const kv = <T>(table: string, keyColumn: string) => {
-    const setStmt = db.prepare(
-      `INSERT INTO ${table} (${keyColumn}, value) VALUES (?, ?)
-       ON CONFLICT(${keyColumn}) DO UPDATE SET value = excluded.value`,
+  // Same migration for browser sessions: rows written before the TTL existed
+  // keep working (expires_at = 0) and pick up a real expiry on next renewal.
+  try {
+    db.exec(
+      "ALTER TABLE service_session ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0",
     );
-    const getStmt = db.prepare(
-      `SELECT value FROM ${table} WHERE ${keyColumn} = ?`,
-    );
-    const delStmt = db.prepare(`DELETE FROM ${table} WHERE ${keyColumn} = ?`);
-    return {
-      async set(key: string, value: T): Promise<void> {
-        setStmt.run(key, JSON.stringify(value));
-      },
-      async get(key: string): Promise<T | undefined> {
-        const row = getStmt.get(key) as { value: string } | undefined;
-        return row ? (JSON.parse(row.value) as T) : undefined;
-      },
-      async del(key: string): Promise<void> {
-        delStmt.run(key);
-      },
-    };
-  };
+  } catch {
+    // column already present
+  }
 
   /**
-   * Like {@link kv}, but rows age out. `expires_at = 0` marks a row written
+   * Key-value rows that age out. `expires_at = 0` marks a row written
    * before the column existed: it stays readable and picks up a real expiry
    * the next time it is written.
    */
@@ -281,7 +279,11 @@ export const createSqliteStores = (path: string): Stores => {
       "did",
       OAUTH_SESSION_TTL_MS,
     ),
-    serviceSessionStore: kv<ServiceSession>("service_session", "sid"),
+    serviceSessionStore: expiringKv<ServiceSession>(
+      "service_session",
+      "sid",
+      SERVICE_SESSION_TTL_MS,
+    ),
     authClaimStore,
     metricsStore,
   };

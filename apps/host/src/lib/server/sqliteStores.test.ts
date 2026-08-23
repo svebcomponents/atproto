@@ -68,6 +68,28 @@ describe("sqlite auth claim store", () => {
     await serviceSessionStore.del("sid-1");
     expect(await serviceSessionStore.get("sid-1")).toBeUndefined();
   });
+
+  it("ages out a service session that is never renewed", async () => {
+    const { serviceSessionStore } = createSqliteStores(dbPath);
+    const session = {
+      did: "did:plc:me",
+      origin: "https://blog.example",
+      createdAt: new Date().toISOString(),
+    };
+    await serviceSessionStore.set("sid-2", session);
+    // The retention window lives in a separate column; slide it back by
+    // hand to simulate the 30 days of silence that expire a session.
+    const db = new DatabaseSync(dbPath);
+    db.prepare("UPDATE service_session SET expires_at = ? WHERE sid = ?").run(
+      Date.now() - 1_000,
+      "sid-2",
+    );
+    db.close();
+    expect(await serviceSessionStore.get("sid-2")).toBeUndefined();
+    // Renewal (a fresh set) brings it back to life.
+    await serviceSessionStore.set("sid-2", session);
+    expect(await serviceSessionStore.get("sid-2")).toEqual(session);
+  });
 });
 
 describe("sqlite oauth state store", () => {

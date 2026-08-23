@@ -8,6 +8,19 @@ import { createSqliteStores } from "./sqliteStores.js";
 
 let cached: AtprotoCommentsService | undefined;
 
+/** parses a positive-number env var; a typo'd value should fail loudly, not become NaN */
+const positiveNumberEnv = (name: string): number | undefined => {
+  const raw = env[name];
+  if (raw === undefined || raw === "") return undefined;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(
+      `${name} must be a positive number (got ${JSON.stringify(raw)})`,
+    );
+  }
+  return value;
+};
+
 /**
  * The bridge service, constructed once per process. Config comes from the
  * environment:
@@ -45,6 +58,12 @@ export const getService = (): AtprotoCommentsService => {
     env["SERVICE_DB_PATH"] ?? "./.data/service.db",
   );
   const keys = env["OAUTH_PRIVATE_KEYS"];
+  const maxThreads = positiveNumberEnv("COMMENT_STREAM_MAX_THREADS");
+  const maxSubscribers = positiveNumberEnv("COMMENT_STREAM_MAX_SUBSCRIBERS");
+  const maxSubscribersPerThread = positiveNumberEnv(
+    "COMMENT_STREAM_MAX_SUBSCRIBERS_PER_THREAD",
+  );
+  const heartbeatMs = positiveNumberEnv("COMMENT_STREAM_HEARTBEAT_MS");
 
   cached = createAtprotoCommentsService({
     publicUrl: serviceUrl,
@@ -61,7 +80,7 @@ export const getService = (): AtprotoCommentsService => {
         logoUrl: "/svebcomponents.svg",
         homeUrl: "https://atproto.svebcomponents.dev",
       },
-      theme: { accent: "#2980c2" },
+      theme: { accent: "#2563eb" },
       links: { privacy: "/privacy" },
     },
     productUrl: "https://atproto.svebcomponents.dev",
@@ -69,24 +88,12 @@ export const getService = (): AtprotoCommentsService => {
     sessionMode: env["SESSION_MODE"] === "cookie" ? "cookie" : "bearer",
     commentStream: {
       ...(env["SPACEDUST_URL"] ? { spacedustUrl: env["SPACEDUST_URL"] } : {}),
-      ...(env["COMMENT_STREAM_MAX_THREADS"]
-        ? { maxThreads: Number(env["COMMENT_STREAM_MAX_THREADS"]) }
+      ...(maxThreads !== undefined ? { maxThreads } : {}),
+      ...(maxSubscribers !== undefined ? { maxSubscribers } : {}),
+      ...(maxSubscribersPerThread !== undefined
+        ? { maxSubscribersPerThread }
         : {}),
-      ...(env["COMMENT_STREAM_MAX_SUBSCRIBERS"]
-        ? {
-            maxSubscribers: Number(env["COMMENT_STREAM_MAX_SUBSCRIBERS"]),
-          }
-        : {}),
-      ...(env["COMMENT_STREAM_MAX_SUBSCRIBERS_PER_THREAD"]
-        ? {
-            maxSubscribersPerThread: Number(
-              env["COMMENT_STREAM_MAX_SUBSCRIBERS_PER_THREAD"],
-            ),
-          }
-        : {}),
-      ...(env["COMMENT_STREAM_HEARTBEAT_MS"]
-        ? { heartbeatMs: Number(env["COMMENT_STREAM_HEARTBEAT_MS"]) }
-        : {}),
+      ...(heartbeatMs !== undefined ? { heartbeatMs } : {}),
     },
     ...(keys ? { keys: keys.split("\n").filter(Boolean) } : {}),
     ...stores,
