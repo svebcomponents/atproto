@@ -1,5 +1,39 @@
 # @svebcomponents/atproto.comments
 
+## 0.6.0
+
+### Minor Changes
+
+- 4100880: Fresh-by-default snapshots: "not live" no longer means "stale".
+
+  A component mounted with a preloaded `threadData` snapshot used to render it
+  indefinitely unless the viewer signed in and the live stream connected. The
+  component now runs one background revalidation against the public AppView on
+  mount when the snapshot is older than the new `stale-time` attribute
+  (default 60 000 ms; `Infinity` opts out). The refresh is a direct client →
+  AppView read: signed-out visitors get current comments while still making no
+  request to any bridge.
+
+  The SSR prefetch stamps the new `fetched-at` property automatically so real-time
+  server rendering skips the redundant fetch. Hosts supplying their own
+  `threadData` can pass `fetched-at` too; leaving it out counts as an unknown age,
+  which is treated as stale — fresh content by default.
+
+- 13cde70: New `viewer-name` property: what outbound links call the viewer.
+
+  Link text ("Reply on …", "Continue this thread on …") previously used the
+  literal "Bluesky" for the default viewer and the bare hostname for anything
+  else, so a self-hosted frontend got "Reply on comments.example.com" with no
+  way to name it. Set `viewer-name="Deer"` alongside `viewer` to override.
+
+  Defaults are unchanged: "Bluesky" when `viewer` is unset, the viewer's
+  hostname otherwise.
+
+### Patch Changes
+
+- Updated dependencies [13cde70]
+  - @svebcomponents/atproto.client@0.5.0
+
 ## 0.5.0
 
 ### Minor Changes

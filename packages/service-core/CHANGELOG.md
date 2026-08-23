@@ -1,5 +1,94 @@
 # @svebcomponents/atproto.bridge
 
+## 0.4.0
+
+### Minor Changes
+
+- 13cde70: Accept post URLs from any AppView frontend, not just `bsky.app`.
+
+  `parseThreadRef` gated on `url.hostname === "bsky.app"`, so a mu.social or
+  self-hosted viewer URL was rejected — even though `viewer` will happily
+  _generate_ those same URLs. The input and output sides disagreed: you could
+  render a thread whose "Reply on mu.social" link you could not paste back
+  into `thread`.
+
+  Parsing is now shape-only: any `https` URL matching `/profile/…/post/…`. The
+  hostname was never load-bearing — it is discarded once `authority` and `rkey`
+  are extracted, and the resulting `at://` URI is always resolved through the
+  caller's configured AppView. Gating on it rejected unknown-but-valid viewers
+  while buying no safety.
+
+  This also reaches the bridge's `/api/comments/stream`, which validates its
+  `thread` parameter through the same parser.
+
+  Error and validation copy no longer names bsky.app: "Not a valid AT URI or
+  post URL", and "thread must be an AT URI or post URL".
+
+- 0a5c789: Render the bridge's pages with Svelte SSR and add typed OAuth sign-in page
+  customization for self-hosted deployments. `oauthPage` can set the visible
+  title, brand name/logo/home link, accent color, privacy link, and support link;
+  relative URLs resolve against `publicUrl`.
+
+  Hosts that need complete markup control can pass an async or synchronous
+  `renderSignInPage` option. It replaces only the handle-entry screen: OAuth
+  callbacks and browser session handoff remain owned by the bridge.
+
+- 1a06715: The bridge's own pages now use the documentation site's design, and can carry
+  a short project pitch.
+
+  New `productUrl` option. When set, the bridge's pages show a brand header and
+  the sign-in page gains a footer note pointing at the project. `privacyUrl` is
+  linked from that header rather than from under the card. Unset by default, so a self-hosted bridge does not advertise
+  someone else's project on its own sign-in screen — the branding and the pitch
+  are opt-in together.
+
+  On viewports wide enough for it, the sign-in page lays out as two columns —
+  the explanation on the left, the form on the right — rather than a narrow
+  column centred in empty space. Narrower viewports keep a single column at a
+  readable measure, stacking explanation, then form, then pitch.
+
+  The shared page shell now uses the docs site's palette, its Georgia display
+  face for headings, and the same Inter-with-system-fallback body stack. No
+  webfont is fetched: the docs site relies on the same fallbacks, and pulling a
+  font from a third party onto a consent screen would undercut the point. The
+  brand mark is inlined rather than linked, so the page renders standalone from
+  any origin.
+
+- 1a06715: Sign-in page: accurate consent copy, a privacy link, and a real layout.
+
+  The page said the reader was approving "posting replies on your behalf for
+  <site>". Neither half was true of the authorization. ATProto OAuth scopes are
+  collection + action, so the grant is `repo:app.bsky.feed.post?action=create` —
+  create any post, not only replies — plus create/delete on likes and reposts.
+  And the grant is keyed by DID, so it spans every site using the bridge rather
+  than the one named. Replies-only is a restraint the bridge imposes on itself
+  in `replyValidation`; it is not a limit of the authorization, and anyone
+  holding the token set has the broader capability. The page now says what is
+  actually granted, and notes that the provider will show the exact scopes.
+
+  New `privacyUrl` option (absolute, or a path resolved against `publicUrl`)
+  links the operator's privacy policy from the sign-in footer. Omitted by
+  default; a public deployment asking strangers for posting authority should
+  set it.
+
+  The page itself was the unstyled default — an oversized heading in a 24rem
+  column with no container. It is now a proper card: the requesting origin
+  called out in its own labelled block (it is the security-relevant detail), a
+  plain list of what approving allows, and light/dark, mobile and focus states
+  that were not really designed before.
+
+### Patch Changes
+
+- 13cde70: Document the `appView` option, which was configurable but undocumented, and
+  stop the sign-in page's promo copy from naming one AppView's brand — readers
+  sign in with an ATmosphere identity, whichever AppView the site reads from.
+
+  The 300-grapheme reply limit is now attributed to the `app.bsky.feed.post`
+  lexicon's `maxGraphemes` rather than to Bluesky.
+
+- Updated dependencies [13cde70]
+  - @svebcomponents/atproto.client@0.5.0
+
 ## 0.3.0
 
 ### Minor Changes
