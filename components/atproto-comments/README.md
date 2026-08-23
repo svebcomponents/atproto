@@ -116,15 +116,22 @@ live updates.
 | `thread`    | —              | AT URI or bsky.app post URL                             |
 | `service`   | hosted         | OAuth, posting, and SSE bridge URL                      |
 | `readonly`  | `false`        | hide sign-in and in-page replies                        |
+| `live`      | `signed-in`    | who gets live updates: `signed-in`, `all`, or `off`     |
 | `show-root` | `false`        | render the discussion root's own post above the replies |
 | `max-depth` | `6`            | maximum nested depth                                    |
 | `sort`      | `oldest`       | `oldest`, `newest`, or `likes`                          |
 | `labels`    | `collapse`     | `hide`, `collapse`, or `show`                           |
 | `viewer`    | bsky.app       | outbound profile/post viewer                            |
 | `appview`   | public AppView | public thread-read endpoint                             |
+| `page-url`  | —              | embedding page's canonical URL; enables no-JS sign-in on a same-origin cookie-mode service |
 
 `threadData` is a JavaScript-only `CommentTree` property for a preloaded
 snapshot.
+
+With the default `live="signed-in"`, only readers who sign in hold a connection
+to the service; signed-out visitors read the thread straight from the AppView.
+Set `live="all"` to stream for everyone (reasonable when the bridge is your
+own), or `live="off"` to disable the stream entirely.
 
 ## Events
 

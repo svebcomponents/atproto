@@ -16,7 +16,9 @@ Implemented:
   Self-contained bundle, ~26 KB gzipped.
 - SSR and hydration: declarative shadow DOM rendered on the server is adopted
   in place on the client, including inside a hydrating SvelteKit host
-  (covered by e2e tests for same-node identity and rich-prop transport).
+  (covered by e2e tests for same-node identity and rich-prop transport; a
+  full interactive OAuth round-trip against a live account is not yet
+  covered).
 - In-page sign-in and posting: set `service` and readers can sign in with
   their ATProto account (OAuth popup with a COOP-safe nonce-claim handshake)
   and reply to the thread or to any comment through a modal composer with a
@@ -31,9 +33,6 @@ Implemented:
   coalesced AppView refresh. A reconnect triggers a fresh read because
   Spacedust v0 has no replay cursor. Set `live="all"` to stream for signed-out
   readers too — see [Reader privacy](#reader-privacy) for what that changes.
-
-Still open before publishing: a real-account OAuth e2e test and deploying the
-bridge to a real domain. See the [roadmap](./04-roadmap.md).
 
 ## Usage
 
@@ -131,13 +130,51 @@ What that means in practice:
 The hosted bridge's own policy is at
 [atproto.svebcomponents.dev/privacy](https://atproto.svebcomponents.dev/privacy).
 
-## Planning docs
+## Architecture
 
-- [00-overview.md](./00-overview.md) — executive summary & decisions
-- [01-architecture.md](./01-architecture.md) — system architecture & SSR design
-- [02-component-design.md](./02-component-design.md) — component APIs
-- [03-oauth-service.md](./03-oauth-service.md) — hosted auth/posting bridge & self-hosting
-- [04-roadmap.md](./04-roadmap.md) — phases & open questions
+```
+┌────────────────────────────── any blog page ──────────────────────────────┐
+│  <atproto-comments thread="at://…" service="/atproto">                    │
+│        │ read (public AppView, CORS)        │ auth + write (bearer/cookie)│
+└────────┼────────────────────────────────────┼──────────────────────────────┘
+         ▼                                    ▼
+  public.api.bsky.app                 the bridge (packages/service-core,
+  app.bsky.feed.getPostThread         mounted by apps/host at /atproto)
+          │                            ├─ ATProto OAuth (confidential client)
+          ▼                            ├─ session + token stores (SQLite)
+   AppView aggregates the network      └─ com.atproto.repo.createRecord
+          ▲                                    │ (reader's PDS, DPoP tokens)
+          └── firehose ◄───────────────────────┘
+                   ▲
+   Microcosm Spacedust ── one filtered upstream WebSocket per bridge process
+   (reply signals fan out to browser SSE viewers)
+```
+
+Reads never touch the bridge. Writes always go through it. The bridge stores
+OAuth/session state, never comment content — replies land in the commenter's
+own ATProto repo and flow back into the thread through the network.
+
+Design notes that shape the code:
+
+- **Package boundaries.** `@svebcomponents/atproto.client` is isomorphic and
+  framework-free: every network touch (thread fetch, normalization, rich-text
+  segmentation, service API) lives there with no Svelte imports, so it runs in
+  the browser and during SSR and unit-tests without a DOM.
+- **SSR without double render.** Svelte-compiled custom elements re-render from
+  scratch when they upgrade, so a naive component refetches and flashes. A
+  preloaded `threadData` channel renders the client instantly from server data;
+  freshness is then event-driven (SSE `connected` status and reply events), not
+  time-based polling.
+- **Auth across origins.** Hosted mode uses a popup OAuth flow with a COOP-safe
+  nonce-claim handoff and short-lived origin-bound session tokens; ATProto
+  tokens never leave the bridge. A same-origin self-host switches the same APIs
+  to an HttpOnly cookie (`sessionMode: "cookie"`). See
+  [the bridge README](./packages/service-core/README.md) for scopes, endpoints,
+  storage, and the security model.
+- **Self-hosting is the same code.** `service-core` exposes plain
+  `Request → Response` handlers, so mounting it in your own SvelteKit/Astro/
+  Hono app makes you your own first-party OAuth client; `apps/host` is only the
+  reference deployment.
 
 ## Workspace
 

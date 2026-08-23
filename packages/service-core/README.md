@@ -66,6 +66,59 @@ plus the bridge-owned form values. A custom form must submit `handle`, preserve
 input named `return`, and use the supplied `actionUrl`. Only this handle-entry
 page is replaceable; the callback and token handoff remain bridge-owned.
 
+## Security model
+
+**Narrow scopes.** The bridge asks the reader's provider for create-only
+access to replies plus create/delete on likes and reposts:
+
+```
+atproto
+repo:app.bsky.feed.post?action=create
+repo:app.bsky.feed.like?action=create&action=delete
+repo:app.bsky.feed.repost?action=create&action=delete
+```
+
+It cannot edit or delete the reader's posts, read their data beyond a public
+profile snapshot, or touch anything else in their account. Delete is required
+on likes/reposts only because un-liking and undoing a repost are deletes of
+the viewer's own records.
+
+**Tokens stay server-side.** ATProto access/refresh tokens (DPoP-bound) live
+only in the bridge's session store. Browsers hold at most a short-lived,
+origin-bound bridge JWT — never an ATProto credential.
+
+**Origin binding.** The embedding origin travels through the OAuth flow, is
+bound into every session token, and is checked against the request's `Origin`
+header on state-changing calls. A token minted for one site is rejected
+everywhere else; sign-in handoff requires a matching `Origin` on the polling
+request. CORS echoes only the bound origin.
+
+**Revocation.** Sign-out deletes the browser session _and_ revokes the ATProto
+grant with the reader's PDS — "sign out" means the bridge can no longer act as
+that account. Unused grants age out of the store on their own.
+
+**Rate limits.** Replies and reactions are rate-limited per DID by default
+(10 replies / 10 minutes, 60 reactions / 10 minutes). Only reply posts can be
+created: root and parent are mandatory, so the bridge cannot be used to spam
+top-level posts.
+
+## API surface
+
+```
+GET    /client-metadata.json             OAuth client metadata (its URL is the client_id)
+GET    /jwks.json                        public keys for private_key_jwt client auth
+GET    /oauth/start?origin=…             begin sign-in (popup entry, handle page)
+GET    /oauth/callback                   token exchange → session handoff page
+GET    /api/session                      who is signed in (session profile snapshot)
+POST   /api/session/refresh              renew the browser session
+POST   /api/session/logout               delete session and revoke the ATProto grant
+POST   /api/reply                        create a reply post as the signed-in reader
+POST   /api/like, /api/repost            like/repost as the signed-in reader
+DELETE /api/like, /api/repost            undo them (removes the reader's record)
+GET    /api/comments/stream?thread=…     SSE reply signals for one thread
+GET    /api/stats                        whole-service counts (no origins, no readers)
+```
+
 ## Session modes
 
 The default `sessionMode: "bearer"` is for a bridge embedded cross-origin. The
