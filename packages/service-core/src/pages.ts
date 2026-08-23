@@ -170,9 +170,6 @@ const page = ({
     color: var(--ink);
     word-break: break-all;
   }
-  .grants { margin: 0 0 1.1rem; padding-left: 1.1rem; font-size: .92rem; color: var(--text); }
-  .grants li { margin-bottom: .3rem; }
-  .grants li:last-child { margin-bottom: 0; }
   label { display: block; font-size: .9rem; font-weight: 600; margin-bottom: .35rem; }
   input, button {
     font: inherit;
@@ -292,13 +289,7 @@ export const signInPage = ({
     body: `<div class="split">
 <div class="intro">
 <h1>Sign in to the ATmosphere to comment</h1>
-<p class="hint">You approve this at your own account provider. Your password is never sent to ${escapeHtml(clientName)}.</p>
-<p class="hint" style="margin-bottom:.4rem">Approving lets ${escapeHtml(clientName)}:</p>
-<ul class="grants">
-  <li>create posts, likes and reposts in your repository, as you</li>
-  <li>keep doing so on any site using this service, until you sign out</li>
-</ul>
-<p class="hint">This service only posts replies to the thread you are reading. The permission itself is broader. Your provider shows the exact scopes before you approve.</p>
+<p class="hint">Your provider will show what you are approving. Your password is never sent here.</p>
 </div>
 <div class="action">
 <div class="card">

@@ -1130,11 +1130,15 @@ describe("sign-in consent screen", () => {
   // The OAuth grant is collection-level: create any app.bsky.feed.post, not
   // just replies, and not just on this site. Saying otherwise would understate
   // what is being authorized at the one moment the reader decides.
-  it("describes the grant it actually asks for, not the narrower thing it does", async () => {
+  // The reader's own provider enumerates the scopes on the next screen, so
+  // this page does not repeat them. What it must not do is describe the grant
+  // as narrower than it is: the authorization covers creating any post, on
+  // any site using the bridge, not just replies here.
+  it("makes no claim that the grant is narrower than it is", async () => {
     const html = await signInHtml();
-    expect(html).toContain("create posts, likes and reposts");
-    expect(html).toContain("any site using this service");
-    expect(html).not.toMatch(/approve posting replies on your behalf/i);
+    expect(html).toContain("Your provider will show what you are approving");
+    expect(html).not.toMatch(/posting replies on your behalf/i);
+    expect(html).not.toMatch(/only posts replies/i);
   });
 
   it("links the privacy policy when one is configured", async () => {
