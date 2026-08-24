@@ -79,8 +79,9 @@ test("hydrated component stays reactive", async ({ page }) => {
     .first();
   // The visible label is the reply-count glyph ("↩ 3"), which tracks the live
   // thread — assert the accessible name instead, which is what actually
-  // identifies this as the reply button.
-  await expect(replyButton).toHaveAccessibleName("Reply");
+  // identifies this as the reply button. Matched by prefix, because the name
+  // carries the same live reply count ("Reply, 3 replies").
+  await expect(replyButton).toHaveAccessibleName(/^Reply, \d+ replies$/);
 
   // Every comment renders its own composer dialog, so assertions must target
   // *this* button's dialog. The first dialog in document order belongs to the
