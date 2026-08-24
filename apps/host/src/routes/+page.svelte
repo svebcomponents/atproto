@@ -646,30 +646,34 @@
 
   {#if totals}
     <section id="stats" class="section metrics-section">
-      <h2>Live Bridge Metrics</h2>
+      <h2>Live Metrics from our Hosted Bridge</h2>
       <dl class="stat-grid">
         <div class="stat">
-          <dt>Sites</dt>
+          <dt>Live Sites <span class="pulse" aria-hidden="true"></span></dt>
           <dd>{totals.sites.toLocaleString()}</dd>
         </div>
         <div class="stat">
-          <dt>Connected now <span class="pulse" aria-hidden="true"></span></dt>
+          <dt>
+            Live connections <span class="pulse" aria-hidden="true"></span>
+          </dt>
           <dd>{(live?.subscribers ?? 0).toLocaleString()}</dd>
         </div>
         <div class="stat">
-          <dt>Threads watched</dt>
+          <dt>
+            Live threads <span class="pulse" aria-hidden="true"></span>
+          </dt>
           <dd>{(live?.threads ?? 0).toLocaleString()}</dd>
         </div>
         <div class="stat">
-          <dt>Replies</dt>
+          <dt>total replies sent</dt>
           <dd>{totals.replies.toLocaleString()}</dd>
         </div>
         <div class="stat">
-          <dt>Sign-ins</dt>
+          <dt>total sign-ins</dt>
           <dd>{totals.signIns.toLocaleString()}</dd>
         </div>
         <div class="stat">
-          <dt>Connections opened</dt>
+          <dt>total connections opened</dt>
           <dd>{totals.streamConnects.toLocaleString()}</dd>
         </div>
       </dl>
@@ -1643,21 +1647,6 @@
 
   .self-host-copy > p {
     max-width: 560px;
-  }
-
-  .self-host ul {
-    display: grid;
-    gap: 1rem;
-    padding: 0;
-    list-style: none;
-  }
-
-  .self-host li {
-    padding-left: 1.2rem;
-    border-left: 1px solid var(--accent-soft);
-    color: var(--text);
-    font-size: 0.87rem;
-    line-height: 1.6;
   }
 
   .resource-note {
