@@ -1258,7 +1258,12 @@
   .split-section,
   .self-host {
     display: grid;
-    grid-template-columns: 0.8fr 1.2fr;
+    /* The code columns shrink to zero rather than their content: a long,
+       unbreakable token in a snippet must never widen the card past the
+       viewport (it scrolls or wraps inside instead). The text columns keep
+       their automatic minimum so short inline code, like the bridge URL in
+       the quickstart note, is never clipped. */
+    grid-template-columns: 0.8fr minmax(0, 1.2fr);
     gap: clamp(3rem, 8vw, 8rem);
   }
 
@@ -1306,14 +1311,24 @@
     gap: 1px;
     background: var(--line);
     border: 1px solid var(--line);
+    /* Hug the steps. The container background is the divider colour, so a
+       stretch to match a taller intro column would surface as a bar of that
+       colour below the last card. */
+    align-self: start;
   }
 
   .step {
     display: grid;
-    grid-template-columns: 38px 1fr;
+    grid-template-columns: 38px minmax(0, 1fr);
     gap: 1rem;
     padding: 1.5rem;
     background: #fff;
+  }
+
+  /* Let the code column shrink below the snippet's longest line; the pre
+     wraps or scrolls instead of pushing the card out of the section. */
+  .step > div {
+    min-width: 0;
   }
 
   .step-number {
@@ -1335,6 +1350,10 @@
   .self-host pre {
     padding: 1.25rem;
     border-radius: 9px;
+    /* Wrap at the snippet's <wbr> break points. Under the default `pre` some
+       engines ignore <wbr>, pinning the block to its longest line and pushing
+       the card past the viewport. */
+    white-space: pre-wrap;
   }
 
   .ssr-grid {
@@ -1344,6 +1363,9 @@
     align-content: start;
     background: var(--line);
     border: 1px solid var(--line);
+    /* Same reason as .steps: the divider colour must never show as a bar
+       where the grid was stretched past its content. */
+    align-self: start;
   }
 
   .ssr-card {
@@ -1616,7 +1638,7 @@
   }
 
   .self-host {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr minmax(0, 1fr);
   }
 
   .self-host-copy > p {
