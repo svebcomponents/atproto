@@ -23,6 +23,7 @@
     "@svebcomponents/atproto.client": "workspace:*",
     "@svebcomponents/atproto.comments": "workspace:*",
     "@svebcomponents/ssr": "catalog:",
+    "shiki": "4.4.3",
     "valibot": "1.4.2"
   },
   "devDependencies": {

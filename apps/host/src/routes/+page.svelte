@@ -5,6 +5,9 @@
 
   let { data }: PageProps = $props();
   const threadUri = $derived(data.thread);
+  /* Highlighted on the server, where the samples live; see
+     $lib/server/snippets.ts. */
+  const snippets = $derived(data.snippets);
 
   /* The snippet is copied out of the DOM rather than kept as a second string,
      so the code on screen and the code on the clipboard cannot drift apart. */
@@ -22,19 +25,6 @@
     clearTimeout(copiedTimer);
     copiedTimer = setTimeout(() => (copied = false), 2000);
   }
-
-  const quickstart = `pnpm add @svebcomponents/atproto.comments
-
-import "@svebcomponents/atproto.comments";`;
-
-  const markup = `<atproto-comments
-  thread="https://bsky.app/profile/bsky.app/post/…"
-></atproto-comments>`;
-
-  const selfHostedMarkup = `<atproto-comments
-  thread="at://did:plc:…/app.bsky.feed.post/…"
-  service="/atproto"
-></atproto-comments>`;
 
   // Live gauges refresh by polling a small cached JSON endpoint. Deliberately
   // not an SSE stream: opening a persistent connection to show off a service
@@ -66,17 +56,6 @@ import "@svebcomponents/atproto.comments";`;
       clearInterval(timer);
     };
   });
-
-  const selfHostedConfig = `createAtprotoCommentsService({
-  publicUrl: "https://your.blog",
-  basePath: "/atproto",
-  sessionMode: "cookie",
-  sessionSecret,
-  keys,
-  stateStore,
-  sessionStore,
-  serviceSessionStore,
-});`;
 
   const properties = [
     {
@@ -304,36 +283,13 @@ import "@svebcomponents/atproto.comments";`;
           <span role="status">{copied ? "Copied" : "Copy HTML"}</span>
         </button>
       </div>
+      <!-- Formatting splits this tag, so the rule is switched off across the
+           whole element rather than for one line. -->
+      <!-- eslint-disable svelte/no-at-html-tags -- build-time constants from $lib/server/snippets.ts, never user input -->
       <pre class="hero-demo-code"><code bind:this={snippetEl}
-          >&lt;<span class="code-tag">script</span> <span class="code-attr"
-            >type</span
-          >=<span class="code-string">"module"</span>
-  <span class="code-attr">src</span>=<span class="code-string"
-            >"https://atproto.svebcomponents.dev/<wbr />cdn"</span
-          >&gt;
-&lt;/<span class="code-tag">script</span>&gt;
-
-&lt;<span class="code-tag">atproto-comments</span>
-  <span class="code-attr">thread</span>=<span class="code-string"
-            >"https://bsky.app/profile/<wbr />theosteiner.de/post/<wbr
-            />3mreni33v7k2c"</span
-          >
-&gt;&lt;/<span class="code-tag">atproto-comments</span>&gt;
-
-&lt;<span class="code-tag">style</span>&gt;
-  <span class="code-tag">atproto-comments</span> &lbrace;
-    <span class="code-attr">--atproto-comments-accent</span>: <span
-            class="code-string">#2563eb</span
-          >;
-    <span class="code-attr">--atproto-comments-radius</span>: <span
-            class="code-string">4px</span
-          >;
-    <span class="code-attr">font-family</span>: <span class="code-string"
-            >ui-monospace, monospace</span
-          >;
-  &rbrace;
-&lt;/<span class="code-tag">style</span>&gt;</code
+          >{@html snippets.hero}</code
         ></pre>
+      <!-- eslint-enable svelte/no-at-html-tags -->
       <div class="code-foot">
         <a class="code-foot-link" href="#start">More options ↓</a>
       </div>
@@ -348,7 +304,7 @@ import "@svebcomponents/atproto.comments";`;
         By default, <code>&lt;atproto-comments&gt;</code> only sends requests to
         its hosted bridge if the user signs in and therefore explicitly opts
         into using the service. It stores only what it needs and is commited to
-        respecting your <a href="/privacy">privacy</a>.
+        respecting your <a href={resolve("/privacy")}>privacy</a>.
       </p>
     </article>
     <article>
@@ -454,14 +410,16 @@ import "@svebcomponents/atproto.comments";`;
         <span class="step-number">1</span>
         <div>
           <h3>Install and import</h3>
-          <pre><code>{quickstart}</code></pre>
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -- build-time constants from $lib/server/snippets.ts, never user input -->
+          <pre><code>{@html snippets.quickstart}</code></pre>
         </div>
       </article>
       <article class="step">
         <span class="step-number">2</span>
         <div>
           <h3>Point at a post</h3>
-          <pre><code>{markup}</code></pre>
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -- build-time constants from $lib/server/snippets.ts, never user input -->
+          <pre><code>{@html snippets.markup}</code></pre>
         </div>
       </article>
     </div>
@@ -755,9 +713,11 @@ import "@svebcomponents/atproto.comments";`;
     </div>
     <div class="self-host-code">
       <p class="code-label">Component</p>
-      <pre><code>{selfHostedMarkup}</code></pre>
+      <!-- eslint-disable-next-line svelte/no-at-html-tags -- build-time constants from $lib/server/snippets.ts, never user input -->
+      <pre><code>{@html snippets.selfHostedMarkup}</code></pre>
       <p class="code-label">Server</p>
-      <pre><code>{selfHostedConfig}</code></pre>
+      <!-- eslint-disable-next-line svelte/no-at-html-tags -- build-time constants from $lib/server/snippets.ts, never user input -->
+      <pre><code>{@html snippets.selfHostedConfig}</code></pre>
       <a
         class="text-link"
         href="https://github.com/svebcomponents/atproto/blob/main/packages/service-core/README.md"
@@ -1212,18 +1172,6 @@ import "@svebcomponents/atproto.comments";`;
     line-height: 1.62;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-  }
-
-  .code-tag {
-    color: #b99bfa;
-  }
-
-  .code-attr {
-    color: #7cc3ff;
-  }
-
-  .code-string {
-    color: #7ddccb;
   }
 
   .code-foot {
