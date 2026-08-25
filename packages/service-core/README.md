@@ -98,7 +98,9 @@ repo:app.bsky.feed.repost?action=create&action=delete
 It cannot edit or delete the reader's posts, read their data beyond a public
 profile snapshot, or touch anything else in their account. Delete is required
 on likes/reposts only because un-liking and undoing a repost are deletes of
-the viewer's own records.
+the viewer's own records. Notably there is no read scope: `GET /api/viewer`
+reads which comments the reader has already liked from a public backlink
+index (see below), not from their account.
 
 **Tokens stay server-side.** ATProto access/refresh tokens (DPoP-bound) live
 only in the bridge's session store. Browsers hold at most a short-lived,
@@ -132,6 +134,7 @@ POST   /api/session/logout               delete session and revoke the ATProto g
 POST   /api/reply                        create a reply post as the signed-in reader
 POST   /api/like, /api/repost            like/repost as the signed-in reader
 DELETE /api/like, /api/repost            undo them (removes the reader's record)
+GET    /api/viewer?like=…&repost=…       the reader's own like/repost records for those posts
 GET    /api/comments/stream?thread=…     SSE reply signals for one thread
 GET    /api/stats                        whole-service counts (no origins, no readers)
 ```
@@ -230,6 +233,43 @@ connects again. The official component does this automatically.
 Run the bridge on a long-lived, streaming-capable process. Put per-IP
 connection admission and request rate limiting at the edge, where the real
 client address is known. Avoid request-duration-limited serverless functions.
+
+## Viewer reaction state
+
+`GET /api/viewer` answers "which of these comments has this reader already
+liked or reposted", which the component needs to render filled hearts and to
+avoid writing a duplicate record when someone clicks a post they liked
+elsewhere.
+
+A like is a public record pointing at the post it likes, so the question is a
+backlink query. The bridge puts it to
+[Constellation](https://constellation.microcosm.blue), the public backlink
+index (Spacedust's sibling, already an upstream here): one
+`blue.microcosm.links.getBacklinks` lookup filtered to the reader's DID
+returns their like record's rkey. Public data, so the endpoint needs no grant
+from the reader and adds nothing to the scopes above.
+
+```ts
+createAtprotoCommentsService({
+  // ...
+  constellation: "https://constellation.microcosm.blue",
+});
+```
+
+That costs one lookup per post per reaction kind, so the same neighbourliness
+rules as the Spacedust upstream apply:
+
+- the component sends only posts whose **public count is non-zero** — nobody
+  can be among no likers, and most replies in a comment thread have none, so
+  a typical thread asks about a handful of posts rather than all of them;
+- a request may name at most 100 subjects, likes and reposts together;
+- lookups run at most 8 at a time;
+- the reader's DID comes from their session, never the query string. This
+  reports what _you_ reacted to; it is not a lookup service for other people.
+
+An unreachable index answers `{ likes: {}, reposts: {}, unavailable: true }`
+at HTTP 200. Hearts render unfilled and counts stay as the AppView reported
+them — cosmetic, so it must never break the thread.
 
 ## Deployment requirements
 

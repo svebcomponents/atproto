@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createMemoryAuthClaimStore } from "./config.js";
+import {
+  createMemoryAuthClaimStore,
+  DEFAULT_CONSTELLATION,
+  resolveConfig,
+} from "./config.js";
 import type { AuthClaim } from "./config.js";
 
 const claim: AuthClaim = {
@@ -42,5 +46,43 @@ describe("createMemoryAuthClaimStore", () => {
     await store.set("fresh", fresh);
     expect(await store.take("n-1")).toBeUndefined();
     expect(await store.take("fresh")).toEqual(fresh);
+  });
+});
+
+describe("resolveConfig", () => {
+  const base = {
+    publicUrl: "https://comments.example",
+    sessionSecret: "test-secret-that-is-at-least-32-chars-long",
+    stateStore: { set: vi.fn(), get: vi.fn(), del: vi.fn() },
+    sessionStore: { set: vi.fn(), get: vi.fn(), del: vi.fn() },
+    serviceSessionStore: { set: vi.fn(), get: vi.fn(), del: vi.fn() },
+  };
+
+  it("defaults to the public backlink index", () => {
+    expect(resolveConfig(base).constellation).toBe(DEFAULT_CONSTELLATION);
+  });
+
+  it("asks the reader only for the write scopes it needs", () => {
+    // viewer state comes from public data, so it must not widen the grant
+    expect(resolveConfig(base).scope.split(" ").sort()).toEqual([
+      "atproto",
+      "repo:app.bsky.feed.like?action=create&action=delete",
+      "repo:app.bsky.feed.post?action=create",
+      "repo:app.bsky.feed.repost?action=create&action=delete",
+    ]);
+  });
+
+  it("normalizes a custom index to its origin", () => {
+    const { constellation } = resolveConfig({
+      ...base,
+      constellation: "https://links.example/some/path",
+    });
+    expect(constellation).toBe("https://links.example");
+  });
+
+  it("rejects an index URL that is not http(s)", () => {
+    expect(() =>
+      resolveConfig({ ...base, constellation: "wss://links.example" }),
+    ).toThrow(/http/);
   });
 });

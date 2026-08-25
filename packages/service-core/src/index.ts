@@ -2,6 +2,7 @@ export {
   createMemoryAuthClaimStore,
   createMemoryRateLimiter,
   resolveConfig,
+  DEFAULT_CONSTELLATION,
   type AuthClaim,
   type AuthClaimStore,
   type OAuthPageBrandConfig,

@@ -31,12 +31,15 @@ export {
 } from "./urls.js";
 export {
   DEFAULT_SERVICE_URL,
+  MAX_VIEWER_SUBJECTS,
   ServiceClient,
   ServiceError,
   type CreatedRecord,
   type PostedReply,
   type PostRef,
   type ServiceSessionInfo,
+  type ViewerReactions,
+  type ViewerSubjects,
 } from "./serviceClient.js";
 export type {
   Facet,
