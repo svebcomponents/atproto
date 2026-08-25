@@ -63,28 +63,27 @@
       type: "string",
       default: "—",
       description:
-        "An AT URI, or a post URL from any viewer using the /profile/…/post/… scheme.",
+        "An AT URI, or a post URL from any viewer using the /profile/{did}/post/{record_id} scheme.",
     },
     {
       name: "service",
       type: "string",
       default: "hosted",
       description:
-        "One backend URL for OAuth, posting, and live events. Set /atproto to self-host.",
+        "Bridge backend service OAuth, posting, and live events. Change when self-hosting.",
     },
     {
       name: "readonly",
       type: "boolean",
       default: "false",
-      description:
-        "Hides in-page sign-in and posting. Live updates remain enabled.",
+      description: "Hides in-page sign-in and posting.",
     },
     {
       name: "live",
       type: "signed-in | all | off",
       default: "signed-in",
       description:
-        "Who gets live updates — the only feature that connects a reader's browser to the service. all means every reader; see the privacy policy.",
+        "Who gets live updates? Affects when data is sent to the bridge, so please check the privacy policy before changing.",
     },
     {
       name: "sort",
@@ -108,14 +107,14 @@
       name: "viewer",
       type: "URL",
       default: "bsky.app",
-      description: "Viewer used for profile and post links.",
+      description:
+        "App view used for profile and post links. Think bluesky, mu.social, etc.",
     },
     {
       name: "viewer-name",
       type: "string",
-      default: "viewer's hostname",
-      description:
-        "What outbound links call the viewer — “Reply on …”. Defaults to Bluesky for the default viewer.",
+      default: "hostname of the viewer property",
+      description: "“Reply on …”. Defaults to Bluesky for the default viewer.",
     },
     {
       name: "appview",
@@ -127,19 +126,19 @@
       name: "show-root",
       type: "boolean",
       default: "false",
-      description: "Render the discussion root's own text above the replies.",
+      description: "Render the discussion's root node above the replies.",
     },
     {
       name: "page-url",
       type: "string",
-      default: "—",
+      default: "-",
       description:
         "The embedding page's canonical URL. Enables no-JavaScript sign-in on a same-origin, cookie-mode service.",
     },
     {
       name: "fetched-at",
       type: "epoch ms | ISO date",
-      default: "—",
+      default: "-",
       description:
         "When threadData was fetched. Set automatically by SSR prefetch; age older than stale-time triggers one background refresh.",
     },
@@ -156,7 +155,7 @@
     ["atproto-comments:loaded", "The first client-side snapshot loaded."],
     [
       "atproto-comments:revalidated",
-      "A connected or comment event refreshed the snapshot.",
+      "An interaction or comment event refreshed the snapshot.",
     ],
     ["atproto-comments:comment", "The live service observed a new reply URI."],
     [
@@ -220,8 +219,8 @@
 <main id="top">
   <section class="hero">
     <h1 class="sr-only">
-      &lt;atproto-comments&gt;, a web component that renders an AT Protocol
-      (Bluesky) thread as a comment section
+      &lt;atproto-comments&gt;, a drop-in web component that renders an AT
+      Protocol (Bluesky) thread as a comment section
     </h1>
 
     <div class="thread-showcase">
@@ -534,10 +533,10 @@
 
       <div class="flow-link writes-link">
         <span class="flow-arrow">→</span>
-        <small>sign-in · post reply</small>
+        <small>sign-in · reply, like, repost</small>
       </div>
       <div class="flow-node accent-node bridge-node">
-        <small>Hosted or yours</small>
+        <small>Hosted or self-hosted</small>
         <strong>Bridge</strong>
         <span>narrow OAuth scopes · SSE fan-out</span>
       </div>
@@ -546,9 +545,9 @@
         <small>createRecord</small>
       </div>
       <div class="flow-node pds-node">
-        <small>Commenter's PDS</small>
-        <strong>Their repo</strong>
-        <span>replies live here, not on your server</span>
+        <small>Personal Data Server</small>
+        <strong>User PDS</strong>
+        <span>repo stores replies, likes and reposts</span>
       </div>
       <div class="flow-link vertical-link relay-up-link">
         <span class="flow-arrow">↑</span>
@@ -570,25 +569,8 @@
       <div class="flow-node spacedust-node">
         <small>Community infra</small>
         <strong>Spacedust</strong>
-        <span>repo event firehose, via relays</span>
+        <span>repo event firehose</span>
       </div>
-    </div>
-    <div class="architecture-notes">
-      <p>
-        <strong>One upstream.</strong> Each bridge process multiplexes every active
-        thread over a single Spacedust connection.
-      </p>
-      <p>
-        <strong>No polling.</strong> Refreshes follow connection and reply events.
-      </p>
-      <p>
-        <strong>No replay dependency.</strong> A reconnect forces a fresh read.
-      </p>
-      <p>
-        <strong>One origin.</strong> Replies live only in the commenter's PDS; relays
-        carry those commits to the AppView's index and to Spacedust. Nothing in this
-        chain holds a private copy.
-      </p>
     </div>
   </section>
 
@@ -599,9 +581,9 @@
         <h2>Properties<br />and events.</h2>
       </div>
       <p>
-        Most pages only need to set <code>thread</code>. The remaining
-        properties cover sorting, depth limits, moderation handling, and
-        infrastructure choices.
+        You probably only need to set <code>thread</code>. The remaining
+        properties allow fine control over sorting, depth limits, moderation
+        handling, and infrastructure choices.
       </p>
     </div>
     <div class="table-wrap">
@@ -646,44 +628,51 @@
 
   {#if totals}
     <section id="stats" class="section metrics-section">
-      <h2>Live Metrics from our Hosted Bridge</h2>
-      <dl class="stat-grid">
-        <div class="stat">
-          <dt>Live Sites <span class="pulse" aria-hidden="true"></span></dt>
-          <dd>{totals.sites.toLocaleString()}</dd>
-        </div>
-        <div class="stat">
-          <dt>
-            Live connections <span class="pulse" aria-hidden="true"></span>
-          </dt>
-          <dd>{(live?.subscribers ?? 0).toLocaleString()}</dd>
-        </div>
-        <div class="stat">
-          <dt>
-            Live threads <span class="pulse" aria-hidden="true"></span>
-          </dt>
-          <dd>{(live?.threads ?? 0).toLocaleString()}</dd>
-        </div>
-        <div class="stat">
-          <dt>total replies sent</dt>
-          <dd>{totals.replies.toLocaleString()}</dd>
-        </div>
-        <div class="stat">
-          <dt>total sign-ins</dt>
-          <dd>{totals.signIns.toLocaleString()}</dd>
-        </div>
-        <div class="stat">
-          <dt>total connections opened</dt>
-          <dd>{totals.streamConnects.toLocaleString()}</dd>
-        </div>
-      </dl>
+      <h2>Metrics from our Hosted Bridge</h2>
+
+      <div class="stat-group">
+        <p class="stat-group-label">
+          Right now <span class="pulse" aria-hidden="true"></span>
+        </p>
+        <dl class="stat-grid stat-grid-live">
+          <div class="stat">
+            <dt>Threads being watched</dt>
+            <dd>{(live?.threads ?? 0).toLocaleString()}</dd>
+          </div>
+          <div class="stat">
+            <dt>Open event streams</dt>
+            <dd>{(live?.subscribers ?? 0).toLocaleString()}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="stat-group">
+        <p class="stat-group-label">
+          {totals.since ? `Since ${totals.since}` : "All time"}
+        </p>
+        <dl class="stat-grid">
+          <div class="stat">
+            <dt>Embedding sites</dt>
+            <dd>{totals.sites.toLocaleString()}</dd>
+          </div>
+          <div class="stat">
+            <dt>Sign-ins</dt>
+            <dd>{totals.signIns.toLocaleString()}</dd>
+          </div>
+          <div class="stat">
+            <dt>Replies posted</dt>
+            <dd>{totals.replies.toLocaleString()}</dd>
+          </div>
+          <div class="stat">
+            <dt>Likes &amp; reposts</dt>
+            <dd>{totals.reactions.toLocaleString()}</dd>
+          </div>
+        </dl>
+      </div>
+
       <p class="footnote">
-        {#if totals.since}<span>Since {totals.since}.</span>{/if}
-        <span
-          >Counts only — the per-site rows stay on the server, and no
-          visitor-level record exists beneath them.</span
-        >
-        <a href={resolve("/privacy")}>Privacy</a>
+        This is almost everything the bridge will ever track. We are committed
+        to your <a href={resolve("/privacy")}>privacy</a>.
       </p>
     </section>
   {/if}
@@ -691,27 +680,29 @@
   <section id="self-host" class="section self-host">
     <div class="self-host-copy">
       <p class="kicker">Self-hosting</p>
-      <h2>Hosted service by default,<br />or run your own.</h2>
+      <h2>Use the default hosted bridge,<br /> or run your own.</h2>
       <p>
         The <code>service</code> property selects the backend used for OAuth, posting,
-        and the SSE stream. One value switches between the hosted service and your
-        own deployment.
+        and the SSE stream. Set it to use your own deployment instead of the hosted
+        bridge.
       </p>
       <p>
-        In cross-origin deployments the component holds a short-lived,
-        origin-bound bridge JWT. ATProto OAuth tokens never leave the server. <br
-        />
-        Same-origin deployments use an HttpOnly SameSite cookie instead, which page
-        JavaScript cannot read.<br /> Both modes run the same open-source bridge code,
-        which stores no comment bodies.
+        In cross-origin deployments, such as the hosted bridge, the component
+        holds a short-lived, origin-bound bridge JWT.
+      </p>
+      <p>
+        A self-hosted bridge can be same-origin and therefore use a http only
+        same-site cookie instead, bolstering security.<br /> Both modes run the same
+        open-source bridge code, which stores only transient auth data and basic,
+        privacy respecting metrics.
       </p>
       <div class="resource-note">
-        <strong>Spacedust usage</strong>
+        <strong>Live Thread Data via Spacedust</strong>
         <p>
-          A process opens one filtered Spacedust connection only while someone
-          is watching. It updates the subject set as threads come and go,
-          applies jittered reconnect backoff, and enforces bounded viewer and
-          thread capacity.
+          The bridge sends live thread updates via SSE to connected users,
+          leveraging the incredible <code>spacedust</code> project, which is
+          part of
+          <a href="https://www.microcosm.blue">microcosm</a>.
         </p>
       </div>
     </div>
@@ -755,12 +746,27 @@
   .metrics-section h2 {
     font-size: clamp(2rem, 3.5vw, 3rem);
   }
+  .stat-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+  .stat-group-label {
+    margin: 0;
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-meta);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
   .stat-grid {
     margin: 0;
     display: grid;
-    /* Six tiles, so 3x2 or 2x3 — never a row with a gap in it. auto-fit
-       would leave an empty cell at most container widths. */
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    /* Every row is full — a fixed column count per group rather than
+       auto-fit, which would leave an empty cell at most container widths. */
+    grid-template-columns: repeat(var(--stat-cols, 4), minmax(0, 1fr));
     gap: 1px;
     background: var(--line);
     border: 1px solid var(--line);
@@ -812,9 +818,12 @@
       animation: none;
     }
   }
+  .stat-grid-live {
+    --stat-cols: 2;
+  }
   @media (max-width: 60rem) {
     .stat-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      --stat-cols: 2;
     }
   }
 
@@ -1554,24 +1563,6 @@
     padding: 0 0.6rem;
     color: var(--accent);
   }
-  .architecture-notes {
-    grid-column: 2;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-    color: var(--text-meta);
-    font-size: 0.77rem;
-    line-height: 1.5;
-  }
-
-  .architecture-notes p {
-    margin: 0;
-  }
-
-  .architecture-notes strong {
-    display: block;
-    color: var(--ink-strong);
-  }
 
   .reference {
     width: auto;
@@ -1729,10 +1720,6 @@
       grid-template-columns: 1fr;
       gap: 3rem;
     }
-
-    .architecture-notes {
-      grid-column: auto;
-    }
   }
 
   @media (max-width: 850px) {
@@ -1821,10 +1808,6 @@
       grid-template-columns: 1fr;
     }
 
-    .architecture-notes {
-      grid-column: auto;
-    }
-
     footer {
       grid-template-columns: 1fr;
       padding: 2rem 0;
@@ -1869,10 +1852,6 @@
     .reference {
       width: auto;
       padding-inline: 1rem;
-    }
-
-    .architecture-notes {
-      grid-template-columns: 1fr;
     }
 
     .event-list p {
