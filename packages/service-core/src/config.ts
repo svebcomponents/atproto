@@ -191,6 +191,17 @@ export interface ServiceConfig {
   /** AppView for unauthenticated profile lookups */
   appView?: string;
   /**
+   * Backlink index used to read which comments the signed-in reader has
+   * already liked or reposted (default: the public Constellation instance at
+   * `https://constellation.microcosm.blue`).
+   *
+   * Likes and reposts are public records pointing at their subject, so the
+   * index can answer this from public data and `/api/viewer` needs no grant
+   * from the reader. Constellation is the query half of the link index whose
+   * streaming half, Spacedust, already backs live comments.
+   */
+  constellation?: string;
+  /**
    * Live-comment stream limits and Spacedust upstream. The broker opens no
    * connection until a client requests `/api/comments/stream`.
    */
@@ -216,6 +227,8 @@ export interface ResolvedServiceConfig extends ServiceConfig {
   sessionCookieName: string;
   scope: string;
   appView: string;
+  /** normalized to a bare origin */
+  constellation: string;
   commentStream: ResolvedCommentStreamConfig;
   authClaimStore: AuthClaimStore;
   replyRateLimiter: RateLimiter;
@@ -236,6 +249,9 @@ export interface ResolvedServiceConfig extends ServiceConfig {
 }
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/** the public Constellation backlink index */
+export const DEFAULT_CONSTELLATION = "https://constellation.microcosm.blue";
 
 export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
   const url = new URL(config.publicUrl);
@@ -330,6 +346,14 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
       }
     : undefined;
 
+  const constellation = new URL(config.constellation ?? DEFAULT_CONSTELLATION);
+  if (
+    constellation.protocol !== "https:" &&
+    constellation.protocol !== "http:"
+  ) {
+    throw new Error("constellation must be an http(s) URL");
+  }
+
   // Key presence is enforced in buildOAuthClient (where they're actually
   // used), not here — so an injected OAuth client can skip them entirely.
   return {
@@ -352,6 +376,7 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
       config.scope ??
       "atproto repo:app.bsky.feed.post?action=create repo:app.bsky.feed.like?action=create&action=delete repo:app.bsky.feed.repost?action=create&action=delete",
     appView: config.appView ?? "https://public.api.bsky.app",
+    constellation: constellation.origin,
     commentStream: resolveCommentStreamConfig(config.commentStream),
     authClaimStore:
       config.authClaimStore ?? createMemoryAuthClaimStore(120_000),

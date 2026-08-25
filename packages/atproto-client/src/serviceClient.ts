@@ -18,6 +18,37 @@ export interface CreatedRecord {
 
 export type PostedReply = CreatedRecord;
 
+/** what the signed-in reader has already done to a set of posts */
+export interface ViewerReactions {
+  /** post URI -> the reader's own `app.bsky.feed.like` record URI */
+  likes: Record<string, string>;
+  /** post URI -> the reader's own `app.bsky.feed.repost` record URI */
+  reposts: Record<string, string>;
+  /**
+   * True when the bridge could not reach the backlink index. The maps are
+   * empty because nothing is known, not because the reader has reacted to
+   * nothing.
+   */
+  unavailable?: boolean;
+}
+
+/**
+ * The most posts one `/api/viewer` lookup may name, likes and reposts counted
+ * together. Each subject costs the bridge one backlink query, so this bounds
+ * the fan-out a single session can drive through the index. Both sides read
+ * it from here: the component to trim what it asks for, the bridge to reject
+ * anything larger.
+ */
+export const MAX_VIEWER_SUBJECTS = 100;
+
+/** which of the reader's own reactions to look up, per post */
+export interface ViewerSubjects {
+  /** posts to check for a like by the reader */
+  likes: readonly string[];
+  /** posts to check for a repost by the reader */
+  reposts: readonly string[];
+}
+
 export class ServiceError extends Error {
   constructor(
     message: string,
@@ -333,6 +364,29 @@ export class ServiceClient {
       `/api/repost?uri=${encodeURIComponent(repostUri)}`,
       { method: "DELETE" },
     );
+  }
+
+  /**
+   * Reads the signed-in reader's existing like/repost records for the given
+   * posts.
+   *
+   * The public AppView never reports viewer state, so this is what tells the
+   * UI which hearts are already filled — including reactions made in another
+   * client. Pass only posts whose public count is non-zero: each one costs a
+   * lookup, and a comment nobody has liked cannot be one this reader liked.
+   * Resolves with empty maps rather than throwing when the bridge cannot
+   * reach its index.
+   */
+  async viewerReactions(subjects: ViewerSubjects): Promise<ViewerReactions> {
+    const query = new URLSearchParams();
+    for (const uri of subjects.likes) query.append("like", uri);
+    for (const uri of subjects.reposts) query.append("repost", uri);
+    if ([...query].length === 0) return { likes: {}, reposts: {} };
+    const response = await this.#authedRequest(
+      `/api/viewer?${query.toString()}`,
+      { method: "GET" },
+    );
+    return (await response.json()) as ViewerReactions;
   }
 
   async #authedRequest(

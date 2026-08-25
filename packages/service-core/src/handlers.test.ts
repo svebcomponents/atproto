@@ -48,6 +48,33 @@ const memoryStore = (): MemoryServiceSessionStore => {
 // a fake PDS fetch handler that records createRecord/deleteRecord calls
 let createRecordCalls: unknown[] = [];
 let deleteRecordCalls: unknown[] = [];
+let backlinkCalls: { subject: string; source: string; did: string }[] = [];
+
+const POST = (rkey: string) => `at://did:plc:author/app.bsky.feed.post/${rkey}`;
+
+/**
+ * Stands in for the Constellation backlink index: a post whose rkey says
+ * "liked"/"reposted" comes back with that record, anything else empty.
+ */
+const fakeConstellation = (url: URL): Response => {
+  const subject = url.searchParams.get("subject") ?? "";
+  const source = url.searchParams.get("source") ?? "";
+  backlinkCalls.push({
+    subject,
+    source,
+    did: url.searchParams.get("did") ?? "",
+  });
+  const wants = source.startsWith("app.bsky.feed.like") ? "liked" : "reposted";
+  return new Response(
+    JSON.stringify({
+      records: subject.includes(wants)
+        ? [{ did: DID, rkey: `for-${subject.slice(-4)}` }]
+        : [],
+    }),
+    { status: 200, headers: { "content-type": "application/json" } },
+  );
+};
+
 const fakePdsSession: OAuthPdsSession = {
   did: DID,
   async fetchHandler(pathname, init) {
@@ -93,17 +120,17 @@ const baseConfig = (
   stateStore: { set: vi.fn(), get: vi.fn(), del: vi.fn() },
   sessionStore: { set: vi.fn(), get: vi.fn(), del: vi.fn() },
   serviceSessionStore,
-  // profile fetch: return a snapshot
-  fetch: vi.fn(
-    async () =>
-      new Response(
-        JSON.stringify({ handle: "commenter.test", avatar: "a.jpg" }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        },
-      ),
-  ) as unknown as typeof fetch,
+  // profile fetch returns a snapshot; backlink lookups get the fake index
+  fetch: vi.fn(async (input: URL | RequestInfo) => {
+    const url = new URL(String(input));
+    if (url.pathname === "/xrpc/blue.microcosm.links.getBacklinks") {
+      return fakeConstellation(url);
+    }
+    return new Response(
+      JSON.stringify({ handle: "commenter.test", avatar: "a.jpg" }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  }) as unknown as typeof fetch,
 });
 
 /** drives the popup callback to obtain a real bearer token for the API tests */
@@ -128,6 +155,11 @@ const post = (path: string, token: string, body?: unknown) =>
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
+const get = (path: string, token: string) =>
+  new Request(`${SERVICE}${path}`, {
+    headers: { authorization: `Bearer ${token}`, origin: ORIGIN },
+  });
+
 const del = (path: string, token: string) =>
   new Request(`${SERVICE}${path}`, {
     method: "DELETE",
@@ -141,6 +173,7 @@ describe("service handlers", () => {
   beforeEach(() => {
     createRecordCalls = [];
     deleteRecordCalls = [];
+    backlinkCalls = [];
     store = memoryStore();
     service = createAtprotoCommentsService(baseConfig(store), {
       oauthClient: fakeOAuthClient,
@@ -889,6 +922,138 @@ describe("service handlers", () => {
     );
     expect(res!.status).toBe(400);
     expect(deleteRecordCalls).toHaveLength(0);
+  });
+
+  it("reports the viewer's existing likes and reposts", async () => {
+    const token = await signIn(service);
+    const res = await service.fetch(
+      get(
+        `/atproto/api/viewer?like=${encodeURIComponent(POST("liked1"))}` +
+          `&like=${encodeURIComponent(POST("plain2"))}` +
+          `&repost=${encodeURIComponent(POST("reposted3"))}`,
+        token,
+      ),
+    );
+    expect(res!.status).toBe(200);
+    expect(await res!.json()).toEqual({
+      likes: { [POST("liked1")]: `at://${DID}/app.bsky.feed.like/for-ked1` },
+      reposts: {
+        [POST("reposted3")]: `at://${DID}/app.bsky.feed.repost/for-ted3`,
+      },
+    });
+  });
+
+  it("asks the index only about the posts and reactions it was given", async () => {
+    const token = await signIn(service);
+    await service.fetch(
+      get(
+        `/atproto/api/viewer?like=${encodeURIComponent(POST("liked1"))}` +
+          `&repost=${encodeURIComponent(POST("liked1"))}`,
+        token,
+      ),
+    );
+    expect(backlinkCalls).toEqual([
+      {
+        subject: POST("liked1"),
+        source: "app.bsky.feed.like:subject.uri",
+        did: DID,
+      },
+      {
+        subject: POST("liked1"),
+        source: "app.bsky.feed.repost:subject.uri",
+        did: DID,
+      },
+    ]);
+  });
+
+  it("always answers for the session's own DID, never one from the query", async () => {
+    const token = await signIn(service);
+    await service.fetch(
+      get(
+        `/atproto/api/viewer?like=${encodeURIComponent(POST("liked1"))}&did=did:plc:someoneelse`,
+        token,
+      ),
+    );
+    expect(backlinkCalls.map((call) => call.did)).toEqual([DID]);
+  });
+
+  it("de-duplicates subjects", async () => {
+    const token = await signIn(service);
+    const uri = encodeURIComponent(POST("liked1"));
+    await service.fetch(
+      get(`/atproto/api/viewer?like=${uri}&like=${uri}&like=${uri}`, token),
+    );
+    expect(backlinkCalls).toHaveLength(1);
+  });
+
+  it("makes no lookup at all when there is nothing to ask about", async () => {
+    const token = await signIn(service);
+    const res = await service.fetch(get(`/atproto/api/viewer`, token));
+    expect(res!.status).toBe(200);
+    expect(await res!.json()).toEqual({ likes: {}, reposts: {} });
+    expect(backlinkCalls).toHaveLength(0);
+  });
+
+  it("rejects viewer lookups for non-post uris", async () => {
+    const token = await signIn(service);
+    const res = await service.fetch(
+      get(
+        `/atproto/api/viewer?like=${encodeURIComponent(`at://${DID}/app.bsky.feed.like/x`)}`,
+        token,
+      ),
+    );
+    expect(res!.status).toBe(400);
+    expect(backlinkCalls).toHaveLength(0);
+  });
+
+  it("rejects viewer lookups asking about more than 100 posts", async () => {
+    const token = await signIn(service);
+    const res = await service.fetch(
+      get(
+        `/atproto/api/viewer?${Array.from(
+          { length: 101 },
+          (_, i) => `like=${encodeURIComponent(POST(`p${i}`))}`,
+        ).join("&")}`,
+        token,
+      ),
+    );
+    expect(res!.status).toBe(400);
+    expect(backlinkCalls).toHaveLength(0);
+  });
+
+  it("degrades to empty viewer state when the index is unreachable", async () => {
+    const brokenIndex = createAtprotoCommentsService(
+      {
+        ...baseConfig(store),
+        fetch: (async () => {
+          throw new Error("connection refused");
+        }) as unknown as typeof fetch,
+      },
+      { oauthClient: fakeOAuthClient },
+    );
+    const token = await signIn(brokenIndex);
+    const res = await brokenIndex.fetch(
+      get(
+        `/atproto/api/viewer?like=${encodeURIComponent(POST("liked1"))}`,
+        token,
+      ),
+    );
+    expect(res!.status).toBe(200);
+    expect(await res!.json()).toEqual({
+      likes: {},
+      reposts: {},
+      unavailable: true,
+    });
+  });
+
+  it("requires a session for viewer state", async () => {
+    const res = await service.fetch(
+      new Request(
+        `${SERVICE}/atproto/api/viewer?like=${encodeURIComponent(POST("liked1"))}`,
+        { headers: { origin: ORIGIN } },
+      ),
+    );
+    expect(res!.status).toBe(401);
   });
 
   it("logout revokes the session so the token stops working", async () => {

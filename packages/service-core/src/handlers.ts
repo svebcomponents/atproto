@@ -31,6 +31,8 @@ import {
   ReactionValidationError,
   validateOwnRecordUri,
   validateReactionSubject,
+  validateViewerSubjects,
+  type ViewerSubjects,
 } from "./reactionValidation.js";
 import {
   ReplyValidationError,
@@ -838,6 +840,26 @@ const handleApi = async (
       return respondAction(isForm, cors, result, redirectTo);
     }
 
+    case "GET /api/viewer": {
+      let subjects: ViewerSubjects;
+      try {
+        subjects = validateViewerSubjects(new URL(request.url).searchParams);
+      } catch (error) {
+        const message =
+          error instanceof ReactionValidationError
+            ? error.message
+            : "Invalid uri";
+        return jsonError(400, "InvalidRequest", message, cors);
+      }
+      // The DID comes from the session, never the query: this reports what
+      // *you* have reacted to, and is not a lookup service for other people.
+      return json(
+        await fetchViewerReactions(claims.did, subjects, config),
+        200,
+        cors,
+      );
+    }
+
     case "POST /api/like":
     case "POST /api/repost": {
       const collection =
@@ -1081,8 +1103,6 @@ const postReply = async (
   return { ok: true, uri: created.uri, cid: created.cid };
 };
 
-type ReactionCollection = "app.bsky.feed.like" | "app.bsky.feed.repost";
-
 const createReaction = async (
   did: string,
   collection: ReactionCollection,
@@ -1112,6 +1132,112 @@ const createReaction = async (
 
   const created = result.body as { uri: string; cid: string };
   return { ok: true, uri: created.uri, cid: created.cid };
+};
+
+type ReactionCollection = "app.bsky.feed.like" | "app.bsky.feed.repost";
+
+/** what the viewer has already done to each post, keyed by post URI */
+interface ViewerReactions {
+  /** post URI -> the viewer's own `app.bsky.feed.like` record URI */
+  likes: Record<string, string>;
+  /** post URI -> the viewer's own `app.bsky.feed.repost` record URI */
+  reposts: Record<string, string>;
+  /** set when the index could not be read; the maps are empty, not "none" */
+  unavailable?: true;
+}
+
+/** backlink lookups kept in flight at once, to stay a good neighbour */
+const VIEWER_LOOKUP_CONCURRENCY = 8;
+
+/** runs `work` over `items`, at most `limit` at a time */
+const mapLimit = async <T>(
+  items: readonly T[],
+  limit: number,
+  work: (item: T) => Promise<void>,
+): Promise<void> => {
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const item = items[next];
+      next += 1;
+      if (item !== undefined) await work(item);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker),
+  );
+};
+
+/**
+ * Asks the backlink index whether `did` has a record in `collection` pointing
+ * at `subject`, and returns that record's AT URI.
+ *
+ * One indexed lookup per post, over public data: a like record names the post
+ * it likes, so "has this DID liked this post" is a backlink query.
+ */
+const fetchBacklink = async (
+  did: string,
+  collection: ReactionCollection,
+  subject: string,
+  config: ResolvedServiceConfig,
+): Promise<string | undefined> => {
+  const url = new URL(
+    "/xrpc/blue.microcosm.links.getBacklinks",
+    config.constellation,
+  );
+  url.searchParams.set("subject", subject);
+  url.searchParams.set("source", `${collection}:subject.uri`);
+  url.searchParams.set("did", did);
+  // one record is the whole answer: a repo holds at most one live like per post
+  url.searchParams.set("limit", "1");
+
+  const response = await config.fetch(url, {
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`constellation HTTP ${response.status}`);
+  const body = (await response.json()) as {
+    records?: { rkey?: string }[];
+  };
+  const rkey = body.records?.[0]?.rkey;
+  return rkey ? `at://${did}/${collection}/${rkey}` : undefined;
+};
+
+/**
+ * Which of these posts the reader has already liked or reposted.
+ *
+ * Failure is not an error: an unreachable index degrades to empty hearts and
+ * uncorrected counts, which is cosmetic, so it must not break the thread.
+ */
+const fetchViewerReactions = async (
+  did: string,
+  subjects: ViewerSubjects,
+  config: ResolvedServiceConfig,
+): Promise<ViewerReactions> => {
+  const likes: Record<string, string> = {};
+  const reposts: Record<string, string> = {};
+  let unavailable = false;
+
+  const lookups = [
+    ...subjects.likes.map((uri) => ["app.bsky.feed.like", uri, likes] as const),
+    ...subjects.reposts.map(
+      (uri) => ["app.bsky.feed.repost", uri, reposts] as const,
+    ),
+  ];
+
+  await mapLimit(
+    lookups,
+    VIEWER_LOOKUP_CONCURRENCY,
+    async ([collection, uri, into]) => {
+      try {
+        const record = await fetchBacklink(did, collection, uri, config);
+        if (record) into[uri] = record;
+      } catch {
+        unavailable = true;
+      }
+    },
+  );
+
+  return { likes, reposts, ...(unavailable ? { unavailable: true } : {}) };
 };
 
 const deleteReaction = async (

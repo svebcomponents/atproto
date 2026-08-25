@@ -45,6 +45,11 @@ package README.
     snapshotIsStale,
     type OptimisticReplies,
   } from "./revalidation.js";
+  import {
+    adoptViewerState,
+    reactionCount,
+    viewerLookupSubjects,
+  } from "./viewerState.js";
 
   interface Props {
     /** AT URI (at://…) or viewer post URL of the discussion root */
@@ -270,11 +275,25 @@ package README.
   const writable = $derived(Boolean(service) && !readonly);
   let client = $state<ServiceClient | undefined>(undefined);
   let session = $state<ServiceSessionInfo | null>(null);
-  /** the viewer's own like/repost record uri for posts touched this session,
-   * keyed by post uri. The public read API never reports pre-existing viewer
-   * state, so before any click these are empty and hearts render unfilled. */
+  /** the viewer's own like/repost record uri, keyed by post uri: what the UI
+   * renders as filled and what `unlike`/`unrepost` delete. Seeded from the
+   * bridge for a signed-in reader (see hydrateViewerReactions) and updated
+   * optimistically on every click. */
   let liked = $state<Record<string, string>>({});
   let reposted = $state<Record<string, string>>({});
+  /**
+   * The same two maps as the bridge last reported them — which is to say, the
+   * reactions the *fetched counts already include*.
+   *
+   * Reaction counts come from the public AppView and reflect everyone,
+   * including this reader. Rendering `likeCount + (liked ? 1 : 0)` therefore
+   * double-counts a like the AppView has already tallied, which is what made
+   * the number appear to drop back on reload. The count on screen is
+   * `likeCount - (base ? 1 : 0) + (current ? 1 : 0)`: the fetched total with
+   * this session's *unconfirmed* change applied, and nothing else.
+   */
+  let likedBase = $state<Record<string, string>>({});
+  let repostedBase = $state<Record<string, string>>({});
   /** the post the composer dialog is replying to; undefined = every dialog closed.
    * Each comment (and the root) gets its own <dialog> — see composerDialog —
    * so this just tracks which one currently "owns" the shared draft/posting/
@@ -389,8 +408,77 @@ package README.
   const signOut = async () => {
     await client?.signOut();
     session = null;
+    // reactions describe the reader who just left, not the next one
+    liked = {};
+    reposted = {};
+    likedBase = {};
+    repostedBase = {};
+    touchedLikes = new Set();
+    touchedReposts = new Set();
     closeComposer();
   };
+
+  /** posts whose reaction this reader toggled here, so a hydration that
+   * raced the toggle cannot undo it — an in-flight lookup started before the
+   * click answers as if the click never happened */
+  let touchedLikes = new Set<string>();
+  let touchedReposts = new Set<string>();
+
+  /**
+   * Asks the bridge which of these posts the reader has already liked or
+   * reposted, and adopts the answer as both the rendered state and the
+   * baseline the counts are corrected against.
+   *
+   * Without this the component only knows about reactions made in this tab
+   * since the last reload: hearts started empty however many times you had
+   * liked a comment, and clicking one you had already liked wrote a second,
+   * redundant like record. Best-effort — a bridge that cannot reach its index
+   * leaves the maps alone.
+   */
+  const readViewerReactions = async (source: CommentTree | undefined) => {
+    const svc = client;
+    if (!svc || !session || !source) return;
+    try {
+      const state = await svc.viewerReactions(viewerLookupSubjects(source));
+      if (state.unavailable) return;
+      likedBase = state.likes;
+      repostedBase = state.reposts;
+      liked = adoptViewerState(state.likes, liked, touchedLikes);
+      reposted = adoptViewerState(state.reposts, reposted, touchedReposts);
+    } catch {
+      // viewer state is an enhancement; a failure here must not surface as a
+      // thread error or cost the reader their session
+    }
+  };
+
+  /** the lookup currently in flight, so a click can wait for the answer it is
+   * about to act on instead of racing it */
+  let viewerStatePending: Promise<void> | undefined;
+
+  const hydrateViewerReactions = (
+    source: CommentTree | undefined,
+  ): Promise<void> => {
+    const pending = readViewerReactions(source);
+    viewerStatePending = pending;
+    return pending;
+  };
+
+  /**
+   * Identity of the viewer-state lookup: who is asking, and about what. A
+   * background refresh that returns the same posts with the same counts
+   * leaves this untouched, so live threads do not re-ask the bridge on every
+   * incoming comment.
+   */
+  const viewerStateKey = $derived.by(() => {
+    if (!client || !session || !tree) return "";
+    const { likes, reposts } = viewerLookupSubjects(tree);
+    return [session.did, ...likes, "|", ...reposts].join("\n");
+  });
+
+  $effect(() => {
+    if (!BROWSER || !viewerStateKey) return;
+    void untrack(() => hydrateViewerReactions(tree));
+  });
 
   /** shared optimistic-toggle skeleton behind the like and repost buttons:
    * requires a session, flips local state first, restores it if the service
@@ -398,22 +486,34 @@ package README.
    * (record uri), returning the created record's uri on create. */
   const toggleReaction = async (
     node: { uri: string; cid: string },
-    records: Record<string, string>,
+    getRecords: () => Record<string, string>,
     setRecords: (next: Record<string, string>) => void,
+    touched: Set<string>,
     action: {
       run: (existing: string | undefined) => Promise<string | undefined>;
       labels: { add: string; remove: string };
     },
   ): Promise<void> => {
+    const hadSession = Boolean(session);
     if (!(await ensureSignedIn())) return;
     const svc = client;
     if (!svc) return;
+    // The reader may well have liked this comment already, elsewhere. Know
+    // that before writing, or the click creates a duplicate record that the
+    // UI has no handle on and can never undo. Signing in here is the case
+    // that has no lookup yet; otherwise one is in flight or already done.
+    if (!hadSession) await hydrateViewerReactions(tree);
+    else await viewerStatePending;
+    touched.add(node.uri);
+    // read after the awaits above: sign-in and hydration both move these
+    const records = getRecords();
     const existing = records[node.uri];
     if (!existing) {
       try {
         const created = await action.run(undefined);
-        if (created) setRecords({ ...records, [node.uri]: created });
+        if (created) setRecords({ ...getRecords(), [node.uri]: created });
       } catch (error) {
+        touched.delete(node.uri);
         emit("atproto-comments:error", {
           message:
             error instanceof Error
@@ -428,7 +528,8 @@ package README.
     try {
       await action.run(existing);
     } catch (error) {
-      setRecords({ ...records, [node.uri]: existing });
+      setRecords({ ...getRecords(), [node.uri]: existing });
+      touched.delete(node.uri);
       emit("atproto-comments:error", {
         message:
           error instanceof Error
@@ -441,25 +542,37 @@ package README.
   const toggleLike = (node: { uri: string; cid: string }): Promise<void> => {
     const svc = client;
     if (!svc) return Promise.resolve();
-    return toggleReaction(node, liked, (next) => (liked = next), {
-      run: (existing) =>
-        existing
-          ? svc.unlike(existing).then(() => undefined)
-          : svc.like({ uri: node.uri, cid: node.cid }).then((r) => r.uri),
-      labels: { add: "like", remove: "unlike" },
-    });
+    return toggleReaction(
+      node,
+      () => liked,
+      (next) => (liked = next),
+      touchedLikes,
+      {
+        run: (existing) =>
+          existing
+            ? svc.unlike(existing).then(() => undefined)
+            : svc.like({ uri: node.uri, cid: node.cid }).then((r) => r.uri),
+        labels: { add: "like", remove: "unlike" },
+      },
+    );
   };
 
   const toggleRepost = (node: { uri: string; cid: string }): Promise<void> => {
     const svc = client;
     if (!svc) return Promise.resolve();
-    return toggleReaction(node, reposted, (next) => (reposted = next), {
-      run: (existing) =>
-        existing
-          ? svc.unrepost(existing).then(() => undefined)
-          : svc.repost({ uri: node.uri, cid: node.cid }).then((r) => r.uri),
-      labels: { add: "repost", remove: "undo repost" },
-    });
+    return toggleReaction(
+      node,
+      () => reposted,
+      (next) => (reposted = next),
+      touchedReposts,
+      {
+        run: (existing) =>
+          existing
+            ? svc.unrepost(existing).then(() => undefined)
+            : svc.repost({ uri: node.uri, cid: node.cid }).then((r) => r.uri),
+        labels: { add: "repost", remove: "undo repost" },
+      },
+    );
   };
 
   const submitReply = async () => {
@@ -615,6 +728,10 @@ package README.
       optimistic = {};
       liked = {};
       reposted = {};
+      likedBase = {};
+      repostedBase = {};
+      touchedLikes = new Set();
+      touchedReposts = new Set();
     }
 
     if (!currentThread) return;
@@ -786,6 +903,13 @@ package README.
   repostCount: number;
   quoteCount: number;
 })}
+  {@const likes = reactionCount(node.likeCount, liked, likedBase, node.uri)}
+  {@const reposts = reactionCount(
+    node.repostCount + node.quoteCount,
+    reposted,
+    repostedBase,
+    node.uri,
+  )}
   {#if writable}
     <form class="reaction-form" method="post" action="{service}/api/like">
       <input type="hidden" name="uri" value={node.uri} />
@@ -802,16 +926,14 @@ package README.
         part="like-button"
         aria-pressed={Boolean(liked[node.uri])}
         aria-label={liked[node.uri]
-          ? `Undo like, ${compactNumber.format(node.likeCount + 1)} likes`
-          : `Like, ${compactNumber.format(node.likeCount)} likes`}
+          ? `Undo like, ${compactNumber.format(likes)} likes`
+          : `Like, ${compactNumber.format(likes)} likes`}
         onclick={(e) => {
           e.preventDefault();
           void toggleLike(node);
         }}
         >{liked[node.uri] ? "♥" : "♡"}
-        {compactNumber.format(
-          node.likeCount + (liked[node.uri] ? 1 : 0),
-        )}</button
+        {compactNumber.format(likes)}</button
       >
     </form>
     ·
@@ -830,27 +952,18 @@ package README.
         part="repost-button"
         aria-pressed={Boolean(reposted[node.uri])}
         aria-label={reposted[node.uri]
-          ? `Undo repost, ${compactNumber.format(
-              node.repostCount + node.quoteCount + 1,
-            )} reposts`
-          : `Repost, ${compactNumber.format(
-              node.repostCount + node.quoteCount,
-            )} reposts`}
+          ? `Undo repost, ${compactNumber.format(reposts)} reposts`
+          : `Repost, ${compactNumber.format(reposts)} reposts`}
         onclick={(e) => {
           e.preventDefault();
           void toggleRepost(node);
-        }}
-        >↻ {compactNumber.format(
-          node.repostCount + node.quoteCount + (reposted[node.uri] ? 1 : 0),
-        )}</button
+        }}>↻ {compactNumber.format(reposts)}</button
       >
     </form>
   {:else}
-    <span class="likes">♡ {compactNumber.format(node.likeCount)}</span>
+    <span class="likes">♡ {compactNumber.format(likes)}</span>
     ·
-    <span class="reposts"
-      >↻ {compactNumber.format(node.repostCount + node.quoteCount)}</span
-    >
+    <span class="reposts">↻ {compactNumber.format(reposts)}</span>
   {/if}
 {/snippet}
 
