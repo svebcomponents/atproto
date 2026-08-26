@@ -1,8 +1,9 @@
 # atproto-comments
 
 > [!WARNING]
-> Alpha: the component, hosted-backend contract, and self-hosted bridge work
-> end-to-end, but the packages and public service have not been announced yet.
+> Beta: the component, hosted-backend contract, and self-hosted bridge work
+> end-to-end, but the packages and public service have not been extensively tested yet.
+> Feel free to embed it on your blog & help the component & service reach maturity by reporting bugs.
 
 A web component that renders an AT Protocol post thread as a comment section, built with [svebcomponents](https://svebcomponents.dev). Point it at a Bluesky post and it works with no configuration: it reads the public Bluesky AppView and links back to bsky.app by default. Every endpoint is a property, so the same component runs against any AppView serving the `app.bsky.*` lexicons. Supports server-side rendering and hydration. Readers can sign in with an ATProto account and reply from the page; replies are ordinary `app.bsky.feed.post` records in each commenter's own repo, and neither the component nor the bridge stores comment content.
 
