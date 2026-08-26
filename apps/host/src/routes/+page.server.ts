@@ -4,7 +4,7 @@ import { getService } from "$lib/server/service.js";
 import { snippets } from "$lib/server/snippets.js";
 
 const DEFAULT_THREAD =
-  "at://did:plc:nsmlf6uhdg2onrsrdr7oiyv4/app.bsky.feed.post/3mreni33v7k2c";
+  "at://did:plc:622i7tyw4hryjfdiuhsogk35/app.bsky.feed.post/3mtyiwccn5s2j";
 
 export const load: PageServerLoad = async ({ url }) => {
   const thread = url.searchParams.get("thread") ?? DEFAULT_THREAD;
