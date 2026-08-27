@@ -292,7 +292,7 @@
           class="showcase-link"
           href={originalUrl}
           target="_blank"
-          rel="noreferrer">Open original ↗</a
+          rel="external">Open original ↗</a
         >
       </div>
     </div>
