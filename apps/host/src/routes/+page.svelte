@@ -1,10 +1,17 @@
 <script lang="ts">
   import { resolve } from "$app/paths";
+  import { viewerPostUrl } from "@svebcomponents/atproto.client";
   import "@svebcomponents/atproto.comments";
   import type { PageProps } from "./$types";
 
   let { data }: PageProps = $props();
   const threadUri = $derived(data.thread);
+  /* `thread` is an at:// URI, which a browser cannot open. The normalized
+     tree already carries a viewer permalink built from the author's handle;
+     derive one from the URI alone when the prefetch failed. */
+  const originalUrl = $derived(
+    data.threadData?.root.url ?? viewerPostUrl(threadUri),
+  );
   /* Highlighted on the server, where the samples live; see
      $lib/server/snippets.ts. */
   const snippets = $derived(data.snippets);
@@ -283,7 +290,7 @@
       <div class="showcase-foot">
         <a
           class="showcase-link"
-          href="https://bsky.app/profile/theosteiner.de/post/3mreni33v7k2c"
+          href={originalUrl}
           target="_blank"
           rel="noreferrer">Open original ↗</a
         >
