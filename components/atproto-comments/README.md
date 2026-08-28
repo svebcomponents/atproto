@@ -46,8 +46,8 @@ dependencies.
 
 ## 3. SSR (server-rendered, hydrated in place)
 
-Install `@svebcomponents/ssr`, add its Vite plugin, and import this package's
-`./ssr` entry once on the server:
+Install `@svebcomponents/ssr` 0.8.2 or newer, add its Vite plugin, and import
+this package's `./ssr` entry once on the server:
 
 ```ts
 // hooks.server.ts
@@ -62,6 +62,8 @@ instead.
 
 Host adapters ship upstream for SvelteKit, React 19, Vue 3, and Astro
 (`@svebcomponents/ssr*`); Nuxt and SolidStart integrations are still planned.
+React Server Components, including Next.js App Router, require
+`@svebcomponents/ssr-react` 0.4.0 or newer.
 
 ## 4. Self-hosted backend
 
