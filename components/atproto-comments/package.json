@@ -1,6 +1,6 @@
 {
   "name": "@svebcomponents/atproto.comments",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "type": "module",
   "jsdelivr": "./dist/client/index.js",
   "description": "Web component rendering ATProto/Bluesky threads as blog comments",
