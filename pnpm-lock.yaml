@@ -19,11 +19,11 @@ catalogs:
       specifier: 1.62.1
       version: 1.62.1
     '@svebcomponents/build':
-      specifier: 0.7.1
-      version: 0.7.1
+      specifier: 0.7.3
+      version: 0.7.3
     '@svebcomponents/ssr':
-      specifier: 0.8.1
-      version: 0.8.1
+      specifier: 0.8.2
+      version: 0.8.2
     '@sveltejs/adapter-node':
       specifier: 5.5.7
       version: 5.5.7
@@ -118,7 +118,7 @@ importers:
         version: link:../../components/atproto-comments
       '@svebcomponents/ssr':
         specifier: 'catalog:'
-        version: 0.8.1(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
+        version: 0.8.2(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
       shiki:
         specifier: 4.4.3
         version: 4.4.3
@@ -174,7 +174,7 @@ importers:
     devDependencies:
       '@svebcomponents/build':
         specifier: 'catalog:'
-        version: 0.7.1(@types/node@24.13.3)(publint@0.3.23)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
+        version: 0.7.3(@types/node@24.13.3)(publint@0.3.23)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
       '@svebcomponents/eslint-config':
         specifier: workspace:*
         version: link:../../configs/eslint-config
@@ -183,7 +183,7 @@ importers:
         version: link:../../configs/prettier-config
       '@svebcomponents/ssr':
         specifier: 'catalog:'
-        version: 0.8.1(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
+        version: 0.8.2(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
       '@svebcomponents/typescript-config':
         specifier: workspace:*
         version: link:../../configs/typescript-config
@@ -1206,29 +1206,13 @@ packages:
     peerDependencies:
       svelte: ^5.0.0
 
-  '@svebcomponents/build@0.7.1':
-    resolution: {integrity: sha512-dJunjuaWlJva2Udlku6mJMp/mHpqmvYM5gTJiOPkErFao+VtEKBWAcdqb6NrkFq58BURx7MWn7EvANumiBYH5w==}
+  '@svebcomponents/build@0.7.3':
+    resolution: {integrity: sha512-xTAOhfHNl0+j0M75s3M5v3ER+NoubqJ6ngQ4mRhbGwrAFgQKNxVsSvytKibXI2M9e0FByUCWwcssSgwBcWKmUA==}
     engines: {node: '>=20.19.0'}
     hasBin: true
 
-  '@svebcomponents/ssr@0.8.0':
-    resolution: {integrity: sha512-jXbGCkPHnR1Wq54AtACXEKhgVOgLu4j33urY2Pjbh3XCAfnT/qaP3aE/gjOqgUqKBWLi/0LR70iVeQD2smA6Ew==}
-    engines: {node: '>=20.19.0'}
-    peerDependencies:
-      rolldown: '>=1.0.0-beta.0'
-      svelte: ^5.0.0
-      tsdown: '>=0.22.0'
-      vite: ^6.0.0 || ^7.0.0 || ^8.0.0
-    peerDependenciesMeta:
-      rolldown:
-        optional: true
-      tsdown:
-        optional: true
-      vite:
-        optional: true
-
-  '@svebcomponents/ssr@0.8.1':
-    resolution: {integrity: sha512-9OjcKMN4/2vAqphitU1IX6IVEFZH/sQAOdrgkGcSgIBe/GLwZywMh1i0zFoT+LMGEXw6mtB2jIcKsQl+Df5H8Q==}
+  '@svebcomponents/ssr@0.8.2':
+    resolution: {integrity: sha512-i4YQsnRBLs1h/8PLOF55W+czYZ7gtQVcBCsdc0J+ussPHDCJhpYvWLKnEIKg3z8xUVqS9S1S7A1Vp2fLcDpGlg==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       rolldown: '>=1.0.0-beta.0'
@@ -3839,10 +3823,10 @@ snapshots:
       svelte: 5.56.8(@typescript-eslint/types@8.65.0)
       zimmerframe: 1.1.4
 
-  '@svebcomponents/build@0.7.1(@types/node@24.13.3)(publint@0.3.23)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))':
+  '@svebcomponents/build@0.7.3(@types/node@24.13.3)(publint@0.3.23)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))':
     dependencies:
       '@svebcomponents/auto-options': 0.3.0(svelte@5.56.8(@typescript-eslint/types@8.65.0))
-      '@svebcomponents/ssr': 0.8.0(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
+      '@svebcomponents/ssr': 0.8.2(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
       '@sveltejs/load-config': 0.2.1
       magic-string: 0.30.21
       rollup-plugin-svelte: 7.2.3(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))
@@ -3868,25 +3852,7 @@ snapshots:
       - vite
       - vue-tsc
 
-  '@svebcomponents/ssr@0.8.0(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))':
-    dependencies:
-      '@lit-labs/ssr': 4.1.0(@types/node@24.13.3)
-      '@lit-labs/ssr-dom-shim': 1.6.0
-      '@svebcomponents/utils': 0.3.0
-      esm-env: 1.2.2
-      magic-string: 0.30.21
-      rollup-plugin-svelte: 7.2.3(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))
-      svelte: 5.56.8(@typescript-eslint/types@8.65.0)
-      zimmerframe: 1.1.4
-    optionalDependencies:
-      rolldown: 1.2.3
-      tsdown: 0.22.14(publint@0.3.23)(typescript@5.9.3)
-      vite: 8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)
-    transitivePeerDependencies:
-      - '@types/node'
-      - rollup
-
-  '@svebcomponents/ssr@0.8.1(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))':
+  '@svebcomponents/ssr@0.8.2(@types/node@24.13.3)(rolldown@1.2.3)(rollup@4.62.2)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(tsdown@0.22.14(publint@0.3.23)(typescript@5.9.3))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))':
     dependencies:
       '@lit-labs/ssr': 4.1.0(@types/node@24.13.3)
       '@lit-labs/ssr-dom-shim': 1.6.0
