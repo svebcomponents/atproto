@@ -167,6 +167,25 @@ The component uses the same `service` property for both modes:
 <atproto-comments thread="at://..." service="/atproto"></atproto-comments>
 ```
 
+## Browser extensions
+
+An extension that renders the component in its own pages (a popup, or an
+extension-origin iframe on another site) signs in with its extension origin.
+Extensions are never accepted by default, including on a bridge without
+`allowedOrigins`. List each one explicitly:
+
+```ts
+createAtprotoCommentsService({
+  // ...
+  extensionOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop"],
+});
+```
+
+A listed extension gets the same origin-bound bearer session as a website.
+Its pages share one origin, so a sign-in from any of them is visible to the
+others through that origin's `localStorage`. Pin the extension ID (Chrome's
+manifest `key`) so it stays the same across machines and unpacked builds.
+
 ## Live comment events
 
 The public endpoint streams newly created descendants of one post:

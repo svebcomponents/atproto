@@ -159,6 +159,14 @@ export interface ServiceConfig {
    */
   allowedOrigins?: readonly string[];
   /**
+   * Browser-extension origins allowed to sign in and hold a session, e.g.
+   * `["chrome-extension://abcdefghijklmnopabcdefghijklmnop"]`. Extension pages
+   * send their own origin, which no web page can forge, so a listed extension
+   * gets the same origin-bound bearer session as a website. Extensions are
+   * never accepted unless listed here, even when `allowedOrigins` is unset.
+   */
+  extensionOrigins?: readonly string[];
+  /**
    * OAuth scopes requested from the user's PDS. Default grants create on
    * replies plus create+delete on likes/reposts (the latter pair needed to
    * toggle them back off): `atproto repo:app.bsky.feed.post?action=create
@@ -238,6 +246,8 @@ export interface ResolvedServiceConfig extends ServiceConfig {
   metrics: MetricsRecorder;
   /** normalized to bare origins; undefined means "any origin" */
   allowedOrigins?: readonly string[];
+  /** normalized extension origins; empty means none */
+  extensionOrigins: readonly string[];
   /** absolute privacy policy URL, resolved against publicUrl */
   privacyUrl?: string;
   /** the project's own site, enabling brand header and footer pitch */
@@ -249,6 +259,20 @@ export interface ResolvedServiceConfig extends ServiceConfig {
 }
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+const EXTENSION_ORIGIN =
+  /^(chrome-extension|moz-extension|safari-web-extension):\/\/([a-z0-9-]+)\/?$/i;
+
+/**
+ * Normalizes a browser-extension origin (`chrome-extension://<id>`,
+ * `moz-extension://<uuid>`, `safari-web-extension://<uuid>`). Returns null
+ * for anything else, including web origins.
+ */
+export const parseExtensionOrigin = (value: string): string | null => {
+  const match = EXTENSION_ORIGIN.exec(value.trim());
+  if (!match) return null;
+  return `${match[1]!.toLowerCase()}://${match[2]!.toLowerCase()}`;
+};
 
 /** the public Constellation backlink index */
 export const DEFAULT_CONSTELLATION = "https://constellation.microcosm.blue";
@@ -281,6 +305,15 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     }
     if (origin === "null") {
       throw new Error(`allowedOrigins entry has no origin: ${value}`);
+    }
+    return origin;
+  });
+  const extensionOrigins = (config.extensionOrigins ?? []).map((value) => {
+    const origin = parseExtensionOrigin(value);
+    if (!origin) {
+      throw new Error(
+        `extensionOrigins entry is not an extension origin: ${value}`,
+      );
     }
     return origin;
   });
@@ -359,6 +392,7 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
   return {
     ...config,
     ...(allowedOrigins ? { allowedOrigins } : {}),
+    extensionOrigins,
     publicUrl: url.origin,
     basePath: config.basePath ?? "/atproto",
     ...(config.privacyUrl

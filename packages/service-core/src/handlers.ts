@@ -10,6 +10,7 @@ import {
   type WebSocketFactory,
 } from "./commentStream.js";
 import {
+  parseExtensionOrigin,
   resolveConfig,
   type ServiceConfig,
   type ResolvedServiceConfig,
@@ -108,14 +109,19 @@ const parseOrigin = (value: string | null): string | null => {
 
 /**
  * Same as {@link parseOrigin}, but also enforces `config.allowedOrigins` when
- * the deployment configured one. Used everywhere an origin is accepted from
- * the network, so an unlisted site can neither start a sign-in nor hold a
- * session.
+ * the deployment configured one, and accepts the browser extensions listed in
+ * `config.extensionOrigins`. Used everywhere an origin is accepted from the
+ * network, so an unlisted site or extension can neither start a sign-in nor
+ * hold a session.
  */
 const parseAllowedOrigin = (
   value: string | null,
   config: ResolvedServiceConfig,
 ): string | null => {
+  const extension = value === null ? null : parseExtensionOrigin(value);
+  if (extension !== null) {
+    return config.extensionOrigins.includes(extension) ? extension : null;
+  }
   const origin = parseOrigin(value);
   if (origin === null) return null;
   if (config.allowedOrigins && !config.allowedOrigins.includes(origin)) {

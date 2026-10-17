@@ -1303,6 +1303,114 @@ describe("security regressions", () => {
   });
 });
 
+describe("browser extension origins", () => {
+  const EXTENSION = "chrome-extension://abcdefghijklmnopabcdefghijklmnop";
+
+  const startUrl = (origin: string) =>
+    `${SERVICE}/atproto/oauth/start?origin=${encodeURIComponent(origin)}`;
+
+  const extensionService = (config: Partial<ServiceConfig> = {}) => {
+    const oauthClient: OAuthBridgeClient = {
+      ...fakeOAuthClient,
+      callback: vi.fn(async () => ({
+        session: { did: DID } as OAuthPdsSession,
+        state: JSON.stringify({ origin: EXTENSION, claim: "ext-claim" }),
+      })),
+    };
+    return createAtprotoCommentsService(
+      { ...baseConfig(memoryStore()), ...config },
+      { oauthClient },
+    );
+  };
+
+  beforeEach(() => {
+    createRecordCalls = [];
+  });
+
+  it("refuses extensions unless listed, even without an allowlist", async () => {
+    const service = extensionService();
+    expect(
+      (await service.fetch(new Request(startUrl(EXTENSION))))!.status,
+    ).toBe(400);
+  });
+
+  it("refuses an extension that is not listed", async () => {
+    const service = extensionService({
+      extensionOrigins: ["chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba"],
+    });
+    expect(
+      (await service.fetch(new Request(startUrl(EXTENSION))))!.status,
+    ).toBe(400);
+  });
+
+  it("lets a listed extension sign in alongside a web allowlist", async () => {
+    const service = extensionService({
+      allowedOrigins: [ORIGIN],
+      extensionOrigins: [`${EXTENSION}/`],
+    });
+    expect(
+      (await service.fetch(new Request(startUrl(EXTENSION))))!.status,
+    ).toBe(200);
+    expect((await service.fetch(new Request(startUrl(ORIGIN))))!.status).toBe(
+      200,
+    );
+  });
+
+  it("binds the session to the extension origin", async () => {
+    const service = extensionService({ extensionOrigins: [EXTENSION] });
+    await service.fetch(
+      new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=xyz`),
+    );
+
+    // only the extension can collect the claim
+    const stolen = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session/claim?nonce=ext-claim`, {
+        headers: { origin: ORIGIN },
+      }),
+    );
+    expect(stolen!.status).toBe(403);
+    await service.fetch(
+      new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=xyz`),
+    );
+    const claimed = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session/claim?nonce=ext-claim`, {
+        headers: { origin: EXTENSION },
+      }),
+    );
+    expect(claimed!.status).toBe(200);
+    expect(claimed!.headers.get("access-control-allow-origin")).toBe(EXTENSION);
+    const { token } = (await claimed!.json()) as { token: string };
+
+    const like = (origin: string) =>
+      service.fetch(
+        new Request(`${SERVICE}/atproto/api/like`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            origin,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            uri: `at://${DID}/app.bsky.feed.post/root`,
+            cid: "bafyroot234567",
+          }),
+        }),
+      );
+    expect((await like(EXTENSION))!.status).toBe(200);
+    expect((await like(ORIGIN))!.status).toBe(401);
+    expect(createRecordCalls).toHaveLength(1);
+  });
+
+  it("rejects a malformed extensionOrigins entry at construction", () => {
+    expect(() =>
+      createAtprotoCommentsService({
+        ...baseConfig(memoryStore()),
+        extensionOrigins: ["https://not-an-extension.example"],
+      }),
+    ).toThrow(/extensionOrigins/);
+  });
+});
+
 describe("operational stats", () => {
   let service: AtprotoCommentsService;
 
