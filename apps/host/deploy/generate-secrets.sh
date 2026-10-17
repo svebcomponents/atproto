@@ -16,3 +16,8 @@ echo "SESSION_SECRET=$(openssl rand -hex 32)"
 # that import path, not just against openssl/jose in isolation.
 KEY="$(openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt | tr -d '\n')"
 echo "OAUTH_PRIVATE_KEYS=$KEY"
+
+# Signs identity tokens for IDENTITY_AUDIENCES (see service.ts). A separate
+# key from the OAuth client's: other services trust it for a different job.
+IDENTITY_KEY="$(openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt | tr -d '\n')"
+echo "IDENTITY_PRIVATE_KEY=$IDENTITY_KEY"

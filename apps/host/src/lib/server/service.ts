@@ -32,6 +32,9 @@ const positiveNumberEnv = (name: string): number | undefined => {
  *   SPACEDUST_URL    — optional self-hosted Spacedust websocket origin
  *   APPVIEW_URL      — optional AppView for profile lookups and handle
  *                      resolution (default: the public Bluesky AppView)
+ *   IDENTITY_AUDIENCES — optional comma-separated services that may receive
+ *                      identity tokens (POST /api/identity)
+ *   IDENTITY_PRIVATE_KEY — ES256 PKCS#8 PEM signing them (https deploys only)
  *
  * Note: the origin var is deliberately NOT named with a `PUBLIC_` prefix —
  * SvelteKit reserves that prefix for client-exposed vars, so `$env/dynamic/
@@ -66,6 +69,10 @@ export const getService = (): AtprotoCommentsService => {
     "COMMENT_STREAM_MAX_SUBSCRIBERS_PER_THREAD",
   );
   const heartbeatMs = positiveNumberEnv("COMMENT_STREAM_HEARTBEAT_MS");
+  const identityAudiences = (env["IDENTITY_AUDIENCES"] ?? "")
+    .split(",")
+    .map((audience) => audience.trim())
+    .filter(Boolean);
 
   cached = createAtprotoCommentsService({
     publicUrl: serviceUrl,
@@ -89,6 +96,16 @@ export const getService = (): AtprotoCommentsService => {
     sessionSecret,
     sessionMode: env["SESSION_MODE"] === "cookie" ? "cookie" : "bearer",
     ...(env["APPVIEW_URL"] ? { appView: env["APPVIEW_URL"] } : {}),
+    ...(identityAudiences.length > 0
+      ? {
+          identity: {
+            audiences: identityAudiences,
+            ...(env["IDENTITY_PRIVATE_KEY"]
+              ? { privateKey: env["IDENTITY_PRIVATE_KEY"] }
+              : {}),
+          },
+        }
+      : {}),
     commentStream: {
       ...(env["SPACEDUST_URL"] ? { spacedustUrl: env["SPACEDUST_URL"] } : {}),
       ...(maxThreads !== undefined ? { maxThreads } : {}),

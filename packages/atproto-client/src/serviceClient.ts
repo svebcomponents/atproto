@@ -389,6 +389,23 @@ export class ServiceClient {
     return (await response.json()) as ViewerReactions;
   }
 
+  /**
+   * A short-lived identity token for another service (`audience`), on a
+   * bridge that issues them. The service verifies it offline against the
+   * bridge's `/identity/jwks.json` to learn which account is calling. It
+   * grants no ATProto permissions.
+   */
+  async getIdentityToken(
+    audience: string,
+  ): Promise<{ token: string; expiresAt: number }> {
+    const response = await this.#authedRequest("/api/identity", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ audience }),
+    });
+    return (await response.json()) as { token: string; expiresAt: number };
+  }
+
   async #authedRequest(
     path: string,
     init: { method: string; headers?: Record<string, string>; body?: string },

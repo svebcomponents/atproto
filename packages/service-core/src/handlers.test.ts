@@ -1,3 +1,9 @@
+import {
+  createLocalJWKSet,
+  exportPKCS8,
+  generateKeyPair,
+  jwtVerify,
+} from "jose";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -1300,6 +1306,101 @@ describe("security regressions", () => {
       ),
     );
     expect(blocked!.status).toBe(400);
+  });
+});
+
+describe("identity tokens", () => {
+  const AUDIENCE = "cloudless-gateway";
+
+  const identityService = async (
+    identity?: Partial<NonNullable<ServiceConfig["identity"]>>,
+  ) => {
+    const { privateKey } = await generateKeyPair("ES256", {
+      extractable: true,
+    });
+    return createAtprotoCommentsService(
+      {
+        ...baseConfig(memoryStore()),
+        ...(identity
+          ? {
+              identity: {
+                audiences: [AUDIENCE],
+                privateKey: await exportPKCS8(privateKey),
+                ...identity,
+              },
+            }
+          : {}),
+      },
+      { oauthClient: fakeOAuthClient },
+    );
+  };
+
+  it("is off by default", async () => {
+    const service = await identityService();
+    const token = await signIn(service);
+    expect(
+      (await service.fetch(
+        post("/atproto/api/identity", token, { audience: AUDIENCE }),
+      ))!.status,
+    ).toBe(404);
+    expect(
+      (await service.fetch(
+        new Request(`${SERVICE}/atproto/identity/jwks.json`),
+      ))!.status,
+    ).toBe(404);
+  });
+
+  it("mints tokens that verify against the published keys", async () => {
+    const service = await identityService({});
+    const token = await signIn(service);
+    const res = await service.fetch(
+      post("/atproto/api/identity", token, { audience: AUDIENCE }),
+    );
+    expect(res!.status).toBe(200);
+    const body = (await res!.json()) as { token: string; expiresAt: number };
+    expect(body.expiresAt).toBeGreaterThan(Date.now() / 1000);
+
+    const jwksResponse = await service.fetch(
+      new Request(`${SERVICE}/atproto/identity/jwks.json`),
+    );
+    expect(jwksResponse!.headers.get("access-control-allow-origin")).toBe("*");
+    const jwks = createLocalJWKSet(
+      (await jwksResponse!.json()) as Parameters<typeof createLocalJWKSet>[0],
+    );
+    const { payload } = await jwtVerify(body.token, jwks, {
+      issuer: `${SERVICE}/atproto`,
+      audience: AUDIENCE,
+      algorithms: ["ES256"],
+    });
+    expect(payload.sub).toBe(DID);
+  });
+
+  it("only mints for configured audiences and signed-in readers", async () => {
+    const service = await identityService({});
+    const token = await signIn(service);
+    expect(
+      (await service.fetch(
+        post("/atproto/api/identity", token, { audience: "someone-else" }),
+      ))!.status,
+    ).toBe(400);
+    expect(
+      (await service.fetch(
+        new Request(`${SERVICE}/atproto/api/identity`, {
+          method: "POST",
+          headers: { origin: ORIGIN, "content-type": "application/json" },
+          body: JSON.stringify({ audience: AUDIENCE }),
+        }),
+      ))!.status,
+    ).toBe(401);
+  });
+
+  it("requires a signing key outside loopback development", () => {
+    expect(() =>
+      createAtprotoCommentsService(
+        { ...baseConfig(memoryStore()), identity: { audiences: [AUDIENCE] } },
+        { oauthClient: fakeOAuthClient },
+      ),
+    ).toThrow(/privateKey/);
   });
 });
 

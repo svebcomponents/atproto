@@ -64,6 +64,24 @@ describe("ServiceClient", () => {
     });
   });
 
+  it("requests an identity token for an audience", async () => {
+    store.set(TOKEN_KEY, "tok");
+    const fetchImpl = vi.fn((_url: string, _init?: RequestInit) =>
+      Promise.resolve(jsonResponse({ token: "id", expiresAt: 1 })),
+    );
+    const client = new ServiceClient(
+      "/atproto",
+      fetchImpl as unknown as typeof fetch,
+    );
+    expect(await client.getIdentityToken("gateway")).toEqual({
+      token: "id",
+      expiresAt: 1,
+    });
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe("https://blog.example/atproto/api/identity");
+    expect(init?.body).toBe(JSON.stringify({ audience: "gateway" }));
+  });
+
   it("returns null and clears the token when the session is 401", async () => {
     store.set(TOKEN_KEY, "stale");
     const fetchImpl = vi

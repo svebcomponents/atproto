@@ -135,6 +135,8 @@ POST   /api/reply                        create a reply post as the signed-in re
 POST   /api/like, /api/repost            like/repost as the signed-in reader
 DELETE /api/like, /api/repost            undo them (removes the reader's record)
 GET    /api/viewer?like=…&repost=…       the reader's own like/repost records for those posts
+POST   /api/identity                     a short-lived identity token for another service (opt-in)
+GET    /identity/jwks.json               public keys for verifying identity tokens
 GET    /api/comments/stream?thread=…     SSE reply signals for one thread
 GET    /api/stats                        whole-service counts (no origins, no readers)
 ```
@@ -166,6 +168,30 @@ The component uses the same `service` property for both modes:
 ```html
 <atproto-comments thread="at://..." service="/atproto"></atproto-comments>
 ```
+
+## Identity tokens
+
+Other services (such as a classification gateway) sometimes need to know
+which account is calling without asking the bridge on every request. With
+`identity` configured, a signed-in client calls `POST /api/identity` with
+`{ "audience": "<service>" }` (`ServiceClient.getIdentityToken(audience)`) and
+receives `{ token, expiresAt }`:
+
+```ts
+createAtprotoCommentsService({
+  // ...
+  identity: {
+    audiences: ["my-gateway"],
+    privateKey: process.env.IDENTITY_PRIVATE_KEY, // ES256 PKCS#8 PEM
+  },
+});
+```
+
+The token is an ES256 JWT: `iss` is the bridge's public URL and base path,
+`sub` the reader's DID, `aud` the service, valid for 15 minutes by default.
+Services verify it offline against `/identity/jwks.json`. It carries no
+ATProto permissions. Use a key separate from the OAuth client's; a loopback
+deployment generates an ephemeral one when it is omitted.
 
 ## Live comment events
 

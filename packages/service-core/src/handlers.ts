@@ -45,6 +45,7 @@ import {
   type SessionTokenClaims,
   type SessionTokenIssuer,
 } from "./sessionToken.js";
+import { createIdentityIssuer, type IdentityIssuer } from "./identityToken.js";
 
 /**
  * Publishable operational numbers. Counts and gauges only: no origins, no
@@ -312,6 +313,14 @@ export const createAtprotoCommentsService = (
     ttlSeconds: config.sessionTtlSeconds,
     serviceSessionStore: config.serviceSessionStore,
   });
+  const identity = config.identity
+    ? createIdentityIssuer({
+        issuer: `${config.publicUrl}${config.basePath}`,
+        audiences: config.identity.audiences,
+        privateKey: config.identity.privateKey,
+        ttlSeconds: config.identity.ttlSeconds ?? 900,
+      })
+    : undefined;
   const commentStreams =
     options.commentStreamBroker ??
     createCommentStreamBroker(config.commentStream, options.webSocketFactory);
@@ -365,6 +374,7 @@ export const createAtprotoCommentsService = (
           tokens,
           clientPromise,
           commentStreams,
+          identity,
         );
       }
 
@@ -373,6 +383,13 @@ export const createAtprotoCommentsService = (
           return json((await clientPromise).clientMetadata);
         case "GET /jwks.json":
           return json((await clientPromise).jwks);
+        case "GET /identity/jwks.json":
+          if (!identity) return jsonError(404, "NotFound", "Unknown route");
+          // public keys for verifying identity tokens, fetched by services
+          return json(await identity.jwks(), 200, {
+            "access-control-allow-origin": "*",
+            "cache-control": "public, max-age=300",
+          });
         case "GET /oauth/start":
           return handleStart(url, config, clientPromise, renderSignInPage);
         case "GET /oauth/callback":
@@ -603,6 +620,7 @@ const handleApi = async (
   tokens: SessionTokenIssuer,
   clientPromise: Promise<OAuthBridgeClient>,
   commentStreams: CommentStreamBroker,
+  identity: IdentityIssuer | undefined,
 ): Promise<Response> => {
   const requestOrigin = parseAllowedOrigin(
     request.headers.get("origin"),
@@ -838,6 +856,26 @@ const handleApi = async (
       const result = await postReply(claims.did, reply, clientPromise);
       if (result.ok) config.metrics.record(claims.origin, "reply");
       return respondAction(isForm, cors, result, redirectTo);
+    }
+
+    case "POST /api/identity": {
+      if (!identity) return jsonError(404, "NotFound", "Unknown route", cors);
+      const body = (await request.json().catch(() => null)) as {
+        audience?: unknown;
+      } | null;
+      const audience = body?.audience;
+      if (
+        typeof audience !== "string" ||
+        !identity.audiences.includes(audience)
+      ) {
+        return jsonError(
+          400,
+          "InvalidAudience",
+          "This service does not issue identity tokens for that audience",
+          cors,
+        );
+      }
+      return json(await identity.mint(claims.did, audience), 200, cors);
     }
 
     case "GET /api/viewer": {

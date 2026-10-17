@@ -188,6 +188,23 @@ export interface ServiceConfig {
   replyRateLimiter?: RateLimiter;
   /** rate limiter for like/repost toggling, keyed per DID (default: 60 per 10min) */
   reactionRateLimiter?: RateLimiter;
+  /**
+   * Issues short-lived identity tokens (`POST /api/identity`) that other
+   * services verify offline against `/identity/jwks.json`, so they can
+   * attribute requests to a signed-in account without calling the bridge.
+   * Off by default.
+   */
+  identity?: {
+    /** services tokens may be minted for, e.g. `["my-gateway"]` */
+    audiences: readonly string[];
+    /**
+     * ES256 signing key as PKCS#8 PEM. Required for https deployments; a
+     * loopback deployment generates an ephemeral key when omitted.
+     */
+    privateKey?: string;
+    /** token lifetime in seconds (default: 900) */
+    ttlSeconds?: number;
+  };
   /** AppView for unauthenticated profile lookups */
   appView?: string;
   /**
@@ -254,6 +271,25 @@ const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 export const DEFAULT_CONSTELLATION = "https://constellation.microcosm.blue";
 
 export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
+  if (config.identity) {
+    const { audiences, privateKey } = config.identity;
+    if (
+      audiences.length === 0 ||
+      audiences.some(
+        (audience) => typeof audience !== "string" || audience === "",
+      )
+    ) {
+      throw new Error("identity.audiences must list at least one audience");
+    }
+    const loopback = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(
+      `${config.publicUrl}/`,
+    );
+    if (!privateKey && !loopback) {
+      throw new Error(
+        "identity.privateKey is required for non-loopback deployments",
+      );
+    }
+  }
   const url = new URL(config.publicUrl);
   const isLoopback =
     url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname);
