@@ -44,6 +44,22 @@ describe("atproto-comments SSR prepare", () => {
     expect(Number(stampedAt)).toBeLessThanOrEqual(Date.now());
   });
 
+  it("fetches only the root post for collapsed replies", async () => {
+    vi.mocked(fetchCommentTree).mockResolvedValue(tree);
+
+    await prepare({
+      props: Object.freeze({
+        thread: "at://example/thread",
+        replies: "collapsed",
+      }),
+      setProperty: vi.fn(),
+    });
+
+    expect(fetchCommentTree).toHaveBeenCalledWith("at://example/thread", {
+      depth: 0,
+    });
+  });
+
   it("returns synchronously and does not fetch when threadData is supplied", () => {
     const result = prepare({
       props: Object.freeze({

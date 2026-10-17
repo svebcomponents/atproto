@@ -3,6 +3,7 @@ import {
   type FetchCommentTreeOptions,
 } from "@svebcomponents/atproto.client";
 import type { SsrPrepare } from "@svebcomponents/ssr";
+import { COLLAPSED_FETCH_DEPTH } from "./replies.js";
 
 const stringProperty = (
   props: Readonly<Record<string, unknown>>,
@@ -25,7 +26,11 @@ const prepare: SsrPrepare = ({ props, setProperty }) => {
 
   const appView = stringProperty(props, "appview");
   const viewer = stringProperty(props, "viewer");
+  // Collapsed replies render without them until opened, so the server only
+  // reads the root post, exactly like the browser would.
+  const collapsed = stringProperty(props, "replies") === "collapsed";
   const options: FetchCommentTreeOptions = {
+    ...(collapsed ? { depth: COLLAPSED_FETCH_DEPTH } : {}),
     ...(appView ? { appView } : {}),
     ...(viewer ? { viewer } : {}),
   };

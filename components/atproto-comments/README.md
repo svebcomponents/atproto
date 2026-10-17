@@ -121,6 +121,7 @@ live updates.
 | `readonly`    | `false`        | hide sign-in and in-page replies                                                           |
 | `live`        | `signed-in`    | who gets live updates: `signed-in`, `all`, or `off`                                        |
 | `show-root`   | `false`        | render the discussion root's own post above the replies                                    |
+| `replies`     | `expanded`     | `expanded` renders replies inline; `collapsed` puts them behind a "Show replies" toggle    |
 | `max-depth`   | `6`            | maximum nested depth                                                                       |
 | `sort`        | `oldest`       | `oldest`, `newest`, or `likes`                                                             |
 | `labels`      | `collapse`     | `hide`, `collapse`, or `show`                                                              |
@@ -133,6 +134,26 @@ live updates.
 
 `threadData` is a JavaScript-only `CommentTree` property for a preloaded
 snapshot.
+
+### Post cards
+
+`show-root` with `replies="collapsed"` renders a single post as a card, for
+example in a feed:
+
+```html
+<atproto-comments
+  thread="at://did:plc:.../app.bsky.feed.post/..."
+  show-root
+  replies="collapsed"
+></atproto-comments>
+```
+
+The card shows the post, its reactions, and a "Show N replies" toggle. Until
+the reader opens the replies, the component only fetches the root post and
+holds no live connection. Opening them fetches the thread once; hiding and
+reopening reuses it. A reply posted from the card opens the replies so the
+reader sees it. A preloaded `threadData` may be root-only (fetched with
+`depth: 0`); the replies are fetched when opened.
 
 With the default `live="signed-in"`, only readers who sign in hold a connection
 to the service; signed-out visitors read the thread straight from the AppView.

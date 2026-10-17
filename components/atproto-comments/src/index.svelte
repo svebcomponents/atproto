@@ -50,6 +50,11 @@ package README.
     reactionCount,
     viewerLookupSubjects,
   } from "./viewerState.js";
+  import {
+    COLLAPSED_FETCH_DEPTH,
+    repliesToggleLabel,
+    snapshotHasReplies,
+  } from "./replies.js";
 
   interface Props {
     /** AT URI (at://…) or viewer post URL of the discussion root */
@@ -97,6 +102,17 @@ package README.
      * standalone (e.g. a landing page demo), redundant when the host page
      * already displays that post's content itself */
     showRoot?: boolean;
+    /**
+     * How the root's replies are presented.
+     *
+     * - `"expanded"` (default) — a comment section: replies render inline.
+     * - `"collapsed"` — a post card: replies stay behind a "Show replies"
+     *   toggle. Until the reader opens them, only the root post is fetched
+     *   and no live connection is held. Pair with `show-root`.
+     */
+    // spelled out rather than imported, so the generated element types stay
+    // self-contained
+    replies?: "expanded" | "collapsed";
     /** the embedding page's own canonical URL (e.g. `$page.url.href`).
      * Reply/like/repost forms already work without JavaScript via a same-
      * origin, cookie-mode service — but completing sign-in without JS also
@@ -137,6 +153,7 @@ package README.
     readonly = false,
     live = "signed-in",
     showRoot = false,
+    replies = "expanded",
     pageUrl = "",
     fetchedAt = "",
     staleTime = DEFAULT_STALE_TIME_MS,
@@ -154,6 +171,27 @@ package README.
   let optimisticThread = "";
 
   const tree = $derived(fetched ?? threadData);
+
+  // --- collapsed replies (`replies="collapsed"`) ---
+  // Any value other than "collapsed" keeps the comment-section default.
+  const collapsible = $derived(replies === "collapsed");
+  /** the reader opened a collapsed thread's replies */
+  let expanded = $state(false);
+  /** replies were opened once for this thread: later refreshes keep reading
+   * them, so hiding and reopening needs no new fetch */
+  let repliesRequested = $state(false);
+  /** whether the component's own `fetched` snapshot was read with replies */
+  let fetchedWithReplies = $state(false);
+  let repliesError = $state<string | undefined>(undefined);
+  const repliesShown = $derived(!collapsible || expanded);
+  const fetchReplies = $derived(!collapsible || repliesRequested);
+  /** the snapshot cannot show replies it was read without. Host snapshots
+   * only count in collapsed mode, so the expanded default stays unchanged. */
+  const repliesMissing = $derived(
+    tree !== undefined &&
+      !snapshotHasReplies(tree) &&
+      (fetched !== undefined ? !fetchedWithReplies : collapsible),
+  );
 
   /**
    * `fetchedAt` normalized to epoch ms. Accepts a number (epoch ms), an ISO
@@ -633,6 +671,11 @@ package README.
       };
       draft = "";
       closeComposer();
+      // the reader must see the reply they just published
+      if (collapsible) {
+        expanded = true;
+        repliesRequested = true;
+      }
       emit("atproto-comments:posted", {
         uri: posted.uri,
         cid: posted.cid,
@@ -654,7 +697,8 @@ package README.
 
   const liveRefreshes = new LiveRefreshScheduler(revalidate);
 
-  const requestKey = (): string => JSON.stringify([thread, appview, viewer]);
+  const requestKey = (depth: number | undefined): string =>
+    JSON.stringify([thread, appview, viewer, depth ?? null]);
   const refreshThread = (): Promise<CommentTree | undefined> => {
     if (!BROWSER || !thread) return Promise.resolve(undefined);
 
@@ -672,12 +716,15 @@ package README.
 
     if (!background) loading = true;
     errorMessage = undefined;
+    // Collapsed replies that were never opened only need the root post.
+    const depth = fetchReplies ? undefined : COLLAPSED_FETCH_DEPTH;
 
     return refreshes.run(
-      requestKey(),
+      requestKey(depth),
       (signal) =>
         fetchCommentTree(thread, {
           signal,
+          ...(depth !== undefined ? { depth } : {}),
           ...(appview ? { appView: appview } : {}),
           ...(viewer ? { viewer } : {}),
         }),
@@ -685,6 +732,7 @@ package README.
         resolved: (result) => {
           optimistic = reconcileOptimisticReplies(result, optimistic);
           fetched = result;
+          fetchedWithReplies = depth === undefined;
           errorMessage = undefined;
           emit(
             background
@@ -720,11 +768,15 @@ package README.
     refreshes.cancel();
     liveRefreshes.cancel();
     fetched = undefined;
+    fetchedWithReplies = false;
     loading = false;
     errorMessage = undefined;
+    repliesError = undefined;
 
     if (optimisticThread !== currentThread) {
       optimisticThread = currentThread;
+      expanded = false;
+      repliesRequested = false;
       optimistic = {};
       liked = {};
       reposted = {};
@@ -757,6 +809,27 @@ package README.
     };
   });
 
+  const loadReplies = () => {
+    repliesError = undefined;
+    refreshThread().catch((error: unknown) => {
+      repliesError =
+        error instanceof Error ? error.message : "Failed to load replies";
+    });
+  };
+
+  const toggleReplies = () => {
+    expanded = !expanded;
+    if (expanded) repliesRequested = true;
+  };
+
+  // Replies became visible on a snapshot that was read without them: opening
+  // a collapsed thread, or switching `replies` back to "expanded". Runs once
+  // per missing snapshot; a failure waits for the reader's retry.
+  $effect(() => {
+    if (!BROWSER || !repliesShown || !repliesMissing) return;
+    untrack(loadReplies);
+  });
+
   /**
    * Whether to hold an open event-stream connection to the service. This is
    * the component's only unprompted network contact with the bridge, so it
@@ -766,7 +839,9 @@ package README.
    * the service and it already knows who they are.
    */
   const streaming = $derived(
-    live === "all" || (live === "signed-in" && session !== null),
+    // collapsed replies have nothing live to show until they are opened
+    repliesShown &&
+      (live === "all" || (live === "signed-in" && session !== null)),
   );
 
   $effect(() => {
@@ -1309,19 +1384,45 @@ package README.
     {#if writable}
       {@render composerDialog({ uri: tree.root.uri, cid: tree.root.cid })}
     {/if}
-    {#if comments.length === 0}
-      <p class="empty" part="empty">
-        No comments yet.
-        <a href={tree.root.url} target="_blank" rel="noopener noreferrer"
-          >Be the first to reply on {viewerLabel}</a
-        >
-      </p>
-    {:else}
-      <ul class="comments" part="comments">
-        {#each comments as node (nodeKey(node))}
-          {@render commentNode(node, 1)}
-        {/each}
-      </ul>
+    {#if collapsible && (tree.root.replyCount > 0 || comments.length > 0)}
+      <button
+        type="button"
+        class="replies-toggle link-button"
+        part="replies-toggle"
+        aria-expanded={expanded}
+        onclick={toggleReplies}
+        >{repliesToggleLabel(
+          Math.max(tree.root.replyCount, comments.length),
+          expanded,
+          (count) => compactNumber.format(count),
+        )}</button
+      >
+    {/if}
+    {#if repliesShown}
+      {#if comments.length > 0}
+        <ul class="comments" part="comments">
+          {#each comments as node (nodeKey(node))}
+            {@render commentNode(node, 1)}
+          {/each}
+        </ul>
+      {/if}
+      {#if collapsible && repliesMissing}
+        {#if repliesError}
+          <p class="error" part="error">
+            Could not load replies: {repliesError}
+            <button type="button" onclick={loadReplies}>Retry</button>
+          </p>
+        {:else}
+          <p class="replies-loading" part="replies-loading">Loading replies…</p>
+        {/if}
+      {:else if comments.length === 0 && !collapsible}
+        <p class="empty" part="empty">
+          No comments yet.
+          <a href={tree.root.url} target="_blank" rel="noopener noreferrer"
+            >Be the first to reply on {viewerLabel}</a
+          >
+        </p>
+      {/if}
     {/if}
   {:else if errorMessage}
     <p class="error" part="error">
@@ -1598,9 +1699,17 @@ package README.
     font-size: 0.875em;
   }
   .empty,
-  .error {
+  .error,
+  .replies-loading {
     padding-block: 1rem;
     color: var(--atproto-comments-muted, light-dark(#666, #999));
+  }
+  .replies-loading {
+    margin: 0;
+  }
+  .replies-toggle {
+    margin-block-start: 0.5rem;
+    font-size: 0.875em;
   }
   .skeleton {
     padding-block: 1rem;
