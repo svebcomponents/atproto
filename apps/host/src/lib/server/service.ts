@@ -32,8 +32,6 @@ const positiveNumberEnv = (name: string): number | undefined => {
  *   SPACEDUST_URL    — optional self-hosted Spacedust websocket origin
  *   APPVIEW_URL      — optional AppView for profile lookups and handle
  *                      resolution (default: the public Bluesky AppView)
- *   EXTENSION_ORIGINS — optional comma-separated browser-extension origins
- *                      (`chrome-extension://<id>`) allowed to sign in
  *
  * Note: the origin var is deliberately NOT named with a `PUBLIC_` prefix —
  * SvelteKit reserves that prefix for client-exposed vars, so `$env/dynamic/
@@ -68,10 +66,6 @@ export const getService = (): AtprotoCommentsService => {
     "COMMENT_STREAM_MAX_SUBSCRIBERS_PER_THREAD",
   );
   const heartbeatMs = positiveNumberEnv("COMMENT_STREAM_HEARTBEAT_MS");
-  const extensionOrigins = (env["EXTENSION_ORIGINS"] ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
 
   cached = createAtprotoCommentsService({
     publicUrl: serviceUrl,
@@ -95,7 +89,6 @@ export const getService = (): AtprotoCommentsService => {
     sessionSecret,
     sessionMode: env["SESSION_MODE"] === "cookie" ? "cookie" : "bearer",
     ...(env["APPVIEW_URL"] ? { appView: env["APPVIEW_URL"] } : {}),
-    ...(extensionOrigins.length > 0 ? { extensionOrigins } : {}),
     commentStream: {
       ...(env["SPACEDUST_URL"] ? { spacedustUrl: env["SPACEDUST_URL"] } : {}),
       ...(maxThreads !== undefined ? { maxThreads } : {}),

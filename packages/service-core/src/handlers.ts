@@ -95,9 +95,15 @@ const jsonError = (
   headers?: HeadersInit,
 ): Response => json({ error, message }, status, headers);
 
-/** validates and normalizes an embedding site origin */
+/**
+ * Validates and normalizes an embedding origin: a website, or a browser
+ * extension's own pages. Extension pages send their extension origin, which
+ * no web page can forge, so they get origin-bound sessions like a website.
+ */
 const parseOrigin = (value: string | null): string | null => {
   if (!value) return null;
+  const extension = parseExtensionOrigin(value);
+  if (extension) return extension;
   try {
     const url = new URL(value);
     if (url.protocol !== "https:" && url.protocol !== "http:") return null;
@@ -109,19 +115,14 @@ const parseOrigin = (value: string | null): string | null => {
 
 /**
  * Same as {@link parseOrigin}, but also enforces `config.allowedOrigins` when
- * the deployment configured one, and accepts the browser extensions listed in
- * `config.extensionOrigins`. Used everywhere an origin is accepted from the
- * network, so an unlisted site or extension can neither start a sign-in nor
- * hold a session.
+ * the deployment configured one. Used everywhere an origin is accepted from
+ * the network, so an unlisted site or extension can neither start a sign-in
+ * nor hold a session.
  */
 const parseAllowedOrigin = (
   value: string | null,
   config: ResolvedServiceConfig,
 ): string | null => {
-  const extension = value === null ? null : parseExtensionOrigin(value);
-  if (extension !== null) {
-    return config.extensionOrigins.includes(extension) ? extension : null;
-  }
   const origin = parseOrigin(value);
   if (origin === null) return null;
   if (config.allowedOrigins && !config.allowedOrigins.includes(origin)) {

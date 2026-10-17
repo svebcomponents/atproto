@@ -150,22 +150,17 @@ export interface ServiceConfig {
   /** HttpOnly cookie name used by cookie session mode. */
   sessionCookieName?: string;
   /**
-   * Web origins allowed to start a sign-in and hold a session, e.g.
-   * `["https://blog.example"]`. Omit (the default) to accept any origin —
+   * Origins allowed to start a sign-in and hold a session, e.g.
+   * `["https://blog.example"]`. Browser extensions sign in with their own
+   * origin (`chrome-extension://<id>`, `moz-extension://<uuid>`,
+   * `safari-web-extension://<uuid>`) and are listed the same way. Omit (the
+   * default) to accept any website or extension —
    * what the public hosted instance needs, since it serves sites it has
    * never seen. A self-hosted bridge almost always wants exactly one origin
    * here: with no allowlist, any site on the internet can run its own
    * comment section against your deployment and your OAuth client identity.
    */
   allowedOrigins?: readonly string[];
-  /**
-   * Browser-extension origins allowed to sign in and hold a session, e.g.
-   * `["chrome-extension://abcdefghijklmnopabcdefghijklmnop"]`. Extension pages
-   * send their own origin, which no web page can forge, so a listed extension
-   * gets the same origin-bound bearer session as a website. Extensions are
-   * never accepted unless listed here, even when `allowedOrigins` is unset.
-   */
-  extensionOrigins?: readonly string[];
   /**
    * OAuth scopes requested from the user's PDS. Default grants create on
    * replies plus create+delete on likes/reposts (the latter pair needed to
@@ -246,8 +241,6 @@ export interface ResolvedServiceConfig extends ServiceConfig {
   metrics: MetricsRecorder;
   /** normalized to bare origins; undefined means "any origin" */
   allowedOrigins?: readonly string[];
-  /** normalized extension origins; empty means none */
-  extensionOrigins: readonly string[];
   /** absolute privacy policy URL, resolved against publicUrl */
   privacyUrl?: string;
   /** the project's own site, enabling brand header and footer pitch */
@@ -297,6 +290,8 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
   // Normalize the allowlist up front so a typo fails at construction rather
   // than silently refusing every sign-in at runtime.
   const allowedOrigins = config.allowedOrigins?.map((value) => {
+    const extension = parseExtensionOrigin(value);
+    if (extension) return extension;
     let origin: string;
     try {
       origin = new URL(value).origin;
@@ -305,15 +300,6 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     }
     if (origin === "null") {
       throw new Error(`allowedOrigins entry has no origin: ${value}`);
-    }
-    return origin;
-  });
-  const extensionOrigins = (config.extensionOrigins ?? []).map((value) => {
-    const origin = parseExtensionOrigin(value);
-    if (!origin) {
-      throw new Error(
-        `extensionOrigins entry is not an extension origin: ${value}`,
-      );
     }
     return origin;
   });
@@ -392,7 +378,6 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
   return {
     ...config,
     ...(allowedOrigins ? { allowedOrigins } : {}),
-    extensionOrigins,
     publicUrl: url.origin,
     basePath: config.basePath ?? "/atproto",
     ...(config.privacyUrl

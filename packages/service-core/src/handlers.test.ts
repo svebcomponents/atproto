@@ -1327,37 +1327,31 @@ describe("browser extension origins", () => {
     createRecordCalls = [];
   });
 
-  it("refuses extensions unless listed, even without an allowlist", async () => {
+  it("accepts any extension when there is no allowlist", async () => {
     const service = extensionService();
     expect(
       (await service.fetch(new Request(startUrl(EXTENSION))))!.status,
-    ).toBe(400);
+    ).toBe(200);
   });
 
-  it("refuses an extension that is not listed", async () => {
+  it("accepts only listed extensions when there is an allowlist", async () => {
     const service = extensionService({
-      extensionOrigins: ["chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba"],
-    });
-    expect(
-      (await service.fetch(new Request(startUrl(EXTENSION))))!.status,
-    ).toBe(400);
-  });
-
-  it("lets a listed extension sign in alongside a web allowlist", async () => {
-    const service = extensionService({
-      allowedOrigins: [ORIGIN],
-      extensionOrigins: [`${EXTENSION}/`],
+      allowedOrigins: [ORIGIN, `${EXTENSION}/`],
     });
     expect(
       (await service.fetch(new Request(startUrl(EXTENSION))))!.status,
     ).toBe(200);
-    expect((await service.fetch(new Request(startUrl(ORIGIN))))!.status).toBe(
-      200,
-    );
+    expect(
+      (await service.fetch(
+        new Request(
+          startUrl("chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba"),
+        ),
+      ))!.status,
+    ).toBe(400);
   });
 
   it("binds the session to the extension origin", async () => {
-    const service = extensionService({ extensionOrigins: [EXTENSION] });
+    const service = extensionService();
     await service.fetch(
       new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=xyz`),
     );
@@ -1397,17 +1391,21 @@ describe("browser extension origins", () => {
         }),
       );
     expect((await like(EXTENSION))!.status).toBe(200);
+    expect(
+      (await like("chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba"))!
+        .status,
+    ).toBe(401);
     expect((await like(ORIGIN))!.status).toBe(401);
     expect(createRecordCalls).toHaveLength(1);
   });
 
-  it("rejects a malformed extensionOrigins entry at construction", () => {
-    expect(() =>
-      createAtprotoCommentsService({
-        ...baseConfig(memoryStore()),
-        extensionOrigins: ["https://not-an-extension.example"],
-      }),
-    ).toThrow(/extensionOrigins/);
+  it("refuses other non-web schemes", async () => {
+    const service = extensionService();
+    for (const origin of ["file:///etc", "javascript:alert(1)", "null"]) {
+      expect((await service.fetch(new Request(startUrl(origin))))!.status).toBe(
+        400,
+      );
+    }
   });
 });
 
