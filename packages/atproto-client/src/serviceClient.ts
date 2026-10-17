@@ -79,8 +79,30 @@ export const DEFAULT_SERVICE_URL = "https://atproto.svebcomponents.dev/atproto";
  * reader sessions; self-hosting same-origin with `sessionMode: "cookie"`
  * avoids browser-readable tokens entirely.
  */
+/**
+ * A bridge token's `iat` / `exp` (seconds). The client never verifies the
+ * token, only reads when to renew it; malformed tokens yield null.
+ */
+const tokenLifetime = (
+  token: string,
+): { issuedAt: number; expiresAt: number } | null => {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const json = JSON.parse(
+      atob(payload.replace(/-/g, "+").replace(/_/g, "/")),
+    ) as { iat?: unknown; exp?: unknown };
+    return typeof json.iat === "number" && typeof json.exp === "number"
+      ? { issuedAt: json.iat, expiresAt: json.exp }
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 export class ServiceClient {
   #token: string | null = null;
+  #refreshing: Promise<void> | null = null;
   private readonly fetchImpl: typeof globalThis.fetch;
   private readonly serviceUrl: string;
 
@@ -155,8 +177,57 @@ export class ServiceClient {
     return `${this.serviceUrl}/api/comments/stream?thread=${encodeURIComponent(thread)}`;
   }
 
+  /**
+   * Renews the bearer token once it is past half its lifetime, including
+   * after it expired: the bridge exchanges a recently expired token for a
+   * fresh one while the session is alive. Concurrent calls share one
+   * request. A rejected refresh means the session is gone. Returns null
+   * when nothing needs renewing, so callers only wait when they must.
+   */
+  #renewIfAging(): Promise<void> | null {
+    const token = this.#token;
+    if (!token) return null;
+    const lifetime = tokenLifetime(token);
+    if (!lifetime) return null;
+    const halfway = (lifetime.issuedAt + lifetime.expiresAt) / 2;
+    if (Date.now() / 1000 < halfway) return null;
+    this.#refreshing ??= this.#refresh(token).finally(() => {
+      this.#refreshing = null;
+    });
+    return this.#refreshing;
+  }
+
+  async #refresh(token: string): Promise<void> {
+    let response: Response;
+    try {
+      response = await this.fetchImpl(
+        `${this.serviceUrl}/api/session/refresh`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { authorization: `Bearer ${token}` },
+        },
+      );
+    } catch {
+      return; // offline: keep the token and try again on the next request
+    }
+    // another call may have stored a newer token (or signed out) meanwhile
+    if (this.#token !== token) return;
+    if (response.status === 401) {
+      this.#storeToken(null);
+      return;
+    }
+    if (!response.ok) return;
+    const body = (await response.json().catch(() => ({}))) as {
+      token?: unknown;
+    };
+    if (typeof body.token === "string") this.#storeToken(body.token);
+  }
+
   /** current session, or null if signed out / token no longer valid */
   async getSession(): Promise<ServiceSessionInfo | null> {
+    const renewal = this.#renewIfAging();
+    if (renewal) await renewal;
     const response = await this.fetchImpl(`${this.serviceUrl}/api/session`, {
       credentials: "include",
       headers: this.#headers(),
@@ -393,6 +464,8 @@ export class ServiceClient {
     path: string,
     init: { method: string; headers?: Record<string, string>; body?: string },
   ): Promise<Response> {
+    const renewal = this.#renewIfAging();
+    if (renewal) await renewal;
     const response = await this.fetchImpl(`${this.serviceUrl}${path}`, {
       ...init,
       credentials: "include",

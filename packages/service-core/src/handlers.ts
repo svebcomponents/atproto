@@ -682,11 +682,22 @@ const handleApi = async (
     );
   }
 
+  // Refreshing is how a returning reader stays signed in, so it alone
+  // accepts a recently expired token — still origin-bound, and only while
+  // the session itself is alive.
+  const isRefresh =
+    request.method === "POST" && route === "/api/session/refresh";
   const claims =
     config.sessionMode === "cookie"
       ? await authenticateCookie(request, requestOrigin, config)
       : bearer
-        ? await tokens.verify(bearer, requestOrigin)
+        ? await tokens.verify(
+            bearer,
+            requestOrigin,
+            isRefresh
+              ? { expiredGraceSeconds: config.sessionRefreshWindowSeconds }
+              : undefined,
+          )
         : null;
   if (!claims) {
     return jsonError(

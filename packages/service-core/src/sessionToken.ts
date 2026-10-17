@@ -31,6 +31,14 @@ export interface SessionTokenIssuer {
   verify(
     token: string,
     requestOrigin: string | null,
+    options?: {
+      /**
+       * Also accept a token that expired at most this many seconds ago.
+       * Only the refresh endpoint passes this: everything else requires an
+       * unexpired token.
+       */
+      expiredGraceSeconds?: number;
+    },
   ): Promise<SessionTokenClaims | null>;
 }
 
@@ -59,10 +67,15 @@ export const createSessionTokenIssuer = ({
         .sign(key);
     },
 
-    async verify(token, requestOrigin) {
+    async verify(token, requestOrigin, options = {}) {
       let payload;
       try {
-        ({ payload } = await jwtVerify(token, key, { audience }));
+        ({ payload } = await jwtVerify(token, key, {
+          audience,
+          ...(options.expiredGraceSeconds
+            ? { clockTolerance: options.expiredGraceSeconds }
+            : {}),
+        }));
       } catch {
         return null;
       }

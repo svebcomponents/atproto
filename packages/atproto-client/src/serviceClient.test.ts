@@ -64,6 +64,67 @@ describe("ServiceClient", () => {
     });
   });
 
+  describe("token renewal", () => {
+    const jwt = (iat: number, exp: number) =>
+      `h.${btoa(JSON.stringify({ iat, exp })).replace(/=+$/, "")}.s`;
+    const now = () => Math.floor(Date.now() / 1000);
+
+    it("leaves a fresh token alone", async () => {
+      store.set(TOKEN_KEY, jwt(now(), now() + 3600));
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ did: "d" }));
+      await new ServiceClient(
+        "/atproto",
+        fetchImpl as unknown as typeof fetch,
+      ).getSession();
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it("renews an aging or expired token before using it", async () => {
+      const fresh = jwt(now(), now() + 3600);
+      store.set(TOKEN_KEY, jwt(now() - 7200, now() - 3600));
+      const fetchImpl = vi.fn((url: string) =>
+        Promise.resolve(
+          url.endsWith("/refresh")
+            ? jsonResponse({ token: fresh })
+            : jsonResponse({ did: "d" }),
+        ),
+      );
+      const client = new ServiceClient(
+        "/atproto",
+        fetchImpl as unknown as typeof fetch,
+      );
+      // concurrent calls share one refresh
+      await Promise.all([client.getSession(), client.getSession()]);
+      const refreshes = fetchImpl.mock.calls.filter(([url]) =>
+        url.endsWith("/refresh"),
+      );
+      expect(refreshes).toHaveLength(1);
+      expect(store.get(TOKEN_KEY)).toBe(fresh);
+      const [, init] = fetchImpl.mock.calls.at(-1)! as unknown as [
+        string,
+        RequestInit,
+      ];
+      expect(init.headers).toMatchObject({ authorization: `Bearer ${fresh}` });
+    });
+
+    it("signs out when the bridge rejects the refresh", async () => {
+      store.set(TOKEN_KEY, jwt(now() - 7200, now() - 3600));
+      const fetchImpl = vi.fn((url: string) =>
+        Promise.resolve(
+          url.endsWith("/refresh")
+            ? new Response(null, { status: 401 })
+            : jsonResponse({ error: "InvalidSession" }, 401),
+        ),
+      );
+      const client = new ServiceClient(
+        "/atproto",
+        fetchImpl as unknown as typeof fetch,
+      );
+      expect(await client.getSession()).toBeNull();
+      expect(client.hasStoredSession).toBe(false);
+    });
+  });
+
   it("returns null and clears the token when the session is 401", async () => {
     store.set(TOKEN_KEY, "stale");
     const fetchImpl = vi

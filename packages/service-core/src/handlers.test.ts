@@ -1084,6 +1084,35 @@ describe("service handlers", () => {
     expect(await store.get(sid)).toMatchObject({ did: DID, origin: ORIGIN });
   });
 
+  it("refresh exchanges a recently expired token, and nothing else does", async () => {
+    const token = await signIn(service);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      // two hours later: the 1h token has expired
+      vi.setSystemTime(Date.now() + 2 * 60 * 60 * 1000);
+      expect(
+        (await service.fetch(get("/atproto/api/session", token)))!.status,
+      ).toBe(401);
+      const res = await service.fetch(
+        post("/atproto/api/session/refresh", token),
+      );
+      expect(res!.status).toBe(200);
+      const { token: fresh } = (await res!.json()) as { token: string };
+      expect(
+        (await service.fetch(get("/atproto/api/session", fresh)))!.status,
+      ).toBe(200);
+
+      // past the refresh window, the expired token is no longer accepted
+      vi.setSystemTime(Date.now() + 31 * 24 * 60 * 60 * 1000);
+      expect(
+        (await service.fetch(post("/atproto/api/session/refresh", token)))!
+          .status,
+      ).toBe(401);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("refresh with a deleted session is rejected", async () => {
     const token = await signIn(service);
     for (const sid of store.keys()) await store.del(sid);

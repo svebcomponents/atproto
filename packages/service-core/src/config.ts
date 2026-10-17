@@ -143,6 +143,14 @@ export interface ServiceConfig {
   /** bearer token lifetime in seconds (default: 3600) */
   sessionTtlSeconds?: number;
   /**
+   * How long after a bearer token expires it can still be exchanged for a
+   * fresh one at `/api/session/refresh`, in seconds (default: 30 days, the
+   * reference session store's retention). The exchange still requires the
+   * token's origin and a live, unrevoked session, so a reader who returns
+   * within the window stays signed in, and signing out ends it at once.
+   */
+  sessionRefreshWindowSeconds?: number;
+  /**
    * Browser session transport. Bearer tokens work cross-origin; cookie mode
    * is intended for a same-origin self-hosted backend.
    */
@@ -223,6 +231,7 @@ export interface ResolvedServiceConfig extends ServiceConfig {
   basePath: string;
   clientName: string;
   sessionTtlSeconds: number;
+  sessionRefreshWindowSeconds: number;
   sessionMode: SessionMode;
   sessionCookieName: string;
   scope: string;
@@ -370,6 +379,8 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     ...(oauthPage ? { oauthPage } : {}),
     clientName: config.clientName ?? "atproto-comments",
     sessionTtlSeconds: config.sessionTtlSeconds ?? 3600,
+    sessionRefreshWindowSeconds:
+      config.sessionRefreshWindowSeconds ?? 30 * 24 * 60 * 60,
     sessionMode: config.sessionMode ?? "bearer",
     sessionCookieName,
     scope:
