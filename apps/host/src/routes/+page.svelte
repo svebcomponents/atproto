@@ -136,6 +136,13 @@
       description: "Render the discussion's root node above the replies.",
     },
     {
+      name: "replies",
+      type: "expanded | collapsed",
+      default: "expanded",
+      description:
+        "Collapsed keeps replies behind a toggle and fetches only the root post until they are opened. With show-root, renders a post card.",
+    },
+    {
       name: "page-url",
       type: "string",
       default: "-",
