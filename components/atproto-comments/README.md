@@ -78,6 +78,16 @@ That covers the complete hosted setup at tiers 1–2. Public thread reads go
 directly to the public AppView, and ATProto OAuth credentials never enter the
 browser.
 
+## Embeds
+
+Posts render their embeds: up to four images (with a "+N" tile for larger
+galleries, each opening the full-size image), a video thumbnail linking to
+the post, link cards, and quoted posts with their own media. A quoted post
+with moderation labels is collapsed to a link unless `labels="show"`. Quoted
+feeds, lists, and starter packs render as links. Style them through the
+`embed`, `embed-images`, `embed-video`, `embed-external`, and `embed-quote`
+parts.
+
 ## Live updates
 
 The component does not poll or use a time-based stale interval. It renders its

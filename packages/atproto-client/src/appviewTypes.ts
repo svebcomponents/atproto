@@ -53,6 +53,8 @@ export interface PostView {
   quoteCount?: number;
   indexedAt?: string;
   labels?: Label[];
+  /** a resolved `app.bsky.embed.*#view`; see `normalizeEmbed` */
+  embed?: unknown;
 }
 
 export interface ThreadViewPost {

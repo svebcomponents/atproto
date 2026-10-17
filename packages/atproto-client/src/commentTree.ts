@@ -4,6 +4,7 @@ import type {
   ThreadNode,
   ThreadViewPost,
 } from "./appviewTypes.js";
+import { normalizeEmbed, type PostEmbed } from "./embeds.js";
 import { segmentRichText, type RichTextSegment } from "./richText.js";
 import { viewerPostUrl, viewerProfileUrl } from "./urls.js";
 
@@ -30,6 +31,8 @@ export interface Comment {
   quoteCount: number;
   /** moderation label values applied to the post */
   labels: string[];
+  /** images, video, link card, or quoted post attached to the post */
+  embed?: PostEmbed | undefined;
   /** viewer permalink (bsky.app by default) */
   url: string;
   replies: CommentNode[];
@@ -63,6 +66,8 @@ export interface RootSummary {
   likeCount: number;
   repostCount: number;
   quoteCount: number;
+  /** images, video, link card, or quoted post attached to the post */
+  embed?: PostEmbed | undefined;
   /** viewer permalink (bsky.app by default) — also the reply-link target */
   url: string;
 }
@@ -105,13 +110,15 @@ const toAuthor = (
 const toPostContent = (
   post: ThreadViewPost["post"],
   viewer?: string,
-): Pick<Comment, "text" | "segments" | "createdAt"> => {
+): Pick<Comment, "text" | "segments" | "createdAt" | "embed"> => {
   const record = isPostRecord(post.record) ? post.record : undefined;
   const text = record?.text ?? "";
+  const embed = normalizeEmbed(post.embed, viewer);
   return {
     text,
     segments: segmentRichText(text, record?.facets, viewer),
     createdAt: record?.createdAt ?? post.indexedAt ?? "",
+    ...(embed ? { embed } : {}),
   };
 };
 
