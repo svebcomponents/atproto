@@ -122,6 +122,7 @@ live updates.
 | `live`        | `signed-in`    | who gets live updates: `signed-in`, `all`, or `off`                                        |
 | `show-root`   | `false`        | render the discussion root's own post above the replies                                    |
 | `replies`     | `expanded`     | `expanded` renders replies inline; `collapsed` puts them behind a "Show replies" toggle    |
+| `composer`    | `dialog`       | `dialog` opens the reply composer as a modal; `inline` opens it below the post             |
 | `max-depth`   | `6`            | maximum nested depth                                                                       |
 | `sort`        | `oldest`       | `oldest`, `newest`, or `likes`                                                             |
 | `labels`      | `collapse`     | `hide`, `collapse`, or `show`                                                              |
@@ -154,6 +155,12 @@ holds no live connection. Opening them fetches the thread once; hiding and
 reopening reuses it. A reply posted from the card opens the replies so the
 reader sees it. A preloaded `threadData` may be root-only (fetched with
 `depth: 0`); the replies are fetched when opened.
+
+The reply composer opens as a modal dialog by default. A card whose height is
+bounded, such as one in an iframe that grows to fit its content, cannot show a
+modal outside its own box. Set `composer="inline"` to open the composer below
+the post instead, inside the element, where it adds to the element's height.
+Without JavaScript, the composer still opens as a modal.
 
 With the default `live="signed-in"`, only readers who sign in hold a connection
 to the service; signed-out visitors read the thread straight from the AppView.

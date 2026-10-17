@@ -113,6 +113,12 @@ package README.
     // spelled out rather than imported, so the generated element types stay
     // self-contained
     replies?: "expanded" | "collapsed";
+    /** how the reply composer opens. `dialog` (default) is a modal over the
+     * page; `inline` opens it in place, below the post, so it stays inside
+     * the element's own box. Use `inline` where the element's height is
+     * bounded, such as an iframe that grows to fit its content. */
+    // spelled out for the same reason as `replies`
+    composer?: "dialog" | "inline";
     /** the embedding page's own canonical URL (e.g. `$page.url.href`).
      * Reply/like/repost forms already work without JavaScript via a same-
      * origin, cookie-mode service — but completing sign-in without JS also
@@ -154,6 +160,7 @@ package README.
     live = "signed-in",
     showRoot = false,
     replies = "expanded",
+    composer = "dialog",
     pageUrl = "",
     fetchedAt = "",
     staleTime = DEFAULT_STALE_TIME_MS,
@@ -365,7 +372,11 @@ package README.
     postError = undefined;
     replyTarget = target;
     const dialog = getDialog(target.uri);
-    if (dialog && !dialog.open) dialog.showModal();
+    if (!dialog || dialog.open) return;
+    // Runs before the button's `show-modal` command, which then finds the
+    // dialog open and does nothing. Without JS, the command opens a modal.
+    if (composer === "inline") dialog.show();
+    else dialog.showModal();
   };
 
   // state is cleared via the dialog's `close` event so Esc stays in sync
@@ -1076,7 +1087,12 @@ package README.
   <dialog
     {id}
     class="composer-dialog"
+    class:inline={composer === "inline"}
     part="dialog"
+    onkeydown={(e) => {
+      // a non-modal dialog does not close on Esc by itself
+      if (composer === "inline" && e.key === "Escape") e.currentTarget.close();
+    }}
     onclose={() => {
       if (replyTarget?.uri === target.uri) replyTarget = undefined;
       // clear with the dialog so a half-written reply doesn't follow the
@@ -1529,6 +1545,20 @@ package README.
     border-radius: var(--atproto-comments-radius, 8px);
     background: var(--atproto-comments-bg, light-dark(#fff, #1c1c1e));
     box-shadow: 0 12px 40px light-dark(rgb(0 0 0 / 0.18), rgb(0 0 0 / 0.6));
+  }
+  .composer-dialog.inline {
+    position: static;
+    width: auto;
+    margin: 0.5rem 0 0;
+    box-shadow: none;
+  }
+  /* a reply's inline composer sits in its actions row: give it its own line */
+  .actions:has(> .composer-dialog.inline[open]) {
+    flex-wrap: wrap;
+  }
+  .actions > .composer-dialog.inline {
+    flex-basis: 100%;
+    line-height: normal;
   }
   .composer-dialog::backdrop {
     background: light-dark(rgb(0 0 0 / 0.3), rgb(0 0 0 / 0.55));
