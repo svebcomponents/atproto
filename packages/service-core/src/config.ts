@@ -196,6 +196,23 @@ export interface ServiceConfig {
   replyRateLimiter?: RateLimiter;
   /** rate limiter for like/repost toggling, keyed per DID (default: 60 per 10min) */
   reactionRateLimiter?: RateLimiter;
+  /**
+   * Lets signed-in readers read their own feeds through the bridge
+   * (`/api/feed`, `/api/timeline`), for clients such as browser extensions
+   * that show a personal feed. Off by default. When on, the client metadata
+   * also lists permission to read feeds and the timeline from the AppView,
+   * but a sign-in only asks for it when the client requests `access=feeds`,
+   * so comment sections keep their narrower consent screen.
+   */
+  feeds?: {
+    /**
+     * Service DID of the AppView that serves feeds, with its service id
+     * (default: `did:web:api.bsky.app#bsky_appview`).
+     */
+    appViewDid?: string;
+    /** rate limiter for feed reads, keyed per DID (default: 120 per 10min) */
+    rateLimiter?: RateLimiter;
+  };
   /** AppView for unauthenticated profile lookups */
   appView?: string;
   /**
@@ -227,7 +244,7 @@ export interface ServiceConfig {
   fetch?: typeof globalThis.fetch;
 }
 
-export interface ResolvedServiceConfig extends ServiceConfig {
+export interface ResolvedServiceConfig extends Omit<ServiceConfig, "feeds"> {
   basePath: string;
   clientName: string;
   sessionTtlSeconds: number;
@@ -242,6 +259,13 @@ export interface ResolvedServiceConfig extends ServiceConfig {
   authClaimStore: AuthClaimStore;
   replyRateLimiter: RateLimiter;
   reactionRateLimiter: RateLimiter;
+  /** undefined when feed access is off */
+  feeds?: {
+    appViewDid: string;
+    /** the scope a sign-in adds when it asks for `access=feeds` */
+    scope: string;
+    rateLimiter: RateLimiter;
+  };
   fetch: typeof globalThis.fetch;
   /** buffering counter recorder, built from `metricsStore` */
   metrics: MetricsRecorder;
@@ -259,10 +283,39 @@ export interface ResolvedServiceConfig extends ServiceConfig {
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
+export const DEFAULT_APPVIEW_DID = "did:web:api.bsky.app#bsky_appview";
+
+/** permission to read feeds and the timeline from one AppView */
+export const feedScope = (appViewDid: string): string => {
+  // permission strings carry the service id's "#" escaped, colons as-is
+  const aud = appViewDid.replace("#", "%23");
+  return [
+    `rpc:app.bsky.feed.getFeed?aud=${aud}`,
+    `rpc:app.bsky.feed.getTimeline?aud=${aud}`,
+  ].join(" ");
+};
+
+const resolveFeeds = (
+  feeds: NonNullable<ServiceConfig["feeds"]>,
+): NonNullable<ResolvedServiceConfig["feeds"]> => {
+  const appViewDid = feeds.appViewDid ?? DEFAULT_APPVIEW_DID;
+  if (!/^did:[a-z]+:[A-Za-z0-9._:%-]+#[A-Za-z0-9_-]+$/.test(appViewDid)) {
+    throw new Error(
+      `feeds.appViewDid must be a DID with a service id: ${appViewDid}`,
+    );
+  }
+  return {
+    appViewDid,
+    scope: feedScope(appViewDid),
+    rateLimiter: feeds.rateLimiter ?? createMemoryRateLimiter(120, 10 * 60_000),
+  };
+};
+
 /** the public Constellation backlink index */
 export const DEFAULT_CONSTELLATION = "https://constellation.microcosm.blue";
 
 export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
+  const { feeds: _feeds, ...configWithoutFeeds } = config;
   const url = new URL(config.publicUrl);
   const isLoopback =
     url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname);
@@ -366,7 +419,7 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
   // Key presence is enforced in buildOAuthClient (where they're actually
   // used), not here — so an injected OAuth client can skip them entirely.
   return {
-    ...config,
+    ...configWithoutFeeds,
     ...(allowedOrigins ? { allowedOrigins } : {}),
     publicUrl: url.origin,
     basePath: config.basePath ?? "/atproto",
@@ -395,6 +448,7 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
       config.replyRateLimiter ?? createMemoryRateLimiter(10, 10 * 60_000),
     reactionRateLimiter:
       config.reactionRateLimiter ?? createMemoryRateLimiter(60, 10 * 60_000),
+    ...(config.feeds ? { feeds: resolveFeeds(config.feeds) } : {}),
     fetch: config.fetch ?? globalThis.fetch,
     metrics: createMetricsRecorder({
       store: config.metricsStore ?? createMemoryMetricsStore(),

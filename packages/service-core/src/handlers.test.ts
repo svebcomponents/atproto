@@ -1332,6 +1332,168 @@ describe("security regressions", () => {
   });
 });
 
+describe("feed access", () => {
+  const FEED = "at://did:plc:creator/app.bsky.feed.generator/for-you";
+  let pdsCalls: { pathname: string; headers: Record<string, string> }[];
+  let pdsStatus: number;
+
+  const feedService = (feeds?: ServiceConfig["feeds"]) => {
+    const oauthClient: OAuthBridgeClient = {
+      ...fakeOAuthClient,
+      authorize: vi.fn(async () => new URL("https://pds.example/authorize")),
+      restore: vi.fn(async () => ({
+        did: DID,
+        async fetchHandler(pathname: string, init?: RequestInit) {
+          pdsCalls.push({
+            pathname,
+            headers: (init?.headers ?? {}) as Record<string, string>,
+          });
+          return new Response(
+            JSON.stringify({
+              feed: [
+                {
+                  post: { uri: "at://did:plc:a/app.bsky.feed.post/1" },
+                  feedContext: "ctx",
+                  extra: "dropped",
+                },
+                "not an item",
+              ],
+              cursor: "next",
+            }),
+            {
+              status: pdsStatus,
+              headers: { "content-type": "application/json" },
+            },
+          );
+        },
+      })),
+    };
+    const store = memoryStore();
+    return {
+      oauthClient,
+      service: createAtprotoCommentsService(
+        { ...baseConfig(store), ...(feeds ? { feeds } : {}) },
+        { oauthClient },
+      ),
+    };
+  };
+
+  beforeEach(() => {
+    pdsCalls = [];
+    pdsStatus = 200;
+  });
+
+  const start = (query: string) =>
+    new Request(
+      `${SERVICE}/atproto/oauth/start?origin=${encodeURIComponent(ORIGIN)}&${query}`,
+    );
+
+  it("is off by default", async () => {
+    const { service } = feedService();
+    const token = await signIn(service);
+    const res = await service.fetch(
+      get(`/atproto/api/feed?feed=${encodeURIComponent(FEED)}`, token),
+    );
+    expect(res!.status).toBe(404);
+    expect((await service.fetch(start("access=feeds")))!.status).toBe(400);
+  });
+
+  it("asks for feed access only when a sign-in requests it", async () => {
+    const { service, oauthClient } = feedService({});
+    const form = await service.fetch(start("access=feeds"));
+    expect(form!.status).toBe(200);
+    expect(await form!.text()).toContain('name="access" value="feeds"');
+
+    await service.fetch(start("access=feeds&handle=me.test"));
+    await service.fetch(start("handle=me.test"));
+    const calls = vi.mocked(oauthClient.authorize).mock.calls;
+    const withFeeds = calls[0]![1] as { scope: string };
+    const without = calls[1]![1] as { scope: string };
+    expect(withFeeds.scope).toContain(
+      "rpc:app.bsky.feed.getFeed?aud=did:web:api.bsky.app%23bsky_appview",
+    );
+    expect(without.scope).not.toContain("rpc:");
+  });
+
+  it("reads a feed through the reader's PDS", async () => {
+    const { service } = feedService({});
+    const token = await signIn(service);
+    const res = await service.fetch(
+      get(
+        `/atproto/api/feed?feed=${encodeURIComponent(FEED)}&limit=50&cursor=c1&langs=en,de-DE,bad lang`,
+        token,
+      ),
+    );
+    expect(res!.status).toBe(200);
+    expect(res!.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+    expect(await res!.json()).toEqual({
+      feed: [
+        {
+          post: { uri: "at://did:plc:a/app.bsky.feed.post/1" },
+          feedContext: "ctx",
+        },
+      ],
+      cursor: "next",
+    });
+    const [call] = pdsCalls;
+    const url = new URL(call!.pathname, "https://pds.example");
+    expect(url.pathname).toBe("/xrpc/app.bsky.feed.getFeed");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      feed: FEED,
+      limit: "50",
+      cursor: "c1",
+    });
+    expect(call!.headers).toEqual({
+      "atproto-proxy": "did:web:api.bsky.app#bsky_appview",
+      "accept-language": "en,de-DE",
+    });
+  });
+
+  it("reads the Following timeline", async () => {
+    const { service } = feedService({});
+    const token = await signIn(service);
+    const res = await service.fetch(get("/atproto/api/timeline", token));
+    expect(res!.status).toBe(200);
+    expect(pdsCalls[0]!.pathname).toBe(
+      "/xrpc/app.bsky.feed.getTimeline?limit=30",
+    );
+  });
+
+  it("validates the feed URI and limit", async () => {
+    const { service } = feedService({});
+    const token = await signIn(service);
+    for (const query of [
+      "feed=https%3A%2F%2Fevil.example",
+      `feed=${encodeURIComponent("at://did:plc:a/app.bsky.feed.post/1")}`,
+      `feed=${encodeURIComponent(FEED)}&limit=1000`,
+    ]) {
+      expect(
+        (await service.fetch(get(`/atproto/api/feed?${query}`, token)))!.status,
+      ).toBe(400);
+    }
+    expect(pdsCalls).toHaveLength(0);
+  });
+
+  it("reports a grant without feed access", async () => {
+    const { service } = feedService({});
+    const token = await signIn(service);
+    pdsStatus = 403;
+    const res = await service.fetch(get("/atproto/api/timeline", token));
+    expect(res!.status).toBe(403);
+    expect(await res!.json()).toMatchObject({ error: "FeedAccessNotGranted" });
+  });
+
+  it("requires a session", async () => {
+    const { service } = feedService({});
+    const res = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/timeline`, {
+        headers: { origin: ORIGIN },
+      }),
+    );
+    expect(res!.status).toBe(401);
+  });
+});
+
 describe("operational stats", () => {
   let service: AtprotoCommentsService;
 

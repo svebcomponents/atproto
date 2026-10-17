@@ -32,6 +32,8 @@ const positiveNumberEnv = (name: string): number | undefined => {
  *   SPACEDUST_URL    — optional self-hosted Spacedust websocket origin
  *   APPVIEW_URL      — optional AppView for profile lookups and handle
  *                      resolution (default: the public Bluesky AppView)
+ *   FEED_ACCESS      — "1" lets readers who sign in with `access=feeds` read
+ *                      their own feeds through /api/feed and /api/timeline
  *
  * Note: the origin var is deliberately NOT named with a `PUBLIC_` prefix —
  * SvelteKit reserves that prefix for client-exposed vars, so `$env/dynamic/
@@ -89,6 +91,7 @@ export const getService = (): AtprotoCommentsService => {
     sessionSecret,
     sessionMode: env["SESSION_MODE"] === "cookie" ? "cookie" : "bearer",
     ...(env["APPVIEW_URL"] ? { appView: env["APPVIEW_URL"] } : {}),
+    ...(env["FEED_ACCESS"] === "1" ? { feeds: {} } : {}),
     commentStream: {
       ...(env["SPACEDUST_URL"] ? { spacedustUrl: env["SPACEDUST_URL"] } : {}),
       ...(maxThreads !== undefined ? { maxThreads } : {}),

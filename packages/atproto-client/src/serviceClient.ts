@@ -1,3 +1,5 @@
+import type { PostView } from "./appviewTypes.js";
+
 /** a strong reference to a post: its AT URI and content hash */
 export interface PostRef {
   uri: string;
@@ -47,6 +49,41 @@ export interface ViewerSubjects {
   likes: readonly string[];
   /** posts to check for a repost by the reader */
   reposts: readonly string[];
+}
+
+/** one post in a feed page, as the AppView returns it */
+export interface FeedItem {
+  post: PostView;
+  /** why the post is in the feed, e.g. a repost (`app.bsky.feed.defs#reason*`) */
+  reason?: unknown;
+  /** opaque context a feed generator asks to receive back with interactions */
+  feedContext?: string;
+}
+
+export interface FeedPage {
+  feed: FeedItem[];
+  /** absent on the last page */
+  cursor?: string;
+}
+
+export interface FeedRequest {
+  cursor?: string;
+  /** 1–100, default 30 */
+  limit?: number;
+  /** the reader's content languages, e.g. `["en", "de"]` */
+  langs?: readonly string[];
+}
+
+/**
+ * Where the session token is kept. Defaults to `localStorage`. Provide your
+ * own where `localStorage` is missing (a browser extension's service worker)
+ * or to share one session between contexts.
+ */
+export type TokenStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+export interface ServiceClientOptions {
+  fetch?: typeof globalThis.fetch;
+  storage?: TokenStorage;
 }
 
 export class ServiceError extends Error {
@@ -103,13 +140,21 @@ const tokenLifetime = (
 export class ServiceClient {
   #token: string | null = null;
   #refreshing: Promise<void> | null = null;
+  readonly #storage: TokenStorage | undefined;
   private readonly fetchImpl: typeof globalThis.fetch;
   private readonly serviceUrl: string;
 
   constructor(
     serviceUrl = DEFAULT_SERVICE_URL,
-    fetchImpl?: typeof globalThis.fetch,
+    /** a fetch implementation, or options */
+    fetchOrOptions?: typeof globalThis.fetch | ServiceClientOptions,
   ) {
+    const options: ServiceClientOptions =
+      typeof fetchOrOptions === "function"
+        ? { fetch: fetchOrOptions }
+        : (fetchOrOptions ?? {});
+    const fetchImpl = options.fetch;
+    this.#storage = options.storage;
     // Wrap (rather than store `globalThis.fetch` directly): the browser's
     // `fetch` throws "Illegal invocation" when called with any receiver other
     // than the global object, and `this.fetchImpl(...)` would set the receiver
@@ -141,15 +186,42 @@ export class ServiceClient {
     return this.#token !== null;
   }
 
+  /**
+   * Calls `listener` when another page of this origin signs in or out
+   * (`storage` events on `localStorage`). Returns an unsubscribe function.
+   * Pages of one origin share a session — such as a browser extension's
+   * popup and its frames — and this lets them follow each other.
+   */
+  onSessionChange(listener: (signedIn: boolean) => void): () => void {
+    if (this.#storage || typeof globalThis.addEventListener !== "function") {
+      return () => {};
+    }
+    const onStorage = (event: StorageEvent) => {
+      // `key` is null when another page cleared all of storage
+      if (event.key !== null && event.key !== this.#storageKey) return;
+      const token = this.#readStoredToken();
+      if (token === this.#token) return;
+      this.#token = token;
+      listener(token !== null);
+    };
+    globalThis.addEventListener("storage", onStorage);
+    return () => globalThis.removeEventListener("storage", onStorage);
+  }
+
   /** True when the service shares an origin with the current page. */
   get isSameOrigin(): boolean {
     const here = globalThis.location?.origin;
     return here !== undefined && new URL(this.serviceUrl).origin === here;
   }
 
+  /** the configured storage, or `localStorage` where it exists */
+  get #tokenStorage(): TokenStorage | undefined {
+    return this.#storage ?? globalThis.localStorage;
+  }
+
   #readStoredToken(): string | null {
     try {
-      return globalThis.localStorage?.getItem(this.#storageKey) ?? null;
+      return this.#tokenStorage?.getItem(this.#storageKey) ?? null;
     } catch {
       return null;
     }
@@ -158,8 +230,8 @@ export class ServiceClient {
   #storeToken(token: string | null): void {
     this.#token = token;
     try {
-      if (token) globalThis.localStorage?.setItem(this.#storageKey, token);
-      else globalThis.localStorage?.removeItem(this.#storageKey);
+      if (token) this.#tokenStorage?.setItem(this.#storageKey, token);
+      else this.#tokenStorage?.removeItem(this.#storageKey);
     } catch {
       // storage unavailable (private mode / SSR) — memory token still works
     }
@@ -254,14 +326,23 @@ export class ServiceClient {
    * hand). Whichever arrives first wins.
    */
   async signIn(
-    options: { timeoutMs?: number } = {},
+    options: {
+      timeoutMs?: number;
+      /**
+       * Extra access to ask for: `"feeds"` lets {@link getFeed} and
+       * {@link getTimeline} read the reader's own feeds, on a bridge that
+       * offers it.
+       */
+      access?: "feeds";
+    } = {},
   ): Promise<ServiceSessionInfo> {
     const timeoutMs = options.timeoutMs ?? 5 * 60_000;
     const origin = globalThis.location.origin;
     const nonce = crypto.randomUUID();
     const startUrl =
       `${this.serviceUrl}/oauth/start` +
-      `?origin=${encodeURIComponent(origin)}&claim=${encodeURIComponent(nonce)}`;
+      `?origin=${encodeURIComponent(origin)}&claim=${encodeURIComponent(nonce)}` +
+      (options.access ? `&access=${options.access}` : "");
     const popup = globalThis.open(
       startUrl,
       "atproto-comments-signin",
@@ -460,6 +541,29 @@ export class ServiceClient {
     return (await response.json()) as ViewerReactions;
   }
 
+  /**
+   * A page of the reader's own feed from a feed generator (`at://…/
+   * app.bsky.feed.generator/…`), such as For You. Requires a sign-in with
+   * `access: "feeds"`; otherwise rejects with code `FeedAccessNotGranted`.
+   */
+  async getFeed(feed: string, request: FeedRequest = {}): Promise<FeedPage> {
+    const query = feedQuery(request);
+    query.set("feed", feed);
+    const response = await this.#authedRequest(`/api/feed?${query}`, {
+      method: "GET",
+    });
+    return (await response.json()) as FeedPage;
+  }
+
+  /** a page of the reader's Following timeline; see {@link getFeed} */
+  async getTimeline(request: FeedRequest = {}): Promise<FeedPage> {
+    const response = await this.#authedRequest(
+      `/api/timeline?${feedQuery(request)}`,
+      { method: "GET" },
+    );
+    return (await response.json()) as FeedPage;
+  }
+
   async #authedRequest(
     path: string,
     init: { method: string; headers?: Record<string, string>; body?: string },
@@ -485,6 +589,14 @@ export class ServiceClient {
     return response;
   }
 }
+
+const feedQuery = ({ cursor, limit, langs }: FeedRequest): URLSearchParams => {
+  const query = new URLSearchParams();
+  if (cursor) query.set("cursor", cursor);
+  if (limit !== undefined) query.set("limit", String(limit));
+  if (langs && langs.length > 0) query.set("langs", langs.join(","));
+  return query;
+};
 
 const toServiceError = async (response: Response): Promise<ServiceError> => {
   const body = (await response.json().catch(() => ({}))) as {

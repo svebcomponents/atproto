@@ -12,7 +12,7 @@ export interface OAuthBridgeClient {
   jwks: Record<string, unknown>;
   authorize(
     handle: string,
-    options: { state: string; signal?: AbortSignal },
+    options: { state: string; scope?: string; signal?: AbortSignal },
   ): Promise<URL>;
   callback(
     params: URLSearchParams,
@@ -36,6 +36,10 @@ export interface OAuthPdsSession {
 export const buildOAuthClient = async (
   config: ResolvedServiceConfig,
 ): Promise<OAuthBridgeClient> => {
+  // everything a sign-in may ask for; each authorization requests a subset
+  const scope = config.feeds
+    ? `${config.scope} ${config.feeds.scope}`
+    : config.scope;
   if (config.isLoopback) {
     // atproto's development mode. Rules (RFC 8252): the client_id origin is
     // always `http://localhost` with metadata carried in the query string,
@@ -48,7 +52,7 @@ export const buildOAuthClient = async (
     const redirectUri = redirectUrl.toString();
 
     const clientId = `http://localhost?${new URLSearchParams({
-      scope: config.scope,
+      scope,
       redirect_uri: redirectUri,
     }).toString()}`;
     return new NodeOAuthClient({
@@ -57,7 +61,7 @@ export const buildOAuthClient = async (
         redirect_uris: [redirectUri],
         grant_types: ["authorization_code", "refresh_token"],
         response_types: ["code"],
-        scope: config.scope,
+        scope,
         application_type: "native",
         token_endpoint_auth_method: "none",
         dpop_bound_access_tokens: true,
@@ -88,7 +92,7 @@ export const buildOAuthClient = async (
       redirect_uris: [redirectUri],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
-      scope: config.scope,
+      scope,
       application_type: "web",
       token_endpoint_auth_method: "private_key_jwt",
       token_endpoint_auth_signing_alg: "ES256",

@@ -12,6 +12,8 @@ export interface PageProps {
   origin?: string;
   claim?: string;
   returnTo?: string;
+  /** extra access the sign-in asks for, e.g. "feeds" */
+  access?: string;
   privacyUrl?: string;
   supportUrl?: string;
   productUrl?: string;

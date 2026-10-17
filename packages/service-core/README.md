@@ -142,6 +142,8 @@ POST   /api/reply                        create a reply post as the signed-in re
 POST   /api/like, /api/repost            like/repost as the signed-in reader
 DELETE /api/like, /api/repost            undo them (removes the reader's record)
 GET    /api/viewer?like=…&repost=…       the reader's own like/repost records for those posts
+GET    /api/feed?feed=…&cursor=…         a page of the reader's feed (opt-in, see Feeds)
+GET    /api/timeline?cursor=…            a page of the reader's Following timeline (opt-in)
 GET    /api/comments/stream?thread=…     SSE reply signals for one thread
 GET    /api/stats                        whole-service counts (no origins, no readers)
 ```
@@ -173,6 +175,32 @@ The component uses the same `service` property for both modes:
 ```html
 <atproto-comments thread="at://..." service="/atproto"></atproto-comments>
 ```
+
+## Feeds
+
+A client that shows a reader their own feed (for example a browser
+extension) can read it through the bridge. Feed access is off by default:
+
+```ts
+createAtprotoCommentsService({
+  // ...
+  feeds: {}, // or { appViewDid: "did:web:…#bsky_appview" }
+});
+```
+
+With `feeds` set, the client metadata also lists permission to call
+`app.bsky.feed.getFeed` and `app.bsky.feed.getTimeline` on the AppView. A
+sign-in only asks for it when the client starts it with `access=feeds`
+(`ServiceClient.signIn({ access: "feeds" })`), so comment sections keep their
+narrower consent screen.
+
+`GET /api/feed?feed=<at://…/app.bsky.feed.generator/…>` and
+`GET /api/timeline` proxy one page through the reader's PDS to the AppView
+and return `{ feed: [{ post, reason?, feedContext? }], cursor? }`. Both take
+`cursor`, `limit` (1–100, default 30), and `langs` (comma-separated content
+languages, forwarded as `Accept-Language`). A grant without feed access gets
+`403 FeedAccessNotGranted`. Reads are rate-limited per DID (120 per 10
+minutes by default), and the bridge neither stores nor logs what it returns.
 
 ## Live comment events
 

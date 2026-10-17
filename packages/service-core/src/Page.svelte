@@ -15,6 +15,7 @@
     origin = "",
     claim,
     returnTo,
+    access,
     privacyUrl,
     supportUrl,
     productUrl,
@@ -103,10 +104,20 @@
             <span class="label">Comment section on</span>
             <span class="origin">{origin}</span>
           </div>
+          {#if access === "feeds"}
+            <p class="hint">
+              This also lets it read your feeds and Following timeline.
+            </p>
+          {/if}
           {#if error}<p class="error">{error}</p>{/if}
           <form method="get" action={actionUrl}>
             <input type="hidden" name="origin" value={origin} />
             {#if claim}<input type="hidden" name="claim" value={claim} />{/if}
+            {#if access}<input
+                type="hidden"
+                name="access"
+                value={access}
+              />{/if}
             {#if returnTo}<input
                 type="hidden"
                 name="return"

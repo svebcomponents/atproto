@@ -30,6 +30,8 @@ export interface SignInPageRenderProps {
   claim?: string;
   /** no-JS redirect flow: page to bounce back to after sign-in — must survive the form submission */
   returnTo?: string;
+  /** extra access the sign-in asks for ("feeds") — must survive the form submission */
+  access?: string;
   privacyUrl?: string;
   supportUrl?: string;
   /** Legacy hosted-project link; the default renderer uses it for its pitch. */
@@ -55,6 +57,7 @@ export const signInPage = ({
   origin,
   claim,
   returnTo,
+  access,
   privacyUrl,
   supportUrl,
   productUrl,
@@ -74,6 +77,7 @@ export const signInPage = ({
     origin,
     ...(claim ? { claim } : {}),
     ...(returnTo ? { returnTo } : {}),
+    ...(access ? { access } : {}),
     ...(privacyUrl ? { privacyUrl } : {}),
     ...(supportUrl ? { supportUrl } : {}),
     ...(productUrl ? { productUrl } : {}),

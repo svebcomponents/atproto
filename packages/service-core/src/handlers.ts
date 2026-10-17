@@ -401,6 +401,21 @@ const handleStart = async (
   const claim = url.searchParams.get("claim")?.trim();
   const returnTo = parseReturnUrl(url.searchParams.get("return"), origin);
   const startUrl = `${config.basePath}/oauth/start`;
+  // Extra access is opt-in per sign-in: the client metadata lists every
+  // scope the bridge may ask for, but each authorization asks only for what
+  // this sign-in needs.
+  const requestedAccess = url.searchParams.get("access");
+  if (requestedAccess && !(requestedAccess === "feeds" && config.feeds)) {
+    return html(
+      errorPage("This service cannot grant the requested access."),
+      400,
+    );
+  }
+  const access = requestedAccess ? "feeds" : undefined;
+  const scope =
+    access && config.feeds
+      ? `${config.scope} ${config.feeds.scope}`
+      : config.scope;
 
   if (!handle) {
     return html(
@@ -409,6 +424,7 @@ const handleStart = async (
         // preserved as hidden fields so the handle submission carries them back
         ...(claim ? { claim } : {}),
         ...(returnTo ? { returnTo } : {}),
+        ...(access ? { access } : {}),
       }),
     );
   }
@@ -422,6 +438,7 @@ const handleStart = async (
     const client = await clientPromise;
     const authorizeUrl = await client.authorize(handle, {
       state: JSON.stringify(state),
+      scope,
     });
     return new Response(null, {
       status: 302,
@@ -433,6 +450,7 @@ const handleStart = async (
         ...signInPageProps(config, startUrl, origin),
         ...(claim ? { claim } : {}),
         ...(returnTo ? { returnTo } : {}),
+        ...(access ? { access } : {}),
         error: `Could not start sign-in for "${handle}" — check the handle and try again.`,
       }),
       400,
@@ -871,6 +889,17 @@ const handleApi = async (
       );
     }
 
+    case "GET /api/feed":
+    case "GET /api/timeline":
+      return readFeed(
+        route === "/api/feed" ? "feed" : "timeline",
+        new URL(request.url).searchParams,
+        claims.did,
+        config,
+        clientPromise,
+        cors,
+      );
+
     case "POST /api/like":
     case "POST /api/repost": {
       const collection =
@@ -1038,6 +1067,135 @@ const restorePdsSession = async (
   } catch {
     return null;
   }
+};
+
+const FEED_GENERATOR_URI =
+  /^at:\/\/did:[a-z]+:[A-Za-z0-9._:%-]+\/app\.bsky\.feed\.generator\/[A-Za-z0-9._~:-]{1,512}$/;
+const MAX_FEED_LIMIT = 100;
+const MAX_FEED_LANGS = 10;
+
+/**
+ * Reads the signed-in reader's own feed: a feed generator (`getFeed`) or
+ * their Following timeline (`getTimeline`), proxied through their PDS to the
+ * configured AppView. The bridge neither stores nor logs what it returns.
+ * Requires `config.feeds` and a sign-in that granted `access=feeds`.
+ */
+const readFeed = async (
+  kind: "feed" | "timeline",
+  params: URLSearchParams,
+  did: string,
+  config: ResolvedServiceConfig,
+  clientPromise: Promise<OAuthBridgeClient>,
+  cors: HeadersInit,
+): Promise<Response> => {
+  const feeds = config.feeds;
+  if (!feeds) return jsonError(404, "NotFound", "Feed access is off", cors);
+
+  const query = new URLSearchParams();
+  if (kind === "feed") {
+    const feed = params.get("feed") ?? "";
+    if (!FEED_GENERATOR_URI.test(feed)) {
+      return jsonError(
+        400,
+        "InvalidFeed",
+        "feed must be a feed generator's at:// URI",
+        cors,
+      );
+    }
+    query.set("feed", feed);
+  }
+  const limit = Number(params.get("limit") ?? 30);
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_FEED_LIMIT) {
+    return jsonError(
+      400,
+      "InvalidLimit",
+      `limit must be 1–${MAX_FEED_LIMIT}`,
+      cors,
+    );
+  }
+  query.set("limit", String(limit));
+  const cursor = params.get("cursor");
+  if (cursor) query.set("cursor", cursor.slice(0, 1024));
+  // the reader's content languages, which feeds such as For You rank by
+  const langs = (params.get("langs") ?? "")
+    .split(",")
+    .map((lang) => lang.trim())
+    .filter((lang) => /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(lang))
+    .slice(0, MAX_FEED_LANGS);
+
+  if (!(await feeds.rateLimiter(did))) {
+    return jsonError(
+      429,
+      "RateLimited",
+      "Too many feed reads — try again in a few minutes",
+      { ...cors, "retry-after": "600" },
+    );
+  }
+  const session = await restorePdsSession(did, clientPromise);
+  if (!session) {
+    return jsonError(
+      401,
+      "SessionExpired",
+      SESSION_EXPIRED_RESULT.message,
+      cors,
+    );
+  }
+
+  const method =
+    kind === "feed" ? "app.bsky.feed.getFeed" : "app.bsky.feed.getTimeline";
+  let response: Response;
+  try {
+    response = await session.fetchHandler(`/xrpc/${method}?${query}`, {
+      headers: {
+        "atproto-proxy": feeds.appViewDid,
+        ...(langs.length > 0 ? { "accept-language": langs.join(",") } : {}),
+      },
+    });
+  } catch {
+    return jsonError(502, "UpstreamError", "Could not reach the feed", cors);
+  }
+  if (response.status === 403 || response.status === 401) {
+    // the grant predates `access=feeds`, or the reader declined it
+    return jsonError(
+      403,
+      "FeedAccessNotGranted",
+      "Sign in again and allow reading your feeds",
+      cors,
+    );
+  }
+  if (!response.ok) {
+    return jsonError(
+      response.status === 429 ? 429 : 502,
+      response.status === 429 ? "RateLimited" : "UpstreamError",
+      "The feed could not be read",
+      cors,
+    );
+  }
+  const body = (await response.json().catch(() => ({}))) as {
+    feed?: unknown;
+    cursor?: unknown;
+  };
+  const items = Array.isArray(body.feed) ? body.feed : [];
+  return json(
+    {
+      // pass through only what a feed client renders and reports back
+      feed: items.flatMap((item: unknown) => {
+        if (typeof item !== "object" || item === null) return [];
+        const { post, reason, feedContext } = item as Record<string, unknown>;
+        if (typeof post !== "object" || post === null) return [];
+        return [
+          {
+            post,
+            ...(reason ? { reason } : {}),
+            ...(typeof feedContext === "string" ? { feedContext } : {}),
+          },
+        ];
+      }),
+      ...(typeof body.cursor === "string" ? { cursor: body.cursor } : {}),
+    },
+    200,
+    { ...cors, "cache-control": "no-store" },
+  );
 };
 
 /** the ActionResult shared by every handler whose PDS grant has lapsed */

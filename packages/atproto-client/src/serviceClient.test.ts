@@ -64,6 +64,89 @@ describe("ServiceClient", () => {
     });
   });
 
+  describe("feeds and token storage", () => {
+    it("reads feeds with the session", async () => {
+      store.set(TOKEN_KEY, "tok");
+      const fetchImpl = vi.fn((_url: string, _init?: RequestInit) =>
+        Promise.resolve(jsonResponse({ feed: [], cursor: "next" })),
+      );
+      const client = new ServiceClient("/atproto", {
+        fetch: fetchImpl as unknown as typeof fetch,
+      });
+      const feed = "at://did:plc:c/app.bsky.feed.generator/for-you";
+      expect(
+        await client.getFeed(feed, { limit: 50, langs: ["en", "de"] }),
+      ).toEqual({ feed: [], cursor: "next" });
+      await client.getTimeline({ cursor: "c1" });
+      const [feedUrl, init] = fetchImpl.mock.calls[0]!;
+      const [timelineUrl] = fetchImpl.mock.calls[1]!;
+      expect(new URL(feedUrl).pathname).toBe("/atproto/api/feed");
+      expect(Object.fromEntries(new URL(feedUrl).searchParams)).toEqual({
+        feed,
+        limit: "50",
+        langs: "en,de",
+      });
+      expect(init?.headers).toMatchObject({ authorization: "Bearer tok" });
+      expect(timelineUrl).toBe(
+        "https://blog.example/atproto/api/timeline?cursor=c1",
+      );
+    });
+
+    it("keeps the token in custom storage", async () => {
+      const custom = new Map<string, string>([[TOKEN_KEY, "custom"]]);
+      const storage = {
+        getItem: (k: string) => custom.get(k) ?? null,
+        setItem: (k: string, v: string) => void custom.set(k, v),
+        removeItem: (k: string) => void custom.delete(k),
+      };
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValue(new Response(null, { status: 401 }));
+      const client = new ServiceClient("/atproto", {
+        fetch: fetchImpl as unknown as typeof fetch,
+        storage,
+      });
+      expect(client.hasStoredSession).toBe(true);
+      expect(await client.getSession()).toBeNull();
+      expect(custom.has(TOKEN_KEY)).toBe(false);
+      // localStorage was never touched
+      expect(store.size).toBe(0);
+    });
+
+    it("follows sign-in and sign-out from other pages of the origin", () => {
+      const listeners = new Set<(event: StorageEvent) => void>();
+      vi.stubGlobal(
+        "addEventListener",
+        (type: string, fn: (event: StorageEvent) => void) => {
+          if (type === "storage") listeners.add(fn);
+        },
+      );
+      vi.stubGlobal(
+        "removeEventListener",
+        (_: string, fn: (event: StorageEvent) => void) => listeners.delete(fn),
+      );
+      const client = new ServiceClient("/atproto", { fetch: vi.fn() });
+      const changes: boolean[] = [];
+      const unsubscribe = client.onSessionChange((signedIn) =>
+        changes.push(signedIn),
+      );
+      const fire = (key: string | null) => {
+        for (const fn of listeners) fn({ key } as StorageEvent);
+      };
+
+      store.set(TOKEN_KEY, "from-popup");
+      fire(TOKEN_KEY);
+      fire("unrelated");
+      expect(client.hasStoredSession).toBe(true);
+      store.clear();
+      fire(null);
+      expect(changes).toEqual([true, false]);
+
+      unsubscribe();
+      expect(listeners.size).toBe(0);
+    });
+  });
+
   describe("token renewal", () => {
     const jwt = (iat: number, exp: number) =>
       `h.${btoa(JSON.stringify({ iat, exp })).replace(/=+$/, "")}.s`;
