@@ -83,7 +83,10 @@ browser.
 Posts render their embeds: up to four images (with a "+N" tile for larger
 galleries, each opening the full-size image), a video thumbnail linking to
 the post, link cards, and quoted posts with their own media. A quoted post
-with moderation labels is collapsed to a link unless `labels="show"`. Quoted
+with moderation labels is collapsed to a link unless `labels="show"`. The
+root post card (`show-root`) always shows its text, but a labeled root's
+media waits behind a "Show anyway" notice (hidden outright with
+`labels="hide"`), since a card may show any post. Quoted
 feeds, lists, and starter packs render as links. Style them through the
 `embed`, `embed-images`, `embed-video`, `embed-external`, and `embed-quote`
 parts.

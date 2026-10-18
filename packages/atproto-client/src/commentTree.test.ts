@@ -189,6 +189,20 @@ describe("normalizeThread", () => {
     expect("embed" in normalizeThread(fixture).root).toBe(false);
   });
 
+  it("carries the root's moderation labels only when it has any", () => {
+    const labeled = normalizeThread({
+      $type: "app.bsky.feed.defs#threadViewPost",
+      post: post("author", "root", "look", {
+        labels: [
+          { src: "did:plc:author", val: "porn" },
+          { src: "did:plc:mod", val: "spam", neg: true },
+        ],
+      }),
+    });
+    expect(labeled.root.labels).toEqual(["porn"]);
+    expect("labels" in normalizeThread(fixture).root).toBe(false);
+  });
+
   it("tolerates a malformed record", () => {
     const tree = normalizeThread({
       $type: "app.bsky.feed.defs#threadViewPost",

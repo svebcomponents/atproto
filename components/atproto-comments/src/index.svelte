@@ -263,9 +263,19 @@ package README.
   });
   // Reuses commentBody's rendering: same avatar/author/rich-text/likes
   // treatment as any reply, so the root reads as part of the same
-  // conversation rather than a bespoke header. Not subject to the labels
-  // hide/collapse policy — that governs replies, and this is the host page's
-  // own post, shown only when it opts in via `showRoot`.
+  // conversation rather than a bespoke header. Its text is not subject to
+  // the labels hide/collapse policy — that governs replies, and the root is
+  // the post the host chose to show via `showRoot`. Its media is: a labeled
+  // root's images or quoted post wait behind the same notice as a labeled
+  // reply (see `rootMediaHidden`), since a post card may show any post.
+  const rootMediaHidden = $derived(
+    Boolean(
+      tree?.root.embed &&
+      tree.root.labels?.length &&
+      labels !== "show" &&
+      !revealedLabeled.includes(tree.root.uri),
+    ),
+  );
   const rootAsComment = $derived.by((): Comment | undefined =>
     tree
       ? {
@@ -281,7 +291,9 @@ package README.
           repostCount: tree.root.repostCount,
           quoteCount: tree.root.quoteCount,
           labels: [],
-          ...(tree.root.embed ? { embed: tree.root.embed } : {}),
+          ...(tree.root.embed && !rootMediaHidden
+            ? { embed: tree.root.embed }
+            : {}),
           url: tree.root.url,
           replies: [],
           hasMoreReplies: false,
@@ -1338,7 +1350,8 @@ package README.
       part="embed embed-quote"
       href={record.url}
       target="_blank"
-      rel="noopener noreferrer">{record.title ?? "View on"} · {viewerLabel} →</a
+      rel="noopener noreferrer"
+      >{record.title ? `${record.title} · ` : ""}View on {viewerLabel} →</a
     >
   {/if}
 {/snippet}
@@ -1502,6 +1515,19 @@ package README.
     {#if showRoot && rootAsComment}
       <div class="root-post" part="root-post">
         {@render commentBody(rootAsComment, false)}
+        {#if rootMediaHidden}
+          <p class="tombstone labeled" part="moderation-label">
+            Media hidden by moderation label ({tree.root.labels?.join(", ")})
+            {#if labels === "collapse"}
+              <button
+                type="button"
+                onclick={() =>
+                  (revealedLabeled = [...revealedLabeled, tree.root.uri])}
+                >Show anyway</button
+              >
+            {/if}
+          </p>
+        {/if}
       </div>
     {/if}
     <header class="header" part="header">

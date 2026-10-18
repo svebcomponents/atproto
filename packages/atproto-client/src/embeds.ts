@@ -137,6 +137,7 @@ const toImages = (view: Json): ImagesEmbed | undefined => {
     if (!isObject(image)) continue;
     if (
       typeof image["$type"] === "string" &&
+      image["$type"] !== "app.bsky.embed.images#viewImage" &&
       image["$type"] !== "app.bsky.embed.gallery#viewImage"
     ) {
       continue;

@@ -68,6 +68,8 @@ export interface RootSummary {
   quoteCount: number;
   /** images, video, link card, or quoted post attached to the post */
   embed?: PostEmbed | undefined;
+  /** moderation label values applied to the post; set only when it has any */
+  labels?: string[] | undefined;
   /** viewer permalink (bsky.app by default) — also the reply-link target */
   url: string;
 }
@@ -107,6 +109,10 @@ const toAuthor = (
   profileUrl: viewerProfileUrl(author.handle, viewer),
 });
 
+/** moderation label values applied to a post, minus negated ones */
+const toLabels = (post: ThreadViewPost["post"]): string[] =>
+  (post.labels ?? []).filter((l) => !l.neg).map((l) => l.val);
+
 const toPostContent = (
   post: ThreadViewPost["post"],
   viewer?: string,
@@ -138,7 +144,7 @@ const toComment = (node: ThreadViewPost, viewer?: string): Comment => {
     replyCount,
     repostCount: post.repostCount ?? 0,
     quoteCount: post.quoteCount ?? 0,
-    labels: (post.labels ?? []).filter((l) => !l.neg).map((l) => l.val),
+    labels: toLabels(post),
     url: viewerPostUrl(post.uri, post.author.handle, viewer),
     replies,
     hasMoreReplies: replyCount > replies.length,
@@ -183,6 +189,7 @@ export const normalizeThread = (
   }
 
   const { post } = thread;
+  const labels = toLabels(post);
   const root: RootSummary = {
     uri: post.uri,
     cid: post.cid,
@@ -192,6 +199,7 @@ export const normalizeThread = (
     likeCount: post.likeCount ?? 0,
     repostCount: post.repostCount ?? 0,
     quoteCount: post.quoteCount ?? 0,
+    ...(labels.length > 0 ? { labels } : {}),
     url: viewerPostUrl(post.uri, post.author.handle, viewer),
   };
 

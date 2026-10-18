@@ -44,6 +44,19 @@ describe("normalizeEmbed", () => {
     ).toBeUndefined();
   });
 
+  it("keeps image items that name their own type", () => {
+    const typed = {
+      ...images,
+      images: [
+        { $type: "app.bsky.embed.images#viewImage", ...images.images[0] },
+      ],
+    };
+    expect(normalizeEmbed(typed)).toMatchObject({
+      kind: "images",
+      images: [{ alt: "a cat" }],
+    });
+  });
+
   it("normalizes images", () => {
     expect(normalizeEmbed(images)).toEqual({
       kind: "images",
