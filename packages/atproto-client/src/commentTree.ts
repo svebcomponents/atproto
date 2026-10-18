@@ -4,6 +4,7 @@ import type {
   ThreadNode,
   ThreadViewPost,
 } from "./appviewTypes.js";
+import { normalizeEmbed, type PostEmbed } from "./embeds.js";
 import { segmentRichText, type RichTextSegment } from "./richText.js";
 import { viewerPostUrl, viewerProfileUrl } from "./urls.js";
 
@@ -30,6 +31,8 @@ export interface Comment {
   quoteCount: number;
   /** moderation label values applied to the post */
   labels: string[];
+  /** images, video, link card, or quoted post attached to the post */
+  embed?: PostEmbed | undefined;
   /** viewer permalink (bsky.app by default) */
   url: string;
   replies: CommentNode[];
@@ -63,6 +66,10 @@ export interface RootSummary {
   likeCount: number;
   repostCount: number;
   quoteCount: number;
+  /** images, video, link card, or quoted post attached to the post */
+  embed?: PostEmbed | undefined;
+  /** moderation label values applied to the post; set only when it has any */
+  labels?: string[] | undefined;
   /** viewer permalink (bsky.app by default) — also the reply-link target */
   url: string;
 }
@@ -102,16 +109,22 @@ const toAuthor = (
   profileUrl: viewerProfileUrl(author.handle, viewer),
 });
 
+/** moderation label values applied to a post, minus negated ones */
+const toLabels = (post: ThreadViewPost["post"]): string[] =>
+  (post.labels ?? []).filter((l) => !l.neg).map((l) => l.val);
+
 const toPostContent = (
   post: ThreadViewPost["post"],
   viewer?: string,
-): Pick<Comment, "text" | "segments" | "createdAt"> => {
+): Pick<Comment, "text" | "segments" | "createdAt" | "embed"> => {
   const record = isPostRecord(post.record) ? post.record : undefined;
   const text = record?.text ?? "";
+  const embed = normalizeEmbed(post.embed, viewer);
   return {
     text,
     segments: segmentRichText(text, record?.facets, viewer),
     createdAt: record?.createdAt ?? post.indexedAt ?? "",
+    ...(embed ? { embed } : {}),
   };
 };
 
@@ -131,7 +144,7 @@ const toComment = (node: ThreadViewPost, viewer?: string): Comment => {
     replyCount,
     repostCount: post.repostCount ?? 0,
     quoteCount: post.quoteCount ?? 0,
-    labels: (post.labels ?? []).filter((l) => !l.neg).map((l) => l.val),
+    labels: toLabels(post),
     url: viewerPostUrl(post.uri, post.author.handle, viewer),
     replies,
     hasMoreReplies: replyCount > replies.length,
@@ -176,6 +189,7 @@ export const normalizeThread = (
   }
 
   const { post } = thread;
+  const labels = toLabels(post);
   const root: RootSummary = {
     uri: post.uri,
     cid: post.cid,
@@ -185,6 +199,7 @@ export const normalizeThread = (
     likeCount: post.likeCount ?? 0,
     repostCount: post.repostCount ?? 0,
     quoteCount: post.quoteCount ?? 0,
+    ...(labels.length > 0 ? { labels } : {}),
     url: viewerPostUrl(post.uri, post.author.handle, viewer),
   };
 

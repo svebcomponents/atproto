@@ -161,6 +161,48 @@ describe("normalizeThread", () => {
     expect(truncated.labels).toEqual(["spam"]);
   });
 
+  it("carries embeds on the root and on replies", () => {
+    const images = {
+      $type: "app.bsky.embed.images#view",
+      images: [
+        {
+          thumb: "https://cdn.example/thumb.jpg",
+          fullsize: "https://cdn.example/full.jpg",
+          alt: "",
+        },
+      ],
+    };
+    const tree = normalizeThread({
+      $type: "app.bsky.feed.defs#threadViewPost",
+      post: post("author", "root", "look", { embed: images }),
+      replies: [
+        {
+          $type: "app.bsky.feed.defs#threadViewPost",
+          post: post("reply", "r1", "nice", { embed: images }),
+        },
+      ],
+    });
+    expect(tree.root.embed?.kind).toBe("images");
+    const [reply] = tree.comments;
+    expect(reply?.kind === "comment" && reply.embed?.kind).toBe("images");
+    // posts without embeds carry no key at all
+    expect("embed" in normalizeThread(fixture).root).toBe(false);
+  });
+
+  it("carries the root's moderation labels only when it has any", () => {
+    const labeled = normalizeThread({
+      $type: "app.bsky.feed.defs#threadViewPost",
+      post: post("author", "root", "look", {
+        labels: [
+          { src: "did:plc:author", val: "porn" },
+          { src: "did:plc:mod", val: "spam", neg: true },
+        ],
+      }),
+    });
+    expect(labeled.root.labels).toEqual(["porn"]);
+    expect("labels" in normalizeThread(fixture).root).toBe(false);
+  });
+
   it("tolerates a malformed record", () => {
     const tree = normalizeThread({
       $type: "app.bsky.feed.defs#threadViewPost",

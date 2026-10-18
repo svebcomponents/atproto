@@ -8,7 +8,7 @@ export const DEFAULT_VIEWER = "https://bsky.app";
  * bsky.app URL scheme (`/profile/…/post/…`, `/hashtag/…`) works — e.g.
  * mu.social or a self-hosted AppView frontend.
  */
-const viewerBase = (viewer?: string): string =>
+export const viewerBase = (viewer?: string): string =>
   (viewer ?? DEFAULT_VIEWER).replace(/\/+$/, "");
 
 /** viewer profile page for a handle or DID */

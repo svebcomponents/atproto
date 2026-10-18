@@ -35,6 +35,9 @@ package README.
     type CommentNode,
     type CommentSort,
     type CommentTree,
+    type MediaEmbed,
+    type PostEmbed,
+    type QuotedRecord,
     type ServiceSessionInfo,
   } from "@svebcomponents/atproto.client";
   import {
@@ -226,6 +229,15 @@ package README.
     }
   });
 
+  /** a link card's domain, shown under its title */
+  const hostOf = (uri: string): string => {
+    try {
+      return new URL(uri).hostname.replace(/^www\./, "");
+    } catch {
+      return "";
+    }
+  };
+
   /** origin of `pageUrl`, for the no-JS sign-in link — empty when `pageUrl`
    * is unset or malformed, in which case that link falls back to needing JS */
   const pageOrigin = $derived.by(() => {
@@ -258,9 +270,19 @@ package README.
   });
   // Reuses commentBody's rendering: same avatar/author/rich-text/likes
   // treatment as any reply, so the root reads as part of the same
-  // conversation rather than a bespoke header. Not subject to the labels
-  // hide/collapse policy — that governs replies, and this is the host page's
-  // own post, shown only when it opts in via `showRoot`.
+  // conversation rather than a bespoke header. Its text is not subject to
+  // the labels hide/collapse policy — that governs replies, and the root is
+  // the post the host chose to show via `showRoot`. Its media is: a labeled
+  // root's images or quoted post wait behind the same notice as a labeled
+  // reply (see `rootMediaHidden`), since a post card may show any post.
+  const rootMediaHidden = $derived(
+    Boolean(
+      tree?.root.embed &&
+      tree.root.labels?.length &&
+      labels !== "show" &&
+      !revealedLabeled.includes(tree.root.uri),
+    ),
+  );
   const rootAsComment = $derived.by((): Comment | undefined =>
     tree
       ? {
@@ -276,6 +298,9 @@ package README.
           repostCount: tree.root.repostCount,
           quoteCount: tree.root.quoteCount,
           labels: [],
+          ...(tree.root.embed && !rootMediaHidden
+            ? { embed: tree.root.embed }
+            : {}),
           url: tree.root.url,
           replies: [],
           hasMoreReplies: false,
@@ -1202,6 +1227,162 @@ package README.
   </dialog>
 {/snippet}
 
+{#snippet mediaEmbed(media: MediaEmbed, postUrl: string)}
+  {#if media.kind === "images"}
+    {@const shown = media.images.slice(0, 4)}
+    <div class="embed-images count-{shown.length}" part="embed embed-images">
+      {#each shown as image, i (i)}
+        <a
+          class="embed-image"
+          href={image.fullsize}
+          target="_blank"
+          rel="noopener noreferrer"
+          style:aspect-ratio={shown.length === 1 && image.aspectRatio
+            ? `${image.aspectRatio.width} / ${image.aspectRatio.height}`
+            : undefined}
+        >
+          <img
+            src={image.thumb}
+            alt={image.alt}
+            title={image.alt || undefined}
+            loading="lazy"
+            decoding="async"
+          />
+          {#if i === shown.length - 1 && media.images.length > shown.length}
+            <span class="embed-more">+{media.images.length - shown.length}</span
+            >
+          {/if}
+        </a>
+      {/each}
+    </div>
+  {:else if media.kind === "video"}
+    <a
+      class="embed-video"
+      part="embed embed-video"
+      href={postUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={media.alt
+        ? `Watch video on ${viewerLabel}: ${media.alt}`
+        : `Watch video on ${viewerLabel}`}
+      style:aspect-ratio={media.aspectRatio
+        ? `${media.aspectRatio.width} / ${media.aspectRatio.height}`
+        : undefined}
+    >
+      {#if media.thumbnail}
+        <img src={media.thumbnail} alt="" loading="lazy" decoding="async" />
+      {/if}
+      <span class="embed-play" aria-hidden="true">▶</span>
+    </a>
+  {:else}
+    <a
+      class="embed-external"
+      part="embed embed-external"
+      href={media.uri}
+      target="_blank"
+      rel="noopener noreferrer nofollow"
+    >
+      {#if media.thumb}
+        <img src={media.thumb} alt="" loading="lazy" decoding="async" />
+      {/if}
+      <span class="embed-external-text">
+        <span class="embed-external-title">{media.title || media.uri}</span>
+        {#if media.description}
+          <span class="embed-external-description">{media.description}</span>
+        {/if}
+        <span class="embed-external-host">{hostOf(media.uri)}</span>
+      </span>
+    </a>
+  {/if}
+{/snippet}
+
+{#snippet quotedRecord(record: QuotedRecord)}
+  {#if record.kind === "post"}
+    {#if record.labels.length > 0 && labels !== "show"}
+      <p class="embed-quote embed-quote-notice" part="embed embed-quote">
+        Quoted post hidden by moderation label ({record.labels.join(", ")}) ·
+        <a href={record.url} target="_blank" rel="noopener noreferrer"
+          >View on {viewerLabel}</a
+        >
+      </p>
+    {:else}
+      <div class="embed-quote" part="embed embed-quote">
+        <p class="comment-meta">
+          {#if record.author.avatarUrl}
+            <img
+              class="embed-quote-avatar"
+              src={record.author.avatarUrl}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
+          {/if}
+          <a
+            class="author"
+            href={record.author.profileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            >{record.author.displayName || record.author.handle}</a
+          >
+          <span class="handle">@{record.author.handle}</span>
+          <a
+            class="timestamp"
+            href={record.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={absoluteTime(record.createdAt)}
+            ><time datetime={record.createdAt}
+              >{relativeTime(record.createdAt)}</time
+            ></a
+          >
+        </p>
+        {#if record.text}
+          <p class="body">
+            {#each record.segments as segment, i (i)}
+              {#if segment.type === "text"}{segment.text}{:else}<a
+                  href={segment.href}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow">{segment.text}</a
+                >{/if}
+            {/each}
+          </p>
+        {/if}
+        {#if record.media}
+          {@render mediaEmbed(record.media, record.url)}
+        {/if}
+      </div>
+    {/if}
+  {:else if record.kind === "unavailable"}
+    <p class="embed-quote embed-quote-notice" part="embed embed-quote">
+      {record.reason === "blocked"
+        ? "Quoted post unavailable"
+        : record.reason === "detached"
+          ? "Quoted post removed by its author"
+          : "Quoted post deleted"}
+    </p>
+  {:else if record.url}
+    <a
+      class="embed-quote embed-quote-notice"
+      part="embed embed-quote"
+      href={record.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      >{record.title ? `${record.title} · ` : ""}View on {viewerLabel} →</a
+    >
+  {/if}
+{/snippet}
+
+{#snippet postEmbed(embed: PostEmbed, postUrl: string)}
+  {#if embed.kind === "record"}
+    {#if embed.media}
+      {@render mediaEmbed(embed.media, postUrl)}
+    {/if}
+    {@render quotedRecord(embed.record)}
+  {:else}
+    {@render mediaEmbed(embed, postUrl)}
+  {/if}
+{/snippet}
+
 {#snippet commentBody(
   node: Extract<CommentNode, { kind: "comment" }>,
   showActions: boolean = true,
@@ -1254,6 +1435,9 @@ package README.
             >{/if}
         {/each}
       </p>
+      {#if node.embed}
+        {@render postEmbed(node.embed, node.url)}
+      {/if}
       {#if showActions}
         <div class="actions" part="actions">
           {@render reactionButtons(node)}
@@ -1347,6 +1531,19 @@ package README.
     {#if showRoot && rootAsComment}
       <div class="root-post" part="root-post">
         {@render commentBody(rootAsComment, false)}
+        {#if rootMediaHidden}
+          <p class="tombstone labeled" part="moderation-label">
+            Media hidden by moderation label ({tree.root.labels?.join(", ")})
+            {#if labels === "collapse"}
+              <button
+                type="button"
+                onclick={() =>
+                  (revealedLabeled = [...revealedLabeled, tree.root.uri])}
+                >Show anyway</button
+              >
+            {/if}
+          </p>
+        {/if}
       </div>
     {/if}
     <header class="header" part="header">
@@ -1680,6 +1877,147 @@ package README.
   .body {
     overflow-wrap: anywhere;
     white-space: pre-wrap;
+  }
+  /* --- embeds --- */
+  .embed-images,
+  .embed-video,
+  .embed-external,
+  .embed-quote {
+    margin-block: 0.5rem 0;
+    border-radius: var(--atproto-comments-radius, 8px);
+    overflow: hidden;
+  }
+  .embed-images {
+    display: grid;
+    gap: 2px;
+    grid-template-columns: 1fr 1fr;
+    max-height: 32rem;
+  }
+  .embed-images.count-1 {
+    grid-template-columns: 1fr;
+    max-width: 100%;
+    width: fit-content;
+  }
+  .embed-images.count-2 .embed-image,
+  .embed-images.count-4 .embed-image {
+    aspect-ratio: 1;
+  }
+  .embed-images.count-3 .embed-image {
+    aspect-ratio: 1;
+  }
+  .embed-images.count-3 .embed-image:first-child {
+    grid-row: span 2;
+    aspect-ratio: auto;
+  }
+  .embed-image {
+    position: relative;
+    display: block;
+    min-height: 0;
+    background: var(--atproto-comments-border, light-dark(#e0e0e0, #333));
+  }
+  .embed-images.count-1 .embed-image {
+    max-height: 32rem;
+  }
+  .embed-image img,
+  .embed-video img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  /* a tiled image fills its cell, whatever the cell's height */
+  .embed-images:not(.count-1) img {
+    position: absolute;
+    inset: 0;
+  }
+  .embed-images.count-1 img {
+    object-fit: contain;
+    max-height: 32rem;
+  }
+  .embed-more {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 1.5em;
+    font-weight: 600;
+    color: #fff;
+    background: rgb(0 0 0 / 0.45);
+  }
+  .embed-video {
+    position: relative;
+    display: block;
+    max-height: 32rem;
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+  }
+  .embed-play {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 3rem;
+    height: 3rem;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    color: #fff;
+    background: rgb(0 0 0 / 0.6);
+  }
+  .embed-external {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--atproto-comments-border, light-dark(#e0e0e0, #333));
+    color: inherit;
+    text-decoration: none;
+  }
+  .embed-external img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1.91 / 1;
+    object-fit: cover;
+  }
+  .embed-external-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    padding: 0.5rem 0.75rem;
+  }
+  .embed-external-title {
+    font-weight: 600;
+  }
+  .embed-external-description {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.875em;
+  }
+  .embed-external-host,
+  .embed-quote-notice {
+    font-size: 0.875em;
+    color: var(--atproto-comments-muted, light-dark(#666, #999));
+  }
+  .embed-quote {
+    display: block;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--atproto-comments-border, light-dark(#e0e0e0, #333));
+  }
+  a.embed-quote {
+    text-decoration: none;
+  }
+  .embed-quote .comment-meta {
+    align-items: center;
+  }
+  .embed-quote-avatar {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    object-fit: cover;
+  }
+  .embed-quote .body {
+    margin: 0.25rem 0 0;
   }
   .actions {
     display: flex;

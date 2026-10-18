@@ -14,7 +14,7 @@ Implemented:
 - Thread rendering: fetches a thread and renders nested replies, tombstones
   for deleted or blocked posts, moderation-label collapse, depth capping,
   rich text from facets, root like/repost counts, and permalinks to the post.
-  Self-contained bundle, ~26 KB gzipped.
+  Self-contained bundle, ~33 KB gzipped.
 - SSR and hydration: declarative shadow DOM rendered on the server is adopted
   in place on the client, including inside a hydrating SvelteKit host
   (covered by e2e tests for same-node identity and rich-prop transport; a
