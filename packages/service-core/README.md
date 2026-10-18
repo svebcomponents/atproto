@@ -338,7 +338,9 @@ const token = await client.getServiceAuth({
   (`com.atproto.server.getServiceAuth`) for a token valid for 60 seconds,
   signed with the account's own key.
 - The receiving service verifies the token against the account's DID document
-  and rate-limits on its `iss`. The bridge holds no signing key for this.
+  (for example with `verifyJwt` from `@atproto/xrpc-server`), checks that
+  `aud` is its own DID and `lxm` the method being called, and rate-limits on
+  `iss`. The bridge holds no signing key for this.
 - Each pair adds `rpc:<lxm>?aud=<aud>` to the set's scope, which is what the
   PDS checks before it signs.
 - The bridge only asks for pairs the session's set lists (403 otherwise).

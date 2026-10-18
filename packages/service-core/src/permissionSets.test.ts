@@ -532,8 +532,8 @@ describe("permission sets", () => {
       expect(url.pathname).toBe("/xrpc/com.atproto.server.getServiceAuth");
       expect(url.searchParams.get("aud")).toBe(GATEWAY.aud);
       expect(url.searchParams.get("lxm")).toBe(GATEWAY.lxm);
-      const exp = Number(url.searchParams.get("exp"));
-      expect(exp - Date.now() / 1000).toBeLessThanOrEqual(60);
+      // the PDS picks the expiry (60 seconds) by its own clock
+      expect(url.searchParams.has("exp")).toBe(false);
       // served by the PDS itself, never proxied
       expect(JSON.stringify(init)).not.toContain("atproto-proxy");
     });
