@@ -164,6 +164,38 @@ describe("permission sets", () => {
     expect(() => resolveConfig({ ...base(), permissionSets })).toThrow(error);
   });
 
+  it("adds an rpc scope for each service-auth pair", () => {
+    const config = resolveConfig({
+      ...base(),
+      permissionSets: {
+        gateway: {
+          ...feeds,
+          methods: [],
+          serviceAuth: [
+            { aud: "did:web:gateway.example", lxm: "com.example.classify" },
+          ],
+        },
+      },
+    });
+    expect(config.permissionSets["gateway"]!.scope).toBe(
+      `${config.scope} rpc:com.example.classify?aud=did:web:gateway.example`,
+    );
+  });
+
+  it("rejects a service-auth pair with an invalid lxm", () => {
+    expect(() =>
+      resolveConfig({
+        ...base(),
+        permissionSets: {
+          feeds: {
+            ...feeds,
+            serviceAuth: [{ aud: "did:web:gateway.example", lxm: "nope" }],
+          },
+        },
+      }),
+    ).toThrow(/lxm/);
+  });
+
   it("rejects a set origin the deployment's allowlist would refuse", () => {
     expect(() =>
       resolveConfig({

@@ -953,6 +953,9 @@ const handleApi = async (
       return json({ ok: true }, 200, cors);
     }
 
+    case "POST /api/service-auth":
+      return handleServiceAuth(request, claims, config, clientPromise, cors);
+
     case "POST /api/session/logout": {
       await config.serviceSessionStore.del(claims.sid);
       // Also give up the ATProto grant. Without this, signing out ends only
@@ -1263,6 +1266,95 @@ const handleProxy = async (
         upstream.headers.get("content-type") ?? "application/json",
     },
   });
+};
+
+/**
+ * Asks the reader's PDS for a service-auth token: signed with the account's
+ * own key, verifiable by the receiving service against the account's DID
+ * document. Only `aud` / `lxm` pairs the session's permission set lists are
+ * requested, and the PDS checks the login's `rpc:` scope again before
+ * signing. The call is served by the PDS itself, so it carries no
+ * `atproto-proxy`.
+ */
+const handleServiceAuth = async (
+  request: Request,
+  claims: SessionTokenClaims,
+  config: ResolvedServiceConfig,
+  clientPromise: Promise<OAuthBridgeClient>,
+  cors: HeadersInit,
+): Promise<Response> => {
+  const headers = { ...cors, "cache-control": "no-store" };
+  const body = (await request.json().catch(() => null)) as {
+    aud?: unknown;
+    lxm?: unknown;
+  } | null;
+  const aud = typeof body?.aud === "string" ? body.aud : undefined;
+  const lxm = typeof body?.lxm === "string" ? body.lxm : undefined;
+  if (!aud || !lxm) {
+    return jsonError(400, "InvalidRequest", "Send aud and lxm", headers);
+  }
+  const set = claims.access ? config.permissionSets[claims.access] : undefined;
+  if (
+    !set?.serviceAuth.some((entry) => entry.aud === aud && entry.lxm === lxm)
+  ) {
+    return jsonError(
+      403,
+      "Forbidden",
+      `This site was not granted service auth for ${lxm} at ${aud}`,
+      headers,
+    );
+  }
+  if (!(await config.proxyRateLimiter(`${claims.did} ${set.name}`))) {
+    return jsonError(
+      429,
+      "RateLimited",
+      "Too many requests — try again in a few minutes",
+      { ...headers, "retry-after": "600" },
+    );
+  }
+
+  const session = await restorePdsSession(claims.did, clientPromise);
+  if (!session) {
+    return jsonError(
+      401,
+      "SessionExpired",
+      SESSION_EXPIRED_RESULT.message,
+      headers,
+    );
+  }
+  // No `exp`: the PDS then issues the token for 60 seconds by its own
+  // clock. One computed here would be refused as "in the past" whenever
+  // this server's clock runs more than a minute behind the PDS's.
+  const query = new URLSearchParams({ aud, lxm });
+  let upstream: Response;
+  try {
+    upstream = await session.fetchHandler(
+      `/xrpc/com.atproto.server.getServiceAuth?${query.toString()}`,
+      { method: "GET", headers: { accept: "application/json" } },
+    );
+  } catch {
+    return jsonError(502, "UpstreamError", "Could not reach the PDS", headers);
+  }
+  if (upstream.status === 401 || upstream.status === 403) {
+    return jsonError(
+      403,
+      "UpstreamForbidden",
+      "The reader's server refused this request — sign in again to grant access",
+      headers,
+    );
+  }
+  const result = (await upstream.json().catch(() => ({}))) as {
+    token?: unknown;
+  };
+  if (!upstream.ok || typeof result.token !== "string") {
+    return jsonError(
+      502,
+      "UpstreamError",
+      `The PDS did not issue a token (HTTP ${upstream.status})`,
+      headers,
+    );
+  }
+  return json({ token: result.token }, 200, headers);
 };
 
 /** the default client (`undefined`) or a permission set's client */
