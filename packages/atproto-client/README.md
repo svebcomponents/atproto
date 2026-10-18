@@ -35,6 +35,11 @@ const streamUrl = hosted.commentsStreamUrl(tree.root.uri);
 supports the hosted bridge's origin-bound bearer sessions and same-origin
 self-hosted cookie sessions.
 
+Posts and replies carry an optional `embed`: images (including galleries),
+video, a link card, or a quoted post with its own media. `normalizeEmbed`
+turns any `app.bsky.embed.*#view` into that model; unknown embed types
+normalize to `undefined`, and only `https` media URLs are kept.
+
 `ServiceClient` keeps its session token in `localStorage` by default. Pass
 `{ storage }` to keep it elsewhere, for example in a browser extension's
 service worker, which has no `localStorage`. `onSessionChange` reports

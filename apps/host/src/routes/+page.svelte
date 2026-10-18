@@ -143,6 +143,13 @@
         "Collapsed keeps replies behind a toggle and fetches only the root post until they are opened. With show-root, renders a post card.",
     },
     {
+      name: "composer",
+      type: "dialog | inline",
+      default: "dialog",
+      description:
+        "Inline opens the reply composer below the post instead of as a modal, so it stays inside the element's own box (for example in a resizing iframe).",
+    },
+    {
       name: "page-url",
       type: "string",
       default: "-",

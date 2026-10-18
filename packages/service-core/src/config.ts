@@ -150,8 +150,11 @@ export interface ServiceConfig {
   /** HttpOnly cookie name used by cookie session mode. */
   sessionCookieName?: string;
   /**
-   * Web origins allowed to start a sign-in and hold a session, e.g.
-   * `["https://blog.example"]`. Omit (the default) to accept any origin —
+   * Origins allowed to start a sign-in and hold a session, e.g.
+   * `["https://blog.example"]`. Browser extensions sign in with their own
+   * origin (`chrome-extension://<id>`, `moz-extension://<uuid>`,
+   * `safari-web-extension://<uuid>`) and are listed the same way. Omit (the
+   * default) to accept any website or extension —
    * what the public hosted instance needs, since it serves sites it has
    * never seen. A self-hosted bridge almost always wants exactly one origin
    * here: with no allowlist, any site on the internet can run its own
@@ -250,6 +253,24 @@ export interface ResolvedServiceConfig extends ServiceConfig {
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
+const EXTENSION_ORIGIN =
+  /^(chrome-extension|moz-extension|safari-web-extension):\/\/([a-z0-9-]+)\/?$/i;
+
+/**
+ * Normalizes a browser-extension origin (`chrome-extension://<id>`,
+ * `moz-extension://<uuid>`, `safari-web-extension://<uuid>`). Returns null
+ * for anything else, including web origins.
+ *
+ * The ID keeps its case: browsers compare `Access-Control-Allow-Origin`
+ * byte for byte with the `Origin` they sent, and Safari's UUIDs are
+ * uppercase, so a lowercased echo would fail CORS.
+ */
+export const parseExtensionOrigin = (value: string): string | null => {
+  const match = EXTENSION_ORIGIN.exec(value.trim());
+  if (!match) return null;
+  return `${match[1]!.toLowerCase()}://${match[2]!}`;
+};
+
 /** the public Constellation backlink index */
 export const DEFAULT_CONSTELLATION = "https://constellation.microcosm.blue";
 
@@ -273,6 +294,8 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
   // Normalize the allowlist up front so a typo fails at construction rather
   // than silently refusing every sign-in at runtime.
   const allowedOrigins = config.allowedOrigins?.map((value) => {
+    const extension = parseExtensionOrigin(value);
+    if (extension) return extension;
     let origin: string;
     try {
       origin = new URL(value).origin;

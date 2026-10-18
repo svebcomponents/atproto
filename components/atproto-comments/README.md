@@ -78,6 +78,19 @@ That covers the complete hosted setup at tiers 1–2. Public thread reads go
 directly to the public AppView, and ATProto OAuth credentials never enter the
 browser.
 
+## Embeds
+
+Posts render their embeds: up to four images (with a "+N" tile for larger
+galleries, each opening the full-size image), a video thumbnail linking to
+the post, link cards, and quoted posts with their own media. A quoted post
+with moderation labels is collapsed to a link unless `labels="show"`. The
+root post card (`show-root`) always shows its text, but a labeled root's
+media waits behind a "Show anyway" notice (hidden outright with
+`labels="hide"`), since a card may show any post. Quoted
+feeds, lists, and starter packs render as links. Style them through the
+`embed`, `embed-images`, `embed-video`, `embed-external`, and `embed-quote`
+parts.
+
 ## Shared sessions
 
 Every `<atproto-comments>` on one origin shares the reader's session. When a
@@ -128,6 +141,7 @@ live updates.
 | `live`        | `signed-in`    | who gets live updates: `signed-in`, `all`, or `off`                                        |
 | `show-root`   | `false`        | render the discussion root's own post above the replies                                    |
 | `replies`     | `expanded`     | `expanded` renders replies inline; `collapsed` puts them behind a "Show replies" toggle    |
+| `composer`    | `dialog`       | `dialog` opens the reply composer as a modal; `inline` opens it below the post             |
 | `max-depth`   | `6`            | maximum nested depth                                                                       |
 | `sort`        | `oldest`       | `oldest`, `newest`, or `likes`                                                             |
 | `labels`      | `collapse`     | `hide`, `collapse`, or `show`                                                              |
@@ -160,6 +174,12 @@ holds no live connection. Opening them fetches the thread once; hiding and
 reopening reuses it. A reply posted from the card opens the replies so the
 reader sees it. A preloaded `threadData` may be root-only (fetched with
 `depth: 0`); the replies are fetched when opened.
+
+The reply composer opens as a modal dialog by default. A card whose height is
+bounded, such as one in an iframe that grows to fit its content, cannot show a
+modal outside its own box. Set `composer="inline"` to open the composer below
+the post instead, inside the element, where it adds to the element's height.
+Without JavaScript, the composer still opens as a modal.
 
 With the default `live="signed-in"`, only readers who sign in hold a connection
 to the service; signed-out visitors read the thread straight from the AppView.
