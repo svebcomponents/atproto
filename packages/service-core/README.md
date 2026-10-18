@@ -276,7 +276,9 @@ example when it steps up from commenting to a set:
 The previous client's login stays, since other sites may be using it.
 
 Each set's `origins` must also be in `allowedOrigins` when the deployment has
-an allowlist. Without permission sets, nothing changes.
+an allowlist. A set cannot list a Firefox extension, whose `moz-extension://`
+UUID differs per installation (see [Browser extensions](#browser-extensions)).
+Without permission sets, nothing changes.
 
 ### Reading through the bridge
 

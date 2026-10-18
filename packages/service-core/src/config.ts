@@ -559,7 +559,9 @@ const resolvePermissionSets = (
   scope: string,
   allowedOrigins: readonly string[] | undefined,
 ): Record<string, ResolvedPermissionSet> => {
-  const resolved: Record<string, ResolvedPermissionSet> = {};
+  // Looked up by names from requests (`?access=`, `/clients/<name>`), so it
+  // has no prototype: `constructor` or `__proto__` must not resolve to one.
+  const resolved: Record<string, ResolvedPermissionSet> = Object.create(null);
   for (const [name, set] of Object.entries(config.permissionSets ?? {})) {
     if (!PERMISSION_SET_NAME.test(name)) {
       throw new Error(
