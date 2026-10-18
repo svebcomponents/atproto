@@ -620,6 +620,22 @@ export class ServiceClient {
     return (await response.json()) as T;
   }
 
+  /**
+   * Asks the reader's own PDS, through the bridge, for a short-lived
+   * service-auth token proving the account to `aud` for the method `lxm`.
+   * Only works for pairs a permission set this site signed in with lists.
+   * The receiving service verifies it against the account's DID document.
+   */
+  async getServiceAuth(input: { aud: string; lxm: string }): Promise<string> {
+    const response = await this.#authedRequest("/api/service-auth", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ aud: input.aud, lxm: input.lxm }),
+    });
+    const { token } = (await response.json()) as { token: string };
+    return token;
+  }
+
   async #authedRequest(
     path: string,
     init: { method: string; headers?: Record<string, string>; body?: string },

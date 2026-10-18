@@ -542,4 +542,27 @@ describe("ServiceClient", () => {
       ).rejects.toMatchObject({ status: 403 });
     });
   });
+
+  it("requests a service-auth token through the bridge", async () => {
+    store.set(TOKEN_KEY, "tok");
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ token: "jwt" }));
+    const client = new ServiceClient(
+      "/atproto",
+      fetchImpl as unknown as typeof fetch,
+    );
+    const token = await client.getServiceAuth({
+      aud: "did:web:gateway.example",
+      lxm: "com.example.classify",
+    });
+    expect(token).toBe("jwt");
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://blog.example/atproto/api/service-auth");
+    expect(init).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({
+        aud: "did:web:gateway.example",
+        lxm: "com.example.classify",
+      }),
+    });
+  });
 });

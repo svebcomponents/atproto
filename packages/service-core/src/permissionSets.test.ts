@@ -444,4 +444,80 @@ describe("permission sets", () => {
       expect(res!.status).toBe(502);
     });
   });
+
+  describe("service auth", () => {
+    const GATEWAY = {
+      aud: "did:web:gateway.example",
+      lxm: "com.example.classify",
+    };
+    const withAuth = (over: Partial<ServiceConfig> = {}) =>
+      service({
+        permissionSets: { feeds: { ...FEEDS, serviceAuth: [GATEWAY] } },
+        ...over,
+      });
+    const requestToken = (token: string, body: unknown = GATEWAY) =>
+      api("/api/service-auth", token, EXTENSION, "POST", body);
+
+    it("asks the reader's PDS for a token the set lists", async () => {
+      const svc = withAuth();
+      const token = await signIn(svc, EXTENSION, "feeds");
+      vi.mocked(feedsClient.session.fetchHandler).mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "service-jwt" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+      const res = await svc.fetch(requestToken(token));
+      expect(res!.status).toBe(200);
+      expect(await res!.json()).toEqual({ token: "service-jwt" });
+      expect(res!.headers.get("cache-control")).toBe("no-store");
+
+      const [path, init] = vi.mocked(feedsClient.session.fetchHandler).mock
+        .calls[0]!;
+      const url = new URL(path, "https://pds.example");
+      expect(url.pathname).toBe("/xrpc/com.atproto.server.getServiceAuth");
+      expect(url.searchParams.get("aud")).toBe(GATEWAY.aud);
+      expect(url.searchParams.get("lxm")).toBe(GATEWAY.lxm);
+      const exp = Number(url.searchParams.get("exp"));
+      expect(exp - Date.now() / 1000).toBeLessThanOrEqual(60);
+      // served by the PDS itself, never proxied
+      expect(JSON.stringify(init)).not.toContain("atproto-proxy");
+    });
+
+    it("refuses a pair the set does not list", async () => {
+      const svc = withAuth();
+      const token = await signIn(svc, EXTENSION, "feeds");
+      const res = await svc.fetch(
+        requestToken(token, { ...GATEWAY, aud: "did:web:other.example" }),
+      );
+      expect(res!.status).toBe(403);
+      expect(feedsClient.session.fetchHandler).not.toHaveBeenCalled();
+    });
+
+    it("refuses a comment-section session", async () => {
+      const svc = withAuth();
+      const token = await signIn(svc, BLOG);
+      const res = await svc.fetch(
+        api("/api/service-auth", token, BLOG, "POST", GATEWAY),
+      );
+      expect(res!.status).toBe(403);
+    });
+
+    it("requires aud and lxm", async () => {
+      const svc = withAuth();
+      const token = await signIn(svc, EXTENSION, "feeds");
+      const res = await svc.fetch(requestToken(token, { aud: GATEWAY.aud }));
+      expect(res!.status).toBe(400);
+    });
+
+    it("maps a PDS refusal to 403 and a missing token to 502", async () => {
+      const svc = withAuth();
+      const token = await signIn(svc, EXTENSION, "feeds");
+      vi.mocked(feedsClient.session.fetchHandler)
+        .mockResolvedValueOnce(new Response("{}", { status: 403 }))
+        .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+      expect((await svc.fetch(requestToken(token)))!.status).toBe(403);
+      expect((await svc.fetch(requestToken(token)))!.status).toBe(502);
+    });
+  });
 });

@@ -139,6 +139,18 @@ export interface PermissionSetMethod {
 }
 
 /**
+ * A service-auth token a permission set lets its sites request: a short-lived
+ * token signed by the reader's own PDS, proving the account to `aud` for one
+ * method.
+ */
+export interface PermissionSetServiceAuth {
+  /** the receiving service's DID, optionally with a service fragment */
+  aud: string;
+  /** NSID of the method the token is good for */
+  lxm: string;
+}
+
+/**
  * Extra access the operator offers to specific sites. Each set is its own
  * OAuth client, with its own `client_id`, approval screen, and stored logins,
  * so a grant made for one of these sites never reaches any other site.
@@ -158,13 +170,21 @@ export interface PermissionSetConfig {
   origins: readonly string[];
   /**
    * Queries the set adds to the default scope, each as an
-   * `rpc:<nsid>?aud=<aud>` scope.
+   * `rpc:<nsid>?aud=<aud>` scope, callable through `/api/xrpc`.
    */
-  methods: readonly PermissionSetMethod[];
+  methods?: readonly PermissionSetMethod[];
+  /**
+   * Service-auth tokens the set's sites can request through
+   * `/api/service-auth`, each adding an `rpc:<lxm>?aud=<aud>` scope, which is
+   * what the PDS checks before signing one.
+   */
+  serviceAuth?: readonly PermissionSetServiceAuth[];
 }
 
 export interface ResolvedPermissionSet extends PermissionSetConfig {
   name: string;
+  methods: readonly PermissionSetMethod[];
+  serviceAuth: readonly PermissionSetServiceAuth[];
   /** normalized to bare origins */
   origins: readonly string[];
   /** the default scope plus the set's `rpc:` scopes */
@@ -530,6 +550,8 @@ export const NSID =
   /^[a-zA-Z](?:[a-zA-Z0-9-]{0,62})(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,62})){1,}\.[a-zA-Z][a-zA-Z0-9]{0,62}$/;
 /** a DID with a service fragment, e.g. did:web:api.bsky.app#bsky_appview */
 const SERVICE_DID = /^did:[a-z]+:[a-zA-Z0-9._:%-]+#[a-zA-Z0-9._-]+$/;
+/** a DID, optionally with a service fragment */
+const AUDIENCE_DID = /^did:[a-z]+:[a-zA-Z0-9._:%-]+(?:#[a-zA-Z0-9._-]+)?$/;
 
 /**
  * Prefixes every key of a key-value store, so each permission set's client
@@ -586,10 +608,14 @@ const resolvePermissionSets = (
         );
       }
     }
-    if (set.methods.length === 0) {
-      throw new Error(`permissionSets.${name}.methods must not be empty`);
+    const methods = set.methods ?? [];
+    const serviceAuth = set.serviceAuth ?? [];
+    if (methods.length === 0 && serviceAuth.length === 0) {
+      throw new Error(
+        `permissionSets.${name} needs at least one entry in methods or serviceAuth`,
+      );
     }
-    const rpcScopes = set.methods.map(({ nsid, aud }) => {
+    const rpcScopes = methods.map(({ nsid, aud }) => {
       if (!NSID.test(nsid)) {
         throw new Error(`permissionSets.${name}: invalid NSID ${nsid}`);
       }
@@ -600,6 +626,17 @@ const resolvePermissionSets = (
       }
       return `rpc:${nsid}?aud=${aud.replace("#", "%23")}`;
     });
+    for (const { lxm, aud } of serviceAuth) {
+      if (!NSID.test(lxm)) {
+        throw new Error(`permissionSets.${name}: invalid lxm ${lxm}`);
+      }
+      if (!AUDIENCE_DID.test(aud)) {
+        throw new Error(
+          `permissionSets.${name}: serviceAuth aud must be a DID, got ${aud}`,
+        );
+      }
+      rpcScopes.push(`rpc:${lxm}?aud=${aud.replace("#", "%23")}`);
+    }
     const prefix = `sets/${name}/`;
     resolved[name] = {
       ...set,
@@ -607,7 +644,9 @@ const resolvePermissionSets = (
       clientName: set.clientName.trim(),
       description: set.description.trim(),
       origins,
-      scope: [scope, ...rpcScopes].join(" "),
+      methods,
+      serviceAuth,
+      scope: [scope, ...new Set(rpcScopes)].join(" "),
       stateStore: prefixStore(config.stateStore, prefix),
       sessionStore: prefixStore(config.sessionStore, prefix),
     };

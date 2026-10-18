@@ -153,6 +153,7 @@ GET    /api/viewer?like=…&repost=…       the reader's own like/repost record
 GET    /api/comments/stream?thread=…     SSE reply signals for one thread
 GET    /api/stats                        whole-service counts (no origins, no readers)
 GET    /api/xrpc/<nsid>?…                an XRPC query in the session's permission set
+POST   /api/service-auth                 a PDS-signed service-auth token the session's set lists
 GET    /clients/<set>/client-metadata.json  a permission set's OAuth client metadata
 GET    /clients/<set>/oauth/callback     a permission set's token exchange
 ```
@@ -307,6 +308,41 @@ to the method's `aud`, and passes the response through. It refuses:
   doesn't look like an expired bridge session. Upstream failures become 502.
 - Reads have their own limiter, `proxyRateLimiter`, keyed by account and set
   (default: 600 per 10 minutes).
+
+### Proving the account to another service
+
+A set can let its sites prove which account is signed in to a service of
+their own, using ATProto service auth:
+
+```ts
+permissionSets: {
+  feeds: {
+    // ...
+    serviceAuth: [{ aud: "did:web:api.reader.example", lxm: "com.reader.classify" }],
+  },
+}
+```
+
+```ts
+const token = await client.getServiceAuth({
+  aud: "did:web:api.reader.example",
+  lxm: "com.reader.classify",
+});
+```
+
+**How it works:**
+
+- `POST /api/service-auth` asks the reader's PDS
+  (`com.atproto.server.getServiceAuth`) for a token valid for 60 seconds,
+  signed with the account's own key.
+- The receiving service verifies the token against the account's DID document
+  and rate-limits on its `iss`. The bridge holds no signing key for this.
+- Each pair adds `rpc:<lxm>?aud=<aud>` to the set's scope, which is what the
+  PDS checks before it signs.
+- The bridge only asks for pairs the session's set lists (403 otherwise).
+- Requests share `proxyRateLimiter`.
+
+A set needs at least one entry in `methods` or `serviceAuth`.
 
 ## Live comment events
 
