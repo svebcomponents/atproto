@@ -271,6 +271,11 @@ export interface ServiceConfig {
   replyRateLimiter?: RateLimiter;
   /** rate limiter for like/repost toggling, keyed per DID (default: 60 per 10min) */
   reactionRateLimiter?: RateLimiter;
+  /**
+   * rate limiter for permission-set reads through `/api/xrpc`, keyed per DID
+   * and set (default: 600 per 10min)
+   */
+  proxyRateLimiter?: RateLimiter;
   /** AppView for unauthenticated profile lookups */
   appView?: string;
   /**
@@ -322,6 +327,7 @@ export interface ResolvedServiceConfig extends Omit<
   authClaimStore: AuthClaimStore;
   replyRateLimiter: RateLimiter;
   reactionRateLimiter: RateLimiter;
+  proxyRateLimiter: RateLimiter;
   fetch: typeof globalThis.fetch;
   /** buffering counter recorder, built from `metricsStore` */
   metrics: MetricsRecorder;
@@ -485,6 +491,8 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
       config.replyRateLimiter ?? createMemoryRateLimiter(10, 10 * 60_000),
     reactionRateLimiter:
       config.reactionRateLimiter ?? createMemoryRateLimiter(60, 10 * 60_000),
+    proxyRateLimiter:
+      config.proxyRateLimiter ?? createMemoryRateLimiter(600, 10 * 60_000),
     fetch: config.fetch ?? globalThis.fetch,
     metrics: createMetricsRecorder({
       store: config.metricsStore ?? createMemoryMetricsStore(),

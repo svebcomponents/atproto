@@ -591,6 +591,35 @@ export class ServiceClient {
     return (await response.json()) as ViewerReactions;
   }
 
+  /**
+   * Calls an XRPC query through the bridge, as the signed-in reader. Only
+   * works for queries in a permission set this site signed in with
+   * (`signIn({ access })`); the bridge refuses anything else with a 403.
+   * Array values become repeated parameters.
+   */
+  async query<T = unknown>(
+    nsid: string,
+    params: Record<
+      string,
+      string | number | boolean | readonly (string | number)[] | undefined
+    > = {},
+  ): Promise<T> {
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined) continue;
+      for (const item of Array.isArray(value) ? value : [value]) {
+        search.append(key, String(item));
+      }
+    }
+    const encoded = search.toString();
+    const query = encoded ? `?${encoded}` : "";
+    const response = await this.#authedRequest(
+      `/api/xrpc/${encodeURIComponent(nsid)}${query}`,
+      { method: "GET" },
+    );
+    return (await response.json()) as T;
+  }
+
   async #authedRequest(
     path: string,
     init: { method: string; headers?: Record<string, string>; body?: string },
