@@ -78,6 +78,12 @@ That covers the complete hosted setup at tiers 1–2. Public thread reads go
 directly to the public AppView, and ATProto OAuth credentials never enter the
 browser.
 
+## Shared sessions
+
+Every `<atproto-comments>` on one origin shares the reader's session. When a
+reader signs in or out in one page or frame, the others follow without a
+reload.
+
 ## Live updates
 
 The component does not poll or use a time-based stale interval. It renders its

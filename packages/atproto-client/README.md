@@ -35,5 +35,10 @@ const streamUrl = hosted.commentsStreamUrl(tree.root.uri);
 supports the hosted bridge's origin-bound bearer sessions and same-origin
 self-hosted cookie sessions.
 
+`ServiceClient` keeps its session token in `localStorage` by default. Pass
+`{ storage }` to keep it elsewhere, for example in a browser extension's
+service worker, which has no `localStorage`. `onSessionChange` reports
+sign-ins and sign-outs from other pages of the same origin.
+
 See [atproto.svebcomponents.dev](https://atproto.svebcomponents.dev/) for the
 component and self-hosting documentation.
