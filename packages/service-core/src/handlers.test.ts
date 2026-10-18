@@ -1084,6 +1084,65 @@ describe("service handlers", () => {
     expect(await store.get(sid)).toMatchObject({ did: DID, origin: ORIGIN });
   });
 
+  it("refresh exchanges a recently expired token, and nothing else does", async () => {
+    const token = await signIn(service);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      // two hours later: the 1h token has expired
+      vi.setSystemTime(Date.now() + 2 * 60 * 60 * 1000);
+      expect(
+        (await service.fetch(get("/atproto/api/session", token)))!.status,
+      ).toBe(401);
+      const res = await service.fetch(
+        post("/atproto/api/session/refresh", token),
+      );
+      expect(res!.status).toBe(200);
+      const { token: fresh } = (await res!.json()) as { token: string };
+      expect(
+        (await service.fetch(get("/atproto/api/session", fresh)))!.status,
+      ).toBe(200);
+
+      // past the refresh window, an expired token is no longer accepted
+      vi.setSystemTime(Date.now() + 8 * 24 * 60 * 60 * 1000);
+      expect(
+        (await service.fetch(post("/atproto/api/session/refresh", fresh)))!
+          .status,
+      ).toBe(401);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("refresh rotates: a renewed token cannot be renewed again", async () => {
+    const refresh = (token: string) =>
+      service.fetch(post("/atproto/api/session/refresh", token));
+    const first = await signIn(service);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const res = await refresh(first);
+      expect(res!.status).toBe(200);
+      const { token: second } = (await res!.json()) as { token: string };
+
+      // a page renewing at the same moment is still let through
+      const racing = await refresh(first);
+      expect(racing!.status).toBe(200);
+      const { token: alsoSecond } = (await racing!.json()) as {
+        token: string;
+      };
+
+      // but not once the grace window has passed: a copied token is dead
+      vi.setSystemTime(Date.now() + 2 * 60 * 1000);
+      expect((await refresh(first))!.status).toBe(401);
+
+      // the current generation renews, the racing copy of it included
+      expect((await refresh(alsoSecond))!.status).toBe(200);
+      vi.setSystemTime(Date.now() + 2 * 60 * 1000);
+      expect((await refresh(second))!.status).toBe(401);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("refresh with a deleted session is rejected", async () => {
     const token = await signIn(service);
     for (const sid of store.keys()) await store.del(sid);

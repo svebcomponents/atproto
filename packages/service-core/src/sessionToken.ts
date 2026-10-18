@@ -11,6 +11,12 @@ export interface SessionTokenClaims {
   origin: string;
   /** service session id — revocation checks liveness in the store */
   sid: string;
+  /**
+   * The session's refresh generation the token was minted for. A refresh
+   * retires it; see `ServiceSession.generation`. Tokens minted before
+   * rotation existed carry none and count as generation 0.
+   */
+  generation?: number;
 }
 
 export interface SessionTokenIssuer {
@@ -31,6 +37,14 @@ export interface SessionTokenIssuer {
   verify(
     token: string,
     requestOrigin: string | null,
+    options?: {
+      /**
+       * Also accept a token that expired at most this many seconds ago.
+       * Only the refresh endpoint passes this: everything else requires an
+       * unexpired token.
+       */
+      expiredGraceSeconds?: number;
+    },
   ): Promise<SessionTokenClaims | null>;
 }
 
@@ -49,8 +63,12 @@ export const createSessionTokenIssuer = ({
   const key = encoder.encode(secret);
 
   return {
-    async mint({ did, origin, sid }) {
-      return new SignJWT({ origin, sid })
+    async mint({ did, origin, sid, generation }) {
+      return new SignJWT({
+        origin,
+        sid,
+        ...(generation ? { gen: generation } : {}),
+      })
         .setProtectedHeader({ alg: "HS256" })
         .setSubject(did)
         .setAudience(audience)
@@ -59,17 +77,23 @@ export const createSessionTokenIssuer = ({
         .sign(key);
     },
 
-    async verify(token, requestOrigin) {
+    async verify(token, requestOrigin, options = {}) {
       let payload;
       try {
-        ({ payload } = await jwtVerify(token, key, { audience }));
+        ({ payload } = await jwtVerify(token, key, {
+          audience,
+          ...(options.expiredGraceSeconds
+            ? { clockTolerance: options.expiredGraceSeconds }
+            : {}),
+        }));
       } catch {
         return null;
       }
-      const { sub, origin, sid } = payload as {
+      const { sub, origin, sid, gen } = payload as {
         sub?: string;
         origin?: unknown;
         sid?: unknown;
+        gen?: unknown;
       };
       if (!sub || typeof origin !== "string" || typeof sid !== "string") {
         return null;
@@ -85,7 +109,12 @@ export const createSessionTokenIssuer = ({
       if (!session || session.did !== sub || session.origin !== origin) {
         return null;
       }
-      return { did: sub, origin, sid };
+      return {
+        did: sub,
+        origin,
+        sid,
+        ...(typeof gen === "number" && gen > 0 ? { generation: gen } : {}),
+      };
     },
   };
 };
