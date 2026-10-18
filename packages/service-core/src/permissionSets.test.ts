@@ -335,6 +335,60 @@ describe("permission sets", () => {
     expect(store.map.has(first)).toBe(false);
     expect(store.map.get(second)).toMatchObject({ access: "feeds" });
   });
+  it("cookie-mode sessions act and sign out through their set's client", async () => {
+    const svc = service({
+      publicUrl: "http://127.0.0.1:5173",
+      sessionMode: "cookie",
+      permissionSets: { feeds: { ...FEEDS, origins: [BLOG] } },
+    });
+    feedsClient.setState({ origin: BLOG, access: "feeds" });
+    const res = await svc.fetch(
+      new Request(
+        "http://127.0.0.1:5173/atproto/clients/feeds/oauth/callback?code=x",
+      ),
+    );
+    const sid = /atproto_comments_session=([^;]+)/.exec(
+      res!.headers.get("set-cookie") ?? "",
+    )![1]!;
+    const request = (path: string, body?: unknown) =>
+      new Request(`http://127.0.0.1:5173/atproto${path}`, {
+        method: "POST",
+        headers: {
+          cookie: `atproto_comments_session=${sid}`,
+          origin: BLOG,
+          "content-type": "application/json",
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+
+    const like = await svc.fetch(
+      request("/api/like", {
+        uri: "at://did:plc:author/app.bsky.feed.post/abc",
+        cid: "bafyroot234567",
+      }),
+    );
+    expect(like!.status).toBe(200);
+    expect(feedsClient.restore).toHaveBeenCalledWith(DID);
+    expect(defaultClient.restore).not.toHaveBeenCalled();
+
+    await svc.fetch(request("/api/session/logout"));
+    expect(feedsClient.revoke).toHaveBeenCalledWith(DID);
+    expect(defaultClient.revoke).not.toHaveBeenCalled();
+  });
+
+  it("ignores set names that are not the operator's own keys", async () => {
+    const svc = service();
+    for (const name of ["constructor", "__proto__", "toString"]) {
+      const start = await svc.fetch(
+        new Request(startUrl(EXTENSION, `&access=${name}`)),
+      );
+      expect(start!.status).toBe(400);
+      const metadata = await svc.fetch(
+        new Request(`${SERVICE}/atproto/clients/${name}/client-metadata.json`),
+      );
+      expect(metadata!.status).toBe(404);
+    }
+  });
 
   describe("xrpc proxy", () => {
     const timeline = "/api/xrpc/app.bsky.feed.getTimeline?limit=2";
@@ -478,8 +532,8 @@ describe("permission sets", () => {
       expect(url.pathname).toBe("/xrpc/com.atproto.server.getServiceAuth");
       expect(url.searchParams.get("aud")).toBe(GATEWAY.aud);
       expect(url.searchParams.get("lxm")).toBe(GATEWAY.lxm);
-      const exp = Number(url.searchParams.get("exp"));
-      expect(exp - Date.now() / 1000).toBeLessThanOrEqual(60);
+      // the PDS picks the expiry (60 seconds) by its own clock
+      expect(url.searchParams.has("exp")).toBe(false);
       // served by the PDS itself, never proxied
       expect(JSON.stringify(init)).not.toContain("atproto-proxy");
     });

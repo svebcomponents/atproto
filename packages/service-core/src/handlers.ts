@@ -272,7 +272,12 @@ const authenticateCookie = async (
     return null;
   }
   if (requestOrigin !== null && requestOrigin !== session.origin) return null;
-  return { did: session.did, origin: session.origin, sid };
+  return {
+    did: session.did,
+    origin: session.origin,
+    sid,
+    ...(session.access ? { access: session.access } : {}),
+  };
 };
 
 /**
@@ -1263,9 +1268,6 @@ const handleProxy = async (
   });
 };
 
-/** how long a requested service-auth token is valid, in seconds */
-const SERVICE_AUTH_TTL_SECONDS = 60;
-
 /**
  * Asks the reader's PDS for a service-auth token: signed with the account's
  * own key, verifiable by the receiving service against the account's DID
@@ -1320,11 +1322,10 @@ const handleServiceAuth = async (
       headers,
     );
   }
-  const query = new URLSearchParams({
-    aud,
-    lxm,
-    exp: String(Math.floor(Date.now() / 1000) + SERVICE_AUTH_TTL_SECONDS),
-  });
+  // No `exp`: the PDS then issues the token for 60 seconds by its own
+  // clock. One computed here would be refused as "in the past" whenever
+  // this server's clock runs more than a minute behind the PDS's.
+  const query = new URLSearchParams({ aud, lxm });
   let upstream: Response;
   try {
     upstream = await session.fetchHandler(
