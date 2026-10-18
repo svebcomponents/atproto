@@ -1,5 +1,38 @@
 # @svebcomponents/atproto.comments
 
+## 0.9.0
+
+### Minor Changes
+
+- 1357f7f: Add a `composer` property. `composer="inline"` opens the reply composer
+  below the post instead of as a modal dialog, so it stays inside the
+  element's own box and adds to its height. This is for embeds whose height
+  is bounded, such as a post card in an iframe that grows to fit its content.
+  The default, `composer="dialog"`, is unchanged.
+- b428c42: Render post embeds. `Comment` and `RootSummary` gain an optional `embed`
+  (images and galleries, video, link cards, and quoted posts with their own
+  media), produced by the new `normalizeEmbed`. The component shows them below
+  the post text, collapses quoted posts that carry moderation labels unless
+  `labels="show"`, and exposes `embed*` parts for styling. `RootSummary` also
+  gains optional `labels`, and a labeled root's media is held behind the same
+  moderation notice as a labeled reply.
+- d4df4a0: Share sessions across pages of one origin. `<atproto-comments>` follows a
+  sign-in or sign-out made in another page or frame without a reload, and
+  clears the previous reader's reaction state on sign-out. `ServiceClient`
+  gains `onSessionChange(listener)` and an options form of its second
+  argument, `new ServiceClient(url, { fetch, storage })`, to keep the token
+  outside `localStorage`. Passing a fetch function still works.
+
+### Patch Changes
+
+- Updated dependencies [0b35e4e]
+- Updated dependencies [b428c42]
+- Updated dependencies [e840ef2]
+- Updated dependencies [5a15b10]
+- Updated dependencies [d4df4a0]
+- Updated dependencies [b361024]
+  - @svebcomponents/atproto.client@0.7.0
+
 ## 0.8.0
 
 ### Minor Changes
