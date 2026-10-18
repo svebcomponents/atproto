@@ -35,6 +35,15 @@ export interface SignInPageRenderProps {
   /** Legacy hosted-project link; the default renderer uses it for its pitch. */
   productUrl?: string;
   error?: string;
+  /**
+   * The permission set being requested; custom forms must preserve it in a
+   * hidden `access` input, like `origin`.
+   */
+  access?: string;
+  /** what the set adds, as the operator described it */
+  accessDescription?: string;
+  /** a caution about what the set reveals, when there is one */
+  accessNote?: string;
 }
 
 export type SignInPageRenderer = (
@@ -59,6 +68,9 @@ export const signInPage = ({
   supportUrl,
   productUrl,
   error,
+  access,
+  accessDescription,
+  accessNote,
 }: SignInPageRenderProps): string =>
   document({
     kind: "sign-in",
@@ -78,6 +90,9 @@ export const signInPage = ({
     ...(supportUrl ? { supportUrl } : {}),
     ...(productUrl ? { productUrl } : {}),
     ...(error ? { error } : {}),
+    ...(access ? { access } : {}),
+    ...(accessDescription ? { accessDescription } : {}),
+    ...(accessNote ? { accessNote } : {}),
   });
 
 /**

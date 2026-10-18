@@ -33,6 +33,12 @@ export interface ServiceSession {
   handle?: string;
   displayName?: string;
   avatarUrl?: string;
+  /**
+   * The permission set this sign-in used (a key of
+   * `ServiceConfig.permissionSets`). Absent means the default client, which
+   * every comment section uses.
+   */
+  access?: string;
 }
 
 /**
@@ -110,6 +116,8 @@ export interface AuthClaim {
   handle?: string;
   displayName?: string;
   avatarUrl?: string;
+  /** the permission set signed in to, when not the default client */
+  access?: string;
 }
 
 /** short-TTL, single-read store for pending auth claims */
@@ -117,6 +125,53 @@ export interface AuthClaimStore {
   set(nonce: string, claim: AuthClaim): Promise<void>;
   /** returns and removes the claim (one-time), or undefined if absent/expired */
   take(nonce: string): Promise<AuthClaim | undefined>;
+}
+
+/** an XRPC query a permission set grants, and the service it is proxied to */
+export interface PermissionSetMethod {
+  /** NSID of the query, e.g. `app.bsky.feed.getTimeline` */
+  nsid: string;
+  /**
+   * The service the reader's PDS forwards the call to, as a DID with a
+   * service fragment, e.g. `did:web:api.bsky.app#bsky_appview`.
+   */
+  aud: string;
+}
+
+/**
+ * Extra access the operator offers to specific sites. Each set is its own
+ * OAuth client, with its own `client_id`, approval screen, and stored logins,
+ * so a grant made for one of these sites never reaches any other site.
+ */
+export interface PermissionSetConfig {
+  /**
+   * The app name the reader's PDS shows on its approval screen, e.g.
+   * `"Cloudless (via svebcomponents/atproto)"`.
+   */
+  clientName: string;
+  /** what the bridge's sign-in page lists, e.g. "Read your feeds" */
+  description: string;
+  /**
+   * The only origins allowed to sign in under this set. Required: a set open
+   * to any site would make the bridge a general-purpose login service.
+   */
+  origins: readonly string[];
+  /**
+   * Queries the set adds to the default scope, each as an
+   * `rpc:<nsid>?aud=<aud>` scope.
+   */
+  methods: readonly PermissionSetMethod[];
+}
+
+export interface ResolvedPermissionSet extends PermissionSetConfig {
+  name: string;
+  /** normalized to bare origins */
+  origins: readonly string[];
+  /** the default scope plus the set's `rpc:` scopes */
+  scope: string;
+  /** state and session stores namespaced to this set's client */
+  stateStore: NodeSavedStateStore;
+  sessionStore: NodeSavedSessionStore;
 }
 
 export interface ServiceConfig {
@@ -193,6 +248,13 @@ export interface ServiceConfig {
    * loopback mode.
    */
   keys?: string[];
+  /**
+   * Extra access for specific sites, keyed by a short name that sites pass
+   * as `signIn({ access: name })`. Each set is a separate OAuth client; see
+   * {@link PermissionSetConfig}. Default: none, so every sign-in uses the
+   * default client and `scope`.
+   */
+  permissionSets?: Readonly<Record<string, PermissionSetConfig>>;
   /** short-lived OAuth flow state (PKCE, DPoP nonces) */
   stateStore: NodeSavedStateStore;
   /** ATProto token sets, keyed by DID — encrypt at rest in production */
@@ -240,7 +302,12 @@ export interface ServiceConfig {
   fetch?: typeof globalThis.fetch;
 }
 
-export interface ResolvedServiceConfig extends ServiceConfig {
+export interface ResolvedServiceConfig extends Omit<
+  ServiceConfig,
+  "permissionSets"
+> {
+  /** keyed by set name; empty when none are configured */
+  permissionSets: Readonly<Record<string, ResolvedPermissionSet>>;
   basePath: string;
   clientName: string;
   sessionTtlSeconds: number;
@@ -312,20 +379,11 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
   }
   // Normalize the allowlist up front so a typo fails at construction rather
   // than silently refusing every sign-in at runtime.
-  const allowedOrigins = config.allowedOrigins?.map((value) => {
-    const extension = parseExtensionOrigin(value);
-    if (extension) return extension;
-    let origin: string;
-    try {
-      origin = new URL(value).origin;
-    } catch {
-      throw new Error(`allowedOrigins contains an invalid URL: ${value}`);
-    }
-    if (origin === "null") {
-      throw new Error(`allowedOrigins entry has no origin: ${value}`);
-    }
-    return origin;
-  });
+  const allowedOrigins = config.allowedOrigins?.map((value) =>
+    normalizeOrigin(value, "allowedOrigins"),
+  );
+  const scope = config.scope ?? DEFAULT_SCOPE;
+  const permissionSets = resolvePermissionSets(config, scope, allowedOrigins);
   const oauthPage = config.oauthPage
     ? {
         ...(config.oauthPage.title
@@ -416,9 +474,8 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
       config.sessionRefreshWindowSeconds ?? 7 * 24 * 60 * 60,
     sessionMode: config.sessionMode ?? "bearer",
     sessionCookieName,
-    scope:
-      config.scope ??
-      "atproto repo:app.bsky.feed.post?action=create repo:app.bsky.feed.like?action=create&action=delete repo:app.bsky.feed.repost?action=create&action=delete",
+    scope,
+    permissionSets,
     appView: config.appView ?? "https://public.api.bsky.app",
     constellation: constellation.origin,
     commentStream: resolveCommentStreamConfig(config.commentStream),
@@ -437,6 +494,117 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     }),
     isLoopback,
   };
+};
+
+const DEFAULT_SCOPE =
+  "atproto repo:app.bsky.feed.post?action=create repo:app.bsky.feed.like?action=create&action=delete repo:app.bsky.feed.repost?action=create&action=delete";
+
+/** a website or extension origin from config, or a construction error */
+const normalizeOrigin = (value: string, field: string): string => {
+  const extension = parseExtensionOrigin(value);
+  if (extension) return extension;
+  let origin: string;
+  try {
+    origin = new URL(value).origin;
+  } catch {
+    throw new Error(`${field} contains an invalid URL: ${value}`);
+  }
+  if (origin === "null") {
+    throw new Error(`${field} entry has no origin: ${value}`);
+  }
+  return origin;
+};
+
+/** set names appear in URLs and store keys */
+const PERMISSION_SET_NAME = /^[a-z][a-z0-9-]{0,31}$/;
+/** an NSID: reversed domain authority plus a name segment */
+export const NSID =
+  /^[a-zA-Z](?:[a-zA-Z0-9-]{0,62})(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,62})){1,}\.[a-zA-Z][a-zA-Z0-9]{0,62}$/;
+/** a DID with a service fragment, e.g. did:web:api.bsky.app#bsky_appview */
+const SERVICE_DID = /^did:[a-z]+:[a-zA-Z0-9._:%-]+#[a-zA-Z0-9._-]+$/;
+
+/**
+ * Prefixes every key of a key-value store, so each permission set's client
+ * keeps its own logins and flow state in the host's existing store. The
+ * default client's keys stay unprefixed, so logins stored before permission
+ * sets existed remain valid. `/` cannot occur in a DID or an OAuth state
+ * key, so prefixed keys never collide with unprefixed ones.
+ */
+const prefixStore = <S extends KeyedStore>(store: S, prefix: string): S => {
+  const keyed: KeyedStore = store;
+  return {
+    get: (key, ...rest) => keyed.get(`${prefix}${key}`, ...rest),
+    set: (key, ...rest) => keyed.set(`${prefix}${key}`, ...rest),
+    del: (key, ...rest) => keyed.del(`${prefix}${key}`, ...rest),
+  } satisfies KeyedStore as S;
+};
+
+/** the shape shared by the OAuth state and session stores */
+interface KeyedStore {
+  get(key: string, ...rest: unknown[]): unknown;
+  set(key: string, ...rest: unknown[]): unknown;
+  del(key: string, ...rest: unknown[]): unknown;
+}
+
+const resolvePermissionSets = (
+  config: ServiceConfig,
+  scope: string,
+  allowedOrigins: readonly string[] | undefined,
+): Record<string, ResolvedPermissionSet> => {
+  const resolved: Record<string, ResolvedPermissionSet> = {};
+  for (const [name, set] of Object.entries(config.permissionSets ?? {})) {
+    if (!PERMISSION_SET_NAME.test(name)) {
+      throw new Error(
+        `permissionSets: "${name}" must be lowercase letters, digits, and dashes`,
+      );
+    }
+    if (!set.clientName.trim() || !set.description.trim()) {
+      throw new Error(
+        `permissionSets.${name} needs a clientName and a description`,
+      );
+    }
+    if (set.origins.length === 0) {
+      throw new Error(
+        `permissionSets.${name}.origins must list at least one origin`,
+      );
+    }
+    const origins = set.origins.map((value) =>
+      normalizeOrigin(value, `permissionSets.${name}.origins`),
+    );
+    for (const origin of origins) {
+      if (allowedOrigins && !allowedOrigins.includes(origin)) {
+        throw new Error(
+          `permissionSets.${name}: ${origin} is not in allowedOrigins`,
+        );
+      }
+    }
+    if (set.methods.length === 0) {
+      throw new Error(`permissionSets.${name}.methods must not be empty`);
+    }
+    const rpcScopes = set.methods.map(({ nsid, aud }) => {
+      if (!NSID.test(nsid)) {
+        throw new Error(`permissionSets.${name}: invalid NSID ${nsid}`);
+      }
+      if (!SERVICE_DID.test(aud)) {
+        throw new Error(
+          `permissionSets.${name}: aud must be a DID with a service fragment, got ${aud}`,
+        );
+      }
+      return `rpc:${nsid}?aud=${aud.replace("#", "%23")}`;
+    });
+    const prefix = `sets/${name}/`;
+    resolved[name] = {
+      ...set,
+      name,
+      clientName: set.clientName.trim(),
+      description: set.description.trim(),
+      origins,
+      scope: [scope, ...rpcScopes].join(" "),
+      stateStore: prefixStore(config.stateStore, prefix),
+      sessionStore: prefixStore(config.sessionStore, prefix),
+    };
+  }
+  return resolved;
 };
 
 const resolveAccent = (value: string): string => {
