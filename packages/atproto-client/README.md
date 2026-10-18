@@ -35,5 +35,10 @@ const streamUrl = hosted.commentsStreamUrl(tree.root.uri);
 supports the hosted bridge's origin-bound bearer sessions and same-origin
 self-hosted cookie sessions.
 
+Posts and replies carry an optional `embed`: images (including galleries),
+video, a link card, or a quoted post with its own media. `normalizeEmbed`
+turns any `app.bsky.embed.*#view` into that model; unknown embed types
+normalize to `undefined`, and only `https` media URLs are kept.
+
 See [atproto.svebcomponents.dev](https://atproto.svebcomponents.dev/) for the
 component and self-hosting documentation.

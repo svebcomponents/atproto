@@ -24,6 +24,8 @@
   }: PageProps = $props();
 
   const slash = $derived(brandName.indexOf("/"));
+  // extension origins look like chrome-extension://<id>, not a website
+  const isExtension = $derived(/^[a-z-]+-extension:\/\//.test(origin));
 </script>
 
 <svelte:head>
@@ -100,7 +102,9 @@
       <div class="action">
         <div class="card">
           <div class="site">
-            <span class="label">Comment section on</span>
+            <span class="label"
+              >{isExtension ? "Browser extension" : "Comment section on"}</span
+            >
             <span class="origin">{origin}</span>
           </div>
           {#if error}<p class="error">{error}</p>{/if}

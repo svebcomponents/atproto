@@ -22,6 +22,21 @@ export {
   type FetchCommentTreeOptions,
   type GetPostThreadOptions,
 } from "./fetchThread.js";
+export {
+  normalizeEmbed,
+  type AspectRatio,
+  type EmbedImage,
+  type ExternalEmbed,
+  type ImagesEmbed,
+  type MediaEmbed,
+  type PostEmbed,
+  type QuotedPost,
+  type QuotedRecord,
+  type RecordEmbed,
+  type UnavailableRecord,
+  type UnsupportedRecord,
+  type VideoEmbed,
+} from "./embeds.js";
 export { sortComments, type CommentSort } from "./sort.js";
 export {
   DEFAULT_VIEWER,
