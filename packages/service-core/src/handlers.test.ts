@@ -1303,6 +1303,127 @@ describe("security regressions", () => {
   });
 });
 
+describe("browser extension origins", () => {
+  const EXTENSION = "chrome-extension://abcdefghijklmnopabcdefghijklmnop";
+
+  const startUrl = (origin: string) =>
+    `${SERVICE}/atproto/oauth/start?origin=${encodeURIComponent(origin)}`;
+
+  const extensionService = (config: Partial<ServiceConfig> = {}) => {
+    const oauthClient: OAuthBridgeClient = {
+      ...fakeOAuthClient,
+      callback: vi.fn(async () => ({
+        session: { did: DID } as OAuthPdsSession,
+        state: JSON.stringify({ origin: EXTENSION, claim: "ext-claim" }),
+      })),
+    };
+    return createAtprotoCommentsService(
+      { ...baseConfig(memoryStore()), ...config },
+      { oauthClient },
+    );
+  };
+
+  beforeEach(() => {
+    createRecordCalls = [];
+  });
+
+  it("accepts any extension when there is no allowlist", async () => {
+    const service = extensionService();
+    expect(
+      (await service.fetch(new Request(startUrl(EXTENSION))))!.status,
+    ).toBe(200);
+  });
+
+  it("accepts only listed extensions when there is an allowlist", async () => {
+    const service = extensionService({
+      allowedOrigins: [ORIGIN, `${EXTENSION}/`],
+    });
+    expect(
+      (await service.fetch(new Request(startUrl(EXTENSION))))!.status,
+    ).toBe(200);
+    expect(
+      (await service.fetch(
+        new Request(
+          startUrl("chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba"),
+        ),
+      ))!.status,
+    ).toBe(400);
+  });
+
+  it("binds the session to the extension origin", async () => {
+    const service = extensionService();
+    await service.fetch(
+      new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=xyz`),
+    );
+
+    // only the extension can collect the claim
+    const stolen = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session/claim?nonce=ext-claim`, {
+        headers: { origin: ORIGIN },
+      }),
+    );
+    expect(stolen!.status).toBe(403);
+    await service.fetch(
+      new Request(`${SERVICE}/atproto/oauth/callback?code=abc&state=xyz`),
+    );
+    const claimed = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session/claim?nonce=ext-claim`, {
+        headers: { origin: EXTENSION },
+      }),
+    );
+    expect(claimed!.status).toBe(200);
+    expect(claimed!.headers.get("access-control-allow-origin")).toBe(EXTENSION);
+    const { token } = (await claimed!.json()) as { token: string };
+
+    const like = (origin: string) =>
+      service.fetch(
+        new Request(`${SERVICE}/atproto/api/like`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            origin,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            uri: `at://${DID}/app.bsky.feed.post/root`,
+            cid: "bafyroot234567",
+          }),
+        }),
+      );
+    expect((await like(EXTENSION))!.status).toBe(200);
+    expect(
+      (await like("chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba"))!
+        .status,
+    ).toBe(401);
+    expect((await like(ORIGIN))!.status).toBe(401);
+    expect(createRecordCalls).toHaveLength(1);
+  });
+
+  it("keeps the extension ID's case for CORS", async () => {
+    // Safari's extension UUIDs are uppercase, and browsers compare the
+    // allowed origin byte for byte with the one they sent
+    const SAFARI =
+      "safari-web-extension://3B2A1C9E-0D4F-4A6B-9C8D-7E6F5A4B3C2D";
+    const service = extensionService();
+    const res = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session`, {
+        method: "OPTIONS",
+        headers: { origin: SAFARI },
+      }),
+    );
+    expect(res!.headers.get("access-control-allow-origin")).toBe(SAFARI);
+  });
+
+  it("refuses other non-web schemes", async () => {
+    const service = extensionService();
+    for (const origin of ["file:///etc", "javascript:alert(1)", "null"]) {
+      expect((await service.fetch(new Request(startUrl(origin))))!.status).toBe(
+        400,
+      );
+    }
+  });
+});
+
 describe("operational stats", () => {
   let service: AtprotoCommentsService;
 
