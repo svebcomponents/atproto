@@ -91,6 +91,12 @@ feeds, lists, and starter packs render as links. Style them through the
 `embed`, `embed-images`, `embed-video`, `embed-external`, and `embed-quote`
 parts.
 
+## Shared sessions
+
+Every `<atproto-comments>` on one origin shares the reader's session. When a
+reader signs in or out in one page or frame, the others follow without a
+reload.
+
 ## Live updates
 
 The component does not poll or use a time-based stale interval. It renders its

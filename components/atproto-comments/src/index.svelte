@@ -425,10 +425,42 @@ package README.
 
   const remaining = $derived(MAX_GRAPHEMES - countGraphemes(draft));
 
+  /** forgets the reader who left: their reactions are not the next reader's */
+  const clearReader = () => {
+    session = null;
+    liked = {};
+    reposted = {};
+    likedBase = {};
+    repostedBase = {};
+    touchedLikes = new Set();
+    touchedReposts = new Set();
+    closeComposer();
+  };
+
   $effect(() => {
     if (!BROWSER || !writable) return;
     const c = new ServiceClient(service);
     client = c;
+    // Another page of this origin signed in or out (another embed, or a
+    // browser extension's popup sharing the session): follow it.
+    const unsubscribe = c.onSessionChange((signedIn) => {
+      if (!signedIn) {
+        clearReader();
+        return;
+      }
+      c.getSession()
+        .then((s) => {
+          session = s;
+        })
+        .catch(() => {
+          session = null;
+        });
+    });
+    restoreSession(c);
+    return unsubscribe;
+  });
+
+  const restoreSession = (c: ServiceClient) => {
     // Only ask the service who this is when there is something to restore.
     // A reader who has never signed in has no session to find, and probing
     // anyway would tell the bridge their IP address and which page they are
@@ -447,7 +479,7 @@ package README.
       .catch(() => {
         session = null;
       });
-  });
+  };
 
   /** signs in if needed, without any of signIn()'s composer side effects —
    * shared by the like/repost buttons, which just need a session to act. */
@@ -481,15 +513,7 @@ package README.
 
   const signOut = async () => {
     await client?.signOut();
-    session = null;
-    // reactions describe the reader who just left, not the next one
-    liked = {};
-    reposted = {};
-    likedBase = {};
-    repostedBase = {};
-    touchedLikes = new Set();
-    touchedReposts = new Set();
-    closeComposer();
+    clearReader();
   };
 
   /** posts whose reaction this reader toggled here, so a hydration that

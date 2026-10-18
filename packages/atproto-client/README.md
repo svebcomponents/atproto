@@ -40,5 +40,10 @@ video, a link card, or a quoted post with its own media. `normalizeEmbed`
 turns any `app.bsky.embed.*#view` into that model; unknown embed types
 normalize to `undefined`, and only `https` media URLs are kept.
 
+`ServiceClient` keeps its session token in `localStorage` by default. Pass
+`{ storage }` to keep it elsewhere, for example in a browser extension's
+service worker, which has no `localStorage`. `onSessionChange` reports
+sign-ins and sign-outs from other pages of the same origin.
+
 See [atproto.svebcomponents.dev](https://atproto.svebcomponents.dev/) for the
 component and self-hosting documentation.

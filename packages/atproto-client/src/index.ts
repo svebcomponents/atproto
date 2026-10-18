@@ -49,6 +49,8 @@ export {
   MAX_VIEWER_SUBJECTS,
   ServiceClient,
   ServiceError,
+  type ServiceClientOptions,
+  type TokenStorage,
   type CreatedRecord,
   type PostedReply,
   type PostRef,

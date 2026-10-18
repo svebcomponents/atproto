@@ -49,6 +49,18 @@ export interface ViewerSubjects {
   reposts: readonly string[];
 }
 
+/**
+ * Where the session token is kept. Defaults to `localStorage`. Provide your
+ * own where `localStorage` is missing (a browser extension's service worker)
+ * or to keep the token somewhere else.
+ */
+export type TokenStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+export interface ServiceClientOptions {
+  fetch?: typeof globalThis.fetch;
+  storage?: TokenStorage;
+}
+
 export class ServiceError extends Error {
   constructor(
     message: string,
@@ -106,13 +118,21 @@ export class ServiceClient {
   #refreshing: Promise<void> | null = null;
   /** when this client received its current token, by its own clock */
   #receivedAt: { token: string; at: number } | null = null;
+  readonly #storage: TokenStorage | undefined;
   private readonly fetchImpl: typeof globalThis.fetch;
   private readonly serviceUrl: string;
 
   constructor(
     serviceUrl = DEFAULT_SERVICE_URL,
-    fetchImpl?: typeof globalThis.fetch,
+    /** a fetch implementation, or options */
+    fetchOrOptions?: typeof globalThis.fetch | ServiceClientOptions,
   ) {
+    const options: ServiceClientOptions =
+      typeof fetchOrOptions === "function"
+        ? { fetch: fetchOrOptions }
+        : (fetchOrOptions ?? {});
+    const fetchImpl = options.fetch;
+    this.#storage = options.storage;
     // Wrap (rather than store `globalThis.fetch` directly): the browser's
     // `fetch` throws "Illegal invocation" when called with any receiver other
     // than the global object, and `this.fetchImpl(...)` would set the receiver
@@ -144,15 +164,45 @@ export class ServiceClient {
     return this.#token !== null;
   }
 
+  /**
+   * Calls `listener` when another page of this origin signs in or out
+   * (`storage` events on `localStorage`). Returns an unsubscribe function.
+   * Pages of one origin share a session, and this lets them follow each
+   * other without a reload. A token replaced while signed in (renewed by
+   * another page) is picked up without calling `listener`. Not available
+   * with a custom `storage`, which has no change events.
+   */
+  onSessionChange(listener: (signedIn: boolean) => void): () => void {
+    if (this.#storage || typeof globalThis.addEventListener !== "function") {
+      return () => {};
+    }
+    const onStorage = (event: StorageEvent) => {
+      // `key` is null when another page cleared all of storage
+      if (event.key !== null && event.key !== this.#storageKey) return;
+      const token = this.#readStoredToken();
+      if (token === this.#token) return;
+      const wasSignedIn = this.#token !== null;
+      this.#token = token;
+      if (wasSignedIn !== (token !== null)) listener(token !== null);
+    };
+    globalThis.addEventListener("storage", onStorage);
+    return () => globalThis.removeEventListener("storage", onStorage);
+  }
+
   /** True when the service shares an origin with the current page. */
   get isSameOrigin(): boolean {
     const here = globalThis.location?.origin;
     return here !== undefined && new URL(this.serviceUrl).origin === here;
   }
 
+  /** the configured storage, or `localStorage` where it exists */
+  get #tokenStorage(): TokenStorage | undefined {
+    return this.#storage ?? globalThis.localStorage;
+  }
+
   #readStoredToken(): string | null {
     try {
-      return globalThis.localStorage?.getItem(this.#storageKey) ?? null;
+      return this.#tokenStorage?.getItem(this.#storageKey) ?? null;
     } catch {
       return null;
     }
@@ -162,8 +212,8 @@ export class ServiceClient {
     this.#token = token;
     this.#receivedAt = token ? { token, at: Date.now() } : null;
     try {
-      if (token) globalThis.localStorage?.setItem(this.#storageKey, token);
-      else globalThis.localStorage?.removeItem(this.#storageKey);
+      if (token) this.#tokenStorage?.setItem(this.#storageKey, token);
+      else this.#tokenStorage?.removeItem(this.#storageKey);
     } catch {
       // storage unavailable (private mode / SSR) — memory token still works
     }
