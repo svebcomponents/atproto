@@ -13,6 +13,7 @@ import {
   resolveConfig,
   type ServiceConfig,
   type ResolvedServiceConfig,
+  type ServiceSession,
 } from "./config.js";
 import {
   buildOAuthClient,
@@ -590,6 +591,30 @@ const fetchProfile = async (
   }
 };
 
+/** how long a just-retired generation can still renew (racing pages) */
+const ROTATION_GRACE_MS = 60_000;
+
+/**
+ * Decides a bearer refresh: the current generation rotates to the next; the
+ * one just retired, within {@link ROTATION_GRACE_MS}, gets a token for the
+ * current generation without rotating again; anything older is refused.
+ */
+const rotation = (
+  session: ServiceSession,
+  generation: number,
+): { next: number; rotate: boolean } | null => {
+  const current = session.generation ?? 0;
+  if (generation === current) return { next: current + 1, rotate: true };
+  const rotatedAt = Date.parse(session.rotatedAt ?? "");
+  if (
+    generation === current - 1 &&
+    Date.now() - rotatedAt < ROTATION_GRACE_MS
+  ) {
+    return { next: current, rotate: false };
+  }
+  return null;
+};
+
 const corsHeaders = (origin: string): HeadersInit => ({
   "access-control-allow-origin": origin,
   "access-control-allow-credentials": "true",
@@ -735,15 +760,13 @@ const handleApi = async (
       if (!session) {
         return jsonError(401, "InvalidSession", "Session expired", cors);
       }
-      await config.serviceSessionStore.set(
-        claims.sid,
-        config.sessionMode === "cookie"
-          ? // Cookie mode has a short server-enforced idle window: refresh
-            // is what "still here" looks like, so restart it.
-            { ...session, createdAt: new Date().toISOString() }
-          : session,
-      );
       if (config.sessionMode === "cookie") {
+        // Cookie mode has a short server-enforced idle window: refresh is
+        // what "still here" looks like, so restart it.
+        await config.serviceSessionStore.set(claims.sid, {
+          ...session,
+          createdAt: new Date().toISOString(),
+        });
         return json({ ok: true }, 200, {
           ...cors,
           "set-cookie": sessionCookie(
@@ -754,9 +777,35 @@ const handleApi = async (
         });
       }
       // Bearer mode: minting a fresh token is itself activity; the rewrite
-      // above pushed the session row's expiry out so a reader who keeps
+      // below pushes the session row's expiry out so a reader who keeps
       // engaging never hits the retention backstop.
-      const token = await tokens.mint(claims);
+      //
+      // Refresh rotates: only the current generation's token can renew, and
+      // renewing retires it. A token copied out of the page therefore stops
+      // being renewable as soon as the reader's own client renews, which it
+      // does at half-life. The previous generation stays renewable for a
+      // moment, into the current one, so two pages that renew at once both
+      // end up signed in.
+      const generation = rotation(session, claims.generation ?? 0);
+      if (generation === null) {
+        return jsonError(
+          401,
+          "InvalidSession",
+          "This session token was already renewed",
+          cors,
+        );
+      }
+      if (generation.rotate) {
+        await config.serviceSessionStore.set(claims.sid, {
+          ...session,
+          generation: generation.next,
+          rotatedAt: new Date().toISOString(),
+        });
+      }
+      const token = await tokens.mint({
+        ...claims,
+        generation: generation.next,
+      });
       return json({ token }, 200, cors);
     }
 

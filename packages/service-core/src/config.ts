@@ -20,6 +20,15 @@ export interface ServiceSession {
   /** web origin the token is bound to (the embedding site) */
   origin: string;
   createdAt: string;
+  /**
+   * Bearer mode: the refresh generation. Each refresh mints a token for the
+   * next generation and retires the previous one, so a copied token can no
+   * longer be renewed once the reader's own client has renewed it. Absent
+   * means 0.
+   */
+  generation?: number;
+  /** ISO datetime of the last rotation, for its short grace window */
+  rotatedAt?: string;
   /** profile snapshot taken at sign-in for the signed-in chrome */
   handle?: string;
   displayName?: string;
@@ -144,10 +153,11 @@ export interface ServiceConfig {
   sessionTtlSeconds?: number;
   /**
    * How long after a bearer token expires it can still be exchanged for a
-   * fresh one at `/api/session/refresh`, in seconds (default: 30 days, the
-   * reference session store's retention). The exchange still requires the
-   * token's origin and a live, unrevoked session, so a reader who returns
-   * within the window stays signed in, and signing out ends it at once.
+   * fresh one at `/api/session/refresh`, in seconds (default: 7 days). The
+   * exchange still requires the token's origin and a live, unrevoked
+   * session, and only the most recently minted token can be exchanged: a
+   * refresh retires the token before it. A reader who returns within the
+   * window stays signed in, and signing out ends it at once.
    */
   sessionRefreshWindowSeconds?: number;
   /**
@@ -380,7 +390,7 @@ export const resolveConfig = (config: ServiceConfig): ResolvedServiceConfig => {
     clientName: config.clientName ?? "atproto-comments",
     sessionTtlSeconds: config.sessionTtlSeconds ?? 3600,
     sessionRefreshWindowSeconds:
-      config.sessionRefreshWindowSeconds ?? 30 * 24 * 60 * 60,
+      config.sessionRefreshWindowSeconds ?? 7 * 24 * 60 * 60,
     sessionMode: config.sessionMode ?? "bearer",
     sessionCookieName,
     scope:

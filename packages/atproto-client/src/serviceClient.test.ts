@@ -107,6 +107,71 @@ describe("ServiceClient", () => {
       expect(init.headers).toMatchObject({ authorization: `Bearer ${fresh}` });
     });
 
+    it("renews once, not on every call, when this clock runs ahead", async () => {
+      // the bridge's clock is two hours behind this one
+      const bridgeNow = () => now() - 7200;
+      store.set(TOKEN_KEY, jwt(bridgeNow(), bridgeNow() + 3600));
+      const fetchImpl = vi.fn((url: string) =>
+        Promise.resolve(
+          url.endsWith("/refresh")
+            ? jsonResponse({ token: jwt(bridgeNow(), bridgeNow() + 3600) })
+            : jsonResponse({ did: "d" }),
+        ),
+      );
+      const client = new ServiceClient(
+        "/atproto",
+        fetchImpl as unknown as typeof fetch,
+      );
+      for (let i = 0; i < 3; i++) await client.getSession();
+      const refreshes = fetchImpl.mock.calls.filter(([url]) =>
+        url.endsWith("/refresh"),
+      );
+      expect(refreshes).toHaveLength(1);
+    });
+
+    it("renews and retries when the bridge sees a fresh-looking token as expired", async () => {
+      // this clock runs behind: the token looks new here, but has expired
+      const stale = jwt(now(), now() + 3600);
+      const fresh = jwt(now() + 1, now() + 3601);
+      store.set(TOKEN_KEY, stale);
+      const fetchImpl = vi.fn((url: string, init: RequestInit) => {
+        if (url.endsWith("/refresh")) {
+          return Promise.resolve(jsonResponse({ token: fresh }));
+        }
+        const auth = (init.headers as Record<string, string>)["authorization"];
+        return Promise.resolve(
+          auth === `Bearer ${fresh}`
+            ? jsonResponse({ did: "d" })
+            : jsonResponse({ error: "InvalidSession" }, 401),
+        );
+      });
+      const client = new ServiceClient(
+        "/atproto",
+        fetchImpl as unknown as typeof fetch,
+      );
+      await expect(client.getSession()).resolves.toEqual({ did: "d" });
+      expect(store.get(TOKEN_KEY)).toBe(fresh);
+    });
+
+    it("uses the token another page renewed instead of signing out", async () => {
+      const old = jwt(now() - 7200, now() - 3600);
+      const renewed = jwt(now(), now() + 3600);
+      store.set(TOKEN_KEY, old);
+      const client = new ServiceClient(
+        "/atproto",
+        vi.fn((url: string) => {
+          if (url.endsWith("/refresh")) {
+            // another page renewed first: the bridge refuses the old token
+            store.set(TOKEN_KEY, renewed);
+            return Promise.resolve(new Response(null, { status: 401 }));
+          }
+          return Promise.resolve(jsonResponse({ did: "d" }));
+        }) as unknown as typeof fetch,
+      );
+      await expect(client.getSession()).resolves.toEqual({ did: "d" });
+      expect(store.get(TOKEN_KEY)).toBe(renewed);
+    });
+
     it("signs out when the bridge rejects the refresh", async () => {
       store.set(TOKEN_KEY, jwt(now() - 7200, now() - 3600));
       const fetchImpl = vi.fn((url: string) =>

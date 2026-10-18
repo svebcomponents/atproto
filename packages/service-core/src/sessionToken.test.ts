@@ -40,6 +40,15 @@ describe("session token", () => {
     expect(await t.verify(token, "https://blog.example")).toEqual(claims);
   });
 
+  it("round-trips a refresh generation", async () => {
+    const t = issuer(makeStore(liveSession));
+    const token = await t.mint({ ...claims, generation: 3 });
+    expect(await t.verify(token, "https://blog.example")).toEqual({
+      ...claims,
+      generation: 3,
+    });
+  });
+
   // A missing Origin header used to skip the origin check altogether, which
   // meant any non-browser client could use an exfiltrated token from
   // anywhere just by omitting the header — the one thing origin binding is

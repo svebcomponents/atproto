@@ -115,9 +115,16 @@ request. CORS echoes only the bound origin.
 **Session renewal.** Bearer tokens live for `sessionTtlSeconds` (1 hour by
 default). The client renews a token once it is past half its lifetime, and
 `/api/session/refresh` also accepts a token that expired within
-`sessionRefreshWindowSeconds` (30 days by default). That keeps a returning
+`sessionRefreshWindowSeconds` (7 days by default). That keeps a returning
 reader signed in, while the exchange still requires the token's origin and a
 live session. No other endpoint accepts an expired token.
+
+Refresh rotates. Only the most recently minted token can be renewed, and
+renewing retires it (two pages renewing within the same minute both succeed).
+A token copied out of a page therefore keeps working only until it expires,
+or, renewed, only until the reader's own client renews. If the thief renews
+first, the reader's next renewal fails and they are signed out, so the
+theft shows.
 
 **Revocation.** Sign-out deletes the browser session _and_ revokes the ATProto
 grant with the reader's PDS — "sign out" means the bridge can no longer act as
