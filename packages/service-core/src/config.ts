@@ -260,11 +260,15 @@ const EXTENSION_ORIGIN =
  * Normalizes a browser-extension origin (`chrome-extension://<id>`,
  * `moz-extension://<uuid>`, `safari-web-extension://<uuid>`). Returns null
  * for anything else, including web origins.
+ *
+ * The ID keeps its case: browsers compare `Access-Control-Allow-Origin`
+ * byte for byte with the `Origin` they sent, and Safari's UUIDs are
+ * uppercase, so a lowercased echo would fail CORS.
  */
 export const parseExtensionOrigin = (value: string): string | null => {
   const match = EXTENSION_ORIGIN.exec(value.trim());
   if (!match) return null;
-  return `${match[1]!.toLowerCase()}://${match[2]!.toLowerCase()}`;
+  return `${match[1]!.toLowerCase()}://${match[2]!}`;
 };
 
 /** the public Constellation backlink index */

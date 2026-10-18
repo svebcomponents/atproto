@@ -189,7 +189,9 @@ The session is bound to the extension origin, which no web page can forge.
 The extension's pages share one origin, so a sign-in from any of them is
 visible to the others through that origin's `localStorage`. Pin the extension
 ID (Chrome's manifest `key`) so it stays the same across machines and
-unpacked builds.
+unpacked builds. Firefox gives each installation its own `moz-extension://`
+UUID, so an allowlist cannot list a Firefox extension for every reader; such
+an extension needs a bridge without `allowedOrigins`.
 
 ## Live comment events
 

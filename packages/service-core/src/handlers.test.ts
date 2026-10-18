@@ -1399,6 +1399,21 @@ describe("browser extension origins", () => {
     expect(createRecordCalls).toHaveLength(1);
   });
 
+  it("keeps the extension ID's case for CORS", async () => {
+    // Safari's extension UUIDs are uppercase, and browsers compare the
+    // allowed origin byte for byte with the one they sent
+    const SAFARI =
+      "safari-web-extension://3B2A1C9E-0D4F-4A6B-9C8D-7E6F5A4B3C2D";
+    const service = extensionService();
+    const res = await service.fetch(
+      new Request(`${SERVICE}/atproto/api/session`, {
+        method: "OPTIONS",
+        headers: { origin: SAFARI },
+      }),
+    );
+    expect(res!.headers.get("access-control-allow-origin")).toBe(SAFARI);
+  });
+
   it("refuses other non-web schemes", async () => {
     const service = extensionService();
     for (const origin of ["file:///etc", "javascript:alert(1)", "null"]) {
