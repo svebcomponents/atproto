@@ -5,7 +5,7 @@ import {
   DEFAULT_CONSTELLATION,
   resolveConfig,
 } from "./config.js";
-import type { AuthClaim } from "./config.js";
+import type { AuthClaim, ServiceConfig } from "./config.js";
 
 const claim: AuthClaim = {
   origin: "https://blog.example",
@@ -160,8 +160,39 @@ describe("permission sets", () => {
       },
       /service fragment/,
     ],
+    [
+      "a clientName over 100 characters",
+      { feeds: { ...feeds, clientName: "x".repeat(101) } },
+      /at most 100/,
+    ],
+    // shapes that only arrive through JSON, not type-checked code
+    ["a set that is not an object", { feeds: null }, /must be an object/],
+    [
+      "methods that are not an array",
+      { feeds: { ...feeds, methods: {} } },
+      /methods must be an array/,
+    ],
+    [
+      "a method that is not an object",
+      { feeds: { ...feeds, methods: [null] } },
+      /methods must be an array/,
+    ],
+    [
+      "a service-auth pair without lxm",
+      {
+        feeds: { ...feeds, serviceAuth: [{ aud: "did:web:gateway.example" }] },
+      },
+      /serviceAuth must be an array/,
+    ],
   ])("rejects %s", (_label, permissionSets, error) => {
-    expect(() => resolveConfig({ ...base(), permissionSets })).toThrow(error);
+    expect(() =>
+      resolveConfig({
+        ...base(),
+        permissionSets: permissionSets as unknown as NonNullable<
+          ServiceConfig["permissionSets"]
+        >,
+      }),
+    ).toThrow(error);
   });
 
   it("adds an rpc scope for each service-auth pair", () => {
