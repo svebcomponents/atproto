@@ -152,6 +152,7 @@ DELETE /api/like, /api/repost            undo them (removes the reader's record)
 GET    /api/viewer?like=…&repost=…       the reader's own like/repost records for those posts
 GET    /api/comments/stream?thread=…     SSE reply signals for one thread
 GET    /api/stats                        whole-service counts (no origins, no readers)
+GET    /api/xrpc/<nsid>?…                an XRPC query in the session's permission set
 GET    /clients/<set>/client-metadata.json  a permission set's OAuth client metadata
 GET    /clients/<set>/oauth/callback     a permission set's token exchange
 ```
@@ -276,6 +277,36 @@ The previous client's login stays, since other sites may be using it.
 
 Each set's `origins` must also be in `allowedOrigins` when the deployment has
 an allowlist. Without permission sets, nothing changes.
+
+### Reading through the bridge
+
+A session signed in under a set calls the set's queries through
+`GET /api/xrpc/<nsid>`, or `ServiceClient.query(nsid, params)`:
+
+```ts
+const { feed, cursor } = await client.query("app.bsky.feed.getTimeline", {
+  limit: 30,
+});
+```
+
+The bridge forwards the request to the reader's PDS, with `atproto-proxy` set
+to the method's `aud`, and passes the response through. It refuses:
+
+- anything but GET (405);
+- a malformed NSID (400);
+- a query outside the session's own set, and every query from a session
+  without a set (403).
+
+**Other rules:**
+
+- The caller can't choose the upstream service: `atproto-proxy` always comes
+  from config.
+- The reader's `Accept-Language` is forwarded, since feeds rank by language.
+- Responses carry `cache-control: no-store`.
+- An upstream 401 or 403 becomes a 403 `UpstreamForbidden`, so a refused grant
+  doesn't look like an expired bridge session. Upstream failures become 502.
+- Reads have their own limiter, `proxyRateLimiter`, keyed by account and set
+  (default: 600 per 10 minutes).
 
 ## Live comment events
 

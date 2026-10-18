@@ -10,6 +10,7 @@ import {
   type WebSocketFactory,
 } from "./commentStream.js";
 import {
+  NSID,
   parseExtensionOrigin,
   resolveConfig,
   type ResolvedPermissionSet,
@@ -839,6 +840,7 @@ const handleApi = async (
     );
   }
   const cors = corsHeaders(claims.origin);
+
   // The session acts through the client it signed in with. A set the
   // operator has since removed leaves nothing to act through.
   const clientPromise = clients(claims.access);
@@ -847,6 +849,17 @@ const handleApi = async (
       401,
       "InvalidSession",
       "This sign-in's access is no longer offered — sign in again",
+      cors,
+    );
+  }
+
+  if (route.startsWith("/api/xrpc/")) {
+    return handleProxy(
+      request,
+      route.slice("/api/xrpc/".length),
+      claims,
+      config,
+      clients,
       cors,
     );
   }
@@ -1142,6 +1155,109 @@ const handleApi = async (
     default:
       return jsonError(404, "NotFound", "Unknown route", cors);
   }
+};
+
+/** the longest query string the proxy forwards */
+const MAX_PROXY_QUERY = 4096;
+
+/**
+ * Forwards an XRPC query to the reader's PDS, which proxies it to the
+ * service the permission set names. Only queries in the session's own set
+ * are forwarded, and `atproto-proxy` always comes from the operator's
+ * config, never from the caller. Nothing method-specific lives here: a new
+ * capability is a config entry.
+ */
+const handleProxy = async (
+  request: Request,
+  nsid: string,
+  claims: SessionTokenClaims,
+  config: ResolvedServiceConfig,
+  clients: OAuthClients,
+  cors: HeadersInit,
+): Promise<Response> => {
+  const headers = { ...cors, "cache-control": "no-store" };
+  if (request.method !== "GET") {
+    return jsonError(405, "MethodNotAllowed", "Only queries are proxied", {
+      ...headers,
+      allow: "GET",
+    });
+  }
+  if (!NSID.test(nsid)) {
+    return jsonError(400, "InvalidRequest", "Not a valid NSID", headers);
+  }
+  const set = claims.access ? config.permissionSets[claims.access] : undefined;
+  const method = set?.methods.find((entry) => entry.nsid === nsid);
+  const client = set && clients(set.name);
+  if (!set || !method || !client) {
+    return jsonError(
+      403,
+      "Forbidden",
+      `This site was not granted access to ${nsid}`,
+      headers,
+    );
+  }
+  const query = new URL(request.url).search;
+  if (query.length > MAX_PROXY_QUERY) {
+    return jsonError(400, "InvalidRequest", "Query string too long", headers);
+  }
+  if (!(await config.proxyRateLimiter(`${claims.did} ${set.name}`))) {
+    return jsonError(
+      429,
+      "RateLimited",
+      "Too many requests — try again in a few minutes",
+      { ...headers, "retry-after": "600" },
+    );
+  }
+
+  const session = await restorePdsSession(claims.did, client);
+  if (!session) {
+    return jsonError(
+      401,
+      "SessionExpired",
+      SESSION_EXPIRED_RESULT.message,
+      headers,
+    );
+  }
+  const language = request.headers.get("accept-language");
+  let upstream: Response;
+  try {
+    upstream = await session.fetchHandler(`/xrpc/${nsid}${query}`, {
+      method: "GET",
+      headers: {
+        accept: "application/json",
+        "atproto-proxy": method.aud,
+        ...(language ? { "accept-language": language } : {}),
+      },
+    });
+  } catch {
+    return jsonError(502, "UpstreamError", "Could not reach the PDS", headers);
+  }
+  // A 401 from upstream is about the reader's grant, not this bridge
+  // session; passing it through would make the client sign out.
+  if (upstream.status === 401 || upstream.status === 403) {
+    return jsonError(
+      403,
+      "UpstreamForbidden",
+      "The reader's server refused this request — sign in again to grant access",
+      headers,
+    );
+  }
+  if (upstream.status >= 500) {
+    return jsonError(
+      502,
+      "UpstreamError",
+      `Upstream failed (HTTP ${upstream.status})`,
+      headers,
+    );
+  }
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: {
+      ...headers,
+      "content-type":
+        upstream.headers.get("content-type") ?? "application/json",
+    },
+  });
 };
 
 /** the default client (`undefined`) or a permission set's client */

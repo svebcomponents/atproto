@@ -504,4 +504,42 @@ describe("ServiceClient", () => {
       expect(store.get(TOKEN_KEY)).toBe("new-token");
     });
   });
+
+  describe("query", () => {
+    it("calls an XRPC query through the bridge with the bearer token", async () => {
+      store.set(TOKEN_KEY, "tok");
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ feed: [] }));
+      const client = new ServiceClient(
+        "/atproto",
+        fetchImpl as unknown as typeof fetch,
+      );
+      const result = await client.query("app.bsky.feed.getTimeline", {
+        limit: 30,
+        cursor: undefined,
+        langs: ["en", "de"],
+      });
+      expect(result).toEqual({ feed: [] });
+      const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(
+        "https://blog.example/atproto/api/xrpc/app.bsky.feed.getTimeline?limit=30&langs=en&langs=de",
+      );
+      expect(init.headers).toMatchObject({ authorization: "Bearer tok" });
+    });
+
+    it("throws the bridge's refusal", async () => {
+      store.set(TOKEN_KEY, "tok");
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ error: "Forbidden", message: "not granted" }, 403),
+        );
+      const client = new ServiceClient(
+        "/atproto",
+        fetchImpl as unknown as typeof fetch,
+      );
+      await expect(
+        client.query("app.bsky.feed.getTimeline"),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+  });
 });

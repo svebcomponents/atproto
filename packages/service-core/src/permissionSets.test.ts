@@ -73,6 +73,8 @@ const fakeClient = (clientId: string) => {
     })),
     restore: vi.fn(async () => session),
     revoke: vi.fn(async () => undefined),
+    /** the PDS session restore() hands out */
+    session,
     /** lets a test hand the callback a state of its choosing */
     setState(state: unknown) {
       lastState = JSON.stringify(state);
@@ -332,5 +334,114 @@ describe("permission sets", () => {
     );
     expect(store.map.has(first)).toBe(false);
     expect(store.map.get(second)).toMatchObject({ access: "feeds" });
+  });
+
+  describe("xrpc proxy", () => {
+    const timeline = "/api/xrpc/app.bsky.feed.getTimeline?limit=2";
+    const upstream = (response: Response) =>
+      vi
+        .mocked(feedsClient.session.fetchHandler)
+        .mockResolvedValueOnce(response);
+
+    it("forwards a granted query to the service the set names", async () => {
+      const svc = service();
+      const token = await signIn(svc, EXTENSION, "feeds");
+      upstream(
+        new Response(JSON.stringify({ feed: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+      const request = api(timeline, token, EXTENSION);
+      request.headers.set("accept-language", "de, en;q=0.8");
+      // a caller cannot pick the upstream service
+      request.headers.set("atproto-proxy", "did:web:evil.example#svc");
+      const res = await svc.fetch(request);
+
+      expect(res!.status).toBe(200);
+      expect(await res!.json()).toEqual({ feed: [] });
+      expect(res!.headers.get("cache-control")).toBe("no-store");
+      expect(res!.headers.get("access-control-allow-origin")).toBe(EXTENSION);
+      expect(feedsClient.session.fetchHandler).toHaveBeenCalledWith(
+        "/xrpc/app.bsky.feed.getTimeline?limit=2",
+        {
+          method: "GET",
+          headers: {
+            accept: "application/json",
+            "atproto-proxy": "did:web:api.bsky.app#bsky_appview",
+            "accept-language": "de, en;q=0.8",
+          },
+        },
+      );
+    });
+
+    it("refuses queries outside the session's set", async () => {
+      const svc = service();
+      const token = await signIn(svc, EXTENSION, "feeds");
+      const res = await svc.fetch(
+        api("/api/xrpc/app.bsky.graph.getMutes", token, EXTENSION),
+      );
+      expect(res!.status).toBe(403);
+      expect(feedsClient.session.fetchHandler).not.toHaveBeenCalled();
+    });
+
+    it("refuses every query to a comment-section session", async () => {
+      const svc = service();
+      const token = await signIn(svc, BLOG);
+      const res = await svc.fetch(api(timeline, token, BLOG));
+      expect(res!.status).toBe(403);
+      expect(defaultClient.restore).not.toHaveBeenCalled();
+    });
+
+    it("forwards queries only", async () => {
+      const svc = service();
+      const token = await signIn(svc, EXTENSION, "feeds");
+      const res = await svc.fetch(api(timeline, token, EXTENSION, "POST", {}));
+      expect(res!.status).toBe(405);
+    });
+
+    it("refuses a malformed NSID", async () => {
+      const svc = service();
+      const token = await signIn(svc, EXTENSION, "feeds");
+      const res = await svc.fetch(
+        api("/api/xrpc/..%2F..%2Fsecret", token, EXTENSION),
+      );
+      expect(res!.status).toBe(400);
+    });
+
+    it("requires a session", async () => {
+      const res = await service().fetch(
+        new Request(`${SERVICE}/atproto${timeline}`, {
+          headers: { origin: EXTENSION },
+        }),
+      );
+      expect(res!.status).toBe(401);
+    });
+
+    it("applies its own rate limit", async () => {
+      const svc = service({ proxyRateLimiter: () => false });
+      const token = await signIn(svc, EXTENSION, "feeds");
+      const res = await svc.fetch(api(timeline, token, EXTENSION));
+      expect(res!.status).toBe(429);
+    });
+
+    it("does not pass an upstream 401 through as a bridge 401", async () => {
+      const svc = service();
+      const token = await signIn(svc, EXTENSION, "feeds");
+      upstream(new Response("{}", { status: 401 }));
+      const res = await svc.fetch(api(timeline, token, EXTENSION));
+      expect(res!.status).toBe(403);
+      expect((await res!.json()) as object).toMatchObject({
+        error: "UpstreamForbidden",
+      });
+    });
+
+    it("maps upstream failures to 502", async () => {
+      const svc = service();
+      const token = await signIn(svc, EXTENSION, "feeds");
+      upstream(new Response("{}", { status: 500 }));
+      const res = await svc.fetch(api(timeline, token, EXTENSION));
+      expect(res!.status).toBe(502);
+    });
   });
 });
