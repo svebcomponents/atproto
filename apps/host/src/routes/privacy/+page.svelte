@@ -7,7 +7,7 @@
   // nobody adds request logging: the service writes no access log, and no
   // IP address is ever written to disk. Deployment notes live in
   // apps/host/deploy/.
-  const lastUpdated = "24 August 2026";
+  const lastUpdated = "18 October 2026";
   const contact = "svebcomponents@theosteiner.de";
 
   const consentSnippet = `const comments = document.querySelector("atproto-comments");
@@ -126,6 +126,32 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
       results from it.
     </p>
 
+    <h3>If an app asks for more than commenting</h3>
+    <p>
+      The operator can let a few named apps ask for more than commenting, for
+      example to show you your own feeds. You approve this separately: the
+      bridge's sign-in page lists what the app asks for, and your provider's
+      approval screen shows the app's name. If you approve, then at that app's
+      request the bridge can:
+    </p>
+    <ul>
+      <li>
+        <strong>read your feeds and Following timeline</strong> through your provider
+        and pass them to the app. Nothing it reads is stored or logged. A timeline
+        can reveal who you follow and what you see;
+      </li>
+      <li>
+        <strong>ask your provider for a short-lived token</strong>, valid for 60
+        seconds, that proves to the app's own server which account you are. Your
+        provider signs it; the bridge holds no key for this.
+      </li>
+    </ul>
+    <p>
+      This access lives in a separate authorization that only the approved app
+      can use. Other sites using the bridge never get it, and signing out of the
+      app revokes it.
+    </p>
+
     <h3>What is counted</h3>
     <p>
       The service keeps running totals so its operator can see how much it is
@@ -161,6 +187,11 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
           <tr>
             <td>Sign-in, sessions, posting</td>
             <td>You asked to sign in and post; it cannot work otherwise</td>
+            <td>(b) performance of a service you requested</td>
+          </tr>
+          <tr>
+            <td>Reading feeds and requesting tokens for an app you approved</td>
+            <td>You asked that app to show your feeds or prove your account</td>
             <td>(b) performance of a service you requested</td>
           </tr>
           <tr>
@@ -218,8 +249,16 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
             ></tr
           >
           <tr
-            ><td>Authorization token set</td><td
+            ><td
+              >Authorization token set (one more for each app you approved)</td
+            ><td
               >Until you sign out, or 30 days unused — whichever comes first</td
+            ></tr
+          >
+          <tr
+            ><td>Feeds and timelines read for an approved app</td><td
+              >Not kept. Passed to the app as they are read, and never written
+              to disk.</td
             ></tr
           >
           <tr><td>Pending sign-in state</td><td>10 minutes</td></tr>
@@ -274,6 +313,11 @@ onConsent((granted) => (comments.live = granted ? "all" : "off"));`;
         <code>appview</code> property; unset, it is Bluesky's public AppView. This
         is inherent to displaying ATProto content and is not something this service
         mediates.
+      </li>
+      <li>
+        <strong>Apps you approve for extra access.</strong> They receive the feeds,
+        timeline and account tokens they request, as described above. Their own policies
+        govern what they do with them.
       </li>
       <li>
         <strong>Microcosm Spacedust.</strong> The bridge subscribes to this

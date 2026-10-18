@@ -4,6 +4,7 @@ import {
   type AtprotoCommentsService,
 } from "@svebcomponents/atproto.bridge";
 
+import { parsePermissionSets } from "./permissionSets.js";
 import { createSqliteStores } from "./sqliteStores.js";
 
 let cached: AtprotoCommentsService | undefined;
@@ -32,6 +33,8 @@ const positiveNumberEnv = (name: string): number | undefined => {
  *   SPACEDUST_URL    — optional self-hosted Spacedust websocket origin
  *   APPVIEW_URL      — optional AppView for profile lookups and handle
  *                      resolution (default: the public Bluesky AppView)
+ *   PERMISSION_SETS  — optional JSON object of permission sets: extra access
+ *                      for specific sites (see the bridge README)
  *
  * Note: the origin var is deliberately NOT named with a `PUBLIC_` prefix —
  * SvelteKit reserves that prefix for client-exposed vars, so `$env/dynamic/
@@ -66,6 +69,7 @@ export const getService = (): AtprotoCommentsService => {
     "COMMENT_STREAM_MAX_SUBSCRIBERS_PER_THREAD",
   );
   const heartbeatMs = positiveNumberEnv("COMMENT_STREAM_HEARTBEAT_MS");
+  const permissionSets = parsePermissionSets(env["PERMISSION_SETS"]);
 
   cached = createAtprotoCommentsService({
     publicUrl: serviceUrl,
@@ -99,6 +103,7 @@ export const getService = (): AtprotoCommentsService => {
       ...(heartbeatMs !== undefined ? { heartbeatMs } : {}),
     },
     ...(keys ? { keys: keys.split("\n").filter(Boolean) } : {}),
+    ...(permissionSets ? { permissionSets } : {}),
     ...stores,
   });
   return cached;

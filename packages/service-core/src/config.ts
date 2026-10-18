@@ -576,6 +576,49 @@ interface KeyedStore {
   del(key: string, ...rest: unknown[]): unknown;
 }
 
+/** the longest `clientName` a set may show on approval screens */
+const MAX_CLIENT_NAME = 100;
+
+/**
+ * Sets often come from JSON (an env var), not type-checked code, so check
+ * the shape before reading it: a malformed entry should fail with its name,
+ * not a bare TypeError.
+ */
+const checkPermissionSetShape = (name: string, set: unknown): void => {
+  const fail = (what: string) => {
+    throw new Error(`permissionSets.${name}${what}`);
+  };
+  const isObject = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+  if (!isObject(set)) return fail(" must be an object");
+  if (typeof set["clientName"] !== "string") {
+    return fail(".clientName must be a string");
+  }
+  if (typeof set["description"] !== "string") {
+    return fail(".description must be a string");
+  }
+  const origins = set["origins"];
+  if (!Array.isArray(origins) || !origins.every((o) => typeof o === "string")) {
+    return fail(".origins must be an array of strings");
+  }
+  const entries = (field: string, keys: readonly string[]) => {
+    const value = set[field];
+    if (value === undefined) return;
+    if (
+      !Array.isArray(value) ||
+      !value.every(
+        (entry) =>
+          isObject(entry) &&
+          keys.every((key) => typeof entry[key] === "string"),
+      )
+    ) {
+      fail(`.${field} must be an array of { ${keys.join(", ")} } strings`);
+    }
+  };
+  entries("methods", ["nsid", "aud"]);
+  entries("serviceAuth", ["aud", "lxm"]);
+};
+
 const resolvePermissionSets = (
   config: ServiceConfig,
   scope: string,
@@ -590,9 +633,15 @@ const resolvePermissionSets = (
         `permissionSets: "${name}" must be lowercase letters, digits, and dashes`,
       );
     }
+    checkPermissionSetShape(name, set);
     if (!set.clientName.trim() || !set.description.trim()) {
       throw new Error(
         `permissionSets.${name} needs a clientName and a description`,
+      );
+    }
+    if (set.clientName.trim().length > MAX_CLIENT_NAME) {
+      throw new Error(
+        `permissionSets.${name}.clientName must be at most ${MAX_CLIENT_NAME} characters`,
       );
     }
     if (set.origins.length === 0) {
