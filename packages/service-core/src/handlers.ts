@@ -271,7 +271,12 @@ const authenticateCookie = async (
     return null;
   }
   if (requestOrigin !== null && requestOrigin !== session.origin) return null;
-  return { did: session.did, origin: session.origin, sid };
+  return {
+    did: session.did,
+    origin: session.origin,
+    sid,
+    ...(session.access ? { access: session.access } : {}),
+  };
 };
 
 /**
