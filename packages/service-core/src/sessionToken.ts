@@ -17,6 +17,12 @@ export interface SessionTokenClaims {
    * rotation existed carry none and count as generation 0.
    */
   generation?: number;
+  /**
+   * The permission set of the session, read from the session store on
+   * verify; never encoded in the token, so the store stays the authority.
+   * Ignored by `mint`.
+   */
+  access?: string;
 }
 
 export interface SessionTokenIssuer {
@@ -114,6 +120,7 @@ export const createSessionTokenIssuer = ({
         origin,
         sid,
         ...(typeof gen === "number" && gen > 0 ? { generation: gen } : {}),
+        ...(session.access ? { access: session.access } : {}),
       };
     },
   };

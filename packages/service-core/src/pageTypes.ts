@@ -16,6 +16,9 @@ export interface PageProps {
   supportUrl?: string;
   productUrl?: string;
   error?: string;
+  access?: string;
+  accessDescription?: string;
+  accessNote?: string;
   callbackPayload?: string;
   message?: string;
 }

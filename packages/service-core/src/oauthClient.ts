@@ -1,7 +1,7 @@
 import { JoseKey } from "@atproto/jwk-jose";
 import { NodeOAuthClient } from "@atproto/oauth-client-node";
 
-import type { ResolvedServiceConfig } from "./config.js";
+import type { ResolvedPermissionSet, ResolvedServiceConfig } from "./config.js";
 
 /**
  * The structural subset of NodeOAuthClient the handlers use — kept narrow so
@@ -33,22 +33,38 @@ export interface OAuthPdsSession {
   fetchHandler(pathname: string, init?: RequestInit): Promise<Response>;
 }
 
+/**
+ * Where a client's metadata and callback live: the default client at the
+ * base path, each permission set's client under `/clients/<name>`.
+ */
+export const clientPath = (
+  config: ResolvedServiceConfig,
+  set?: ResolvedPermissionSet,
+): string => (set ? `${config.basePath}/clients/${set.name}` : config.basePath);
+
+/**
+ * Builds the default OAuth client, or a permission set's client when `set` is
+ * given. A set's client has its own `client_id`, name, scope, redirect URI,
+ * and namespaced stores; it shares the default client's signing keys.
+ */
 export const buildOAuthClient = async (
   config: ResolvedServiceConfig,
+  set?: ResolvedPermissionSet,
 ): Promise<OAuthBridgeClient> => {
+  const path = clientPath(config, set);
+  const scope = set?.scope ?? config.scope;
+  const stateStore = set?.stateStore ?? config.stateStore;
+  const sessionStore = set?.sessionStore ?? config.sessionStore;
   if (config.isLoopback) {
     // atproto's development mode. Rules (RFC 8252): the client_id origin is
     // always `http://localhost` with metadata carried in the query string,
     // but redirect_uris must use a loopback IP (127.0.0.1), not "localhost".
-    const redirectUrl = new URL(
-      `${config.basePath}/oauth/callback`,
-      config.publicUrl,
-    );
+    const redirectUrl = new URL(`${path}/oauth/callback`, config.publicUrl);
     redirectUrl.hostname = "127.0.0.1";
     const redirectUri = redirectUrl.toString();
 
     const clientId = `http://localhost?${new URLSearchParams({
-      scope: config.scope,
+      scope,
       redirect_uri: redirectUri,
     }).toString()}`;
     return new NodeOAuthClient({
@@ -57,17 +73,17 @@ export const buildOAuthClient = async (
         redirect_uris: [redirectUri],
         grant_types: ["authorization_code", "refresh_token"],
         response_types: ["code"],
-        scope: config.scope,
+        scope,
         application_type: "native",
         token_endpoint_auth_method: "none",
         dpop_bound_access_tokens: true,
       },
-      stateStore: config.stateStore,
-      sessionStore: config.sessionStore,
+      stateStore,
+      sessionStore,
     }) as unknown as OAuthBridgeClient;
   }
 
-  const redirectUri = `${config.publicUrl}${config.basePath}/oauth/callback`;
+  const redirectUri = `${config.publicUrl}${path}/oauth/callback`;
 
   if (!(config.keys && config.keys.length > 0)) {
     throw new Error(
@@ -82,13 +98,13 @@ export const buildOAuthClient = async (
 
   return new NodeOAuthClient({
     clientMetadata: {
-      client_id: `${config.publicUrl}${config.basePath}/client-metadata.json`,
-      client_name: config.clientName,
+      client_id: `${config.publicUrl}${path}/client-metadata.json`,
+      client_name: set?.clientName ?? config.clientName,
       client_uri: config.publicUrl,
       redirect_uris: [redirectUri],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
-      scope: config.scope,
+      scope,
       application_type: "web",
       token_endpoint_auth_method: "private_key_jwt",
       token_endpoint_auth_signing_alg: "ES256",
@@ -96,7 +112,7 @@ export const buildOAuthClient = async (
       jwks_uri: `${config.publicUrl}${config.basePath}/jwks.json`,
     },
     keyset,
-    stateStore: config.stateStore,
-    sessionStore: config.sessionStore,
+    stateStore,
+    sessionStore,
   }) as unknown as OAuthBridgeClient;
 };

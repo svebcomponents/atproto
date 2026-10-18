@@ -445,4 +445,63 @@ describe("ServiceClient", () => {
       client.like({ uri: "at://x/app.bsky.feed.post/r", cid: "c" }),
     ).rejects.toBeInstanceOf(ServiceError);
   });
+
+  describe("signIn", () => {
+    const signInWith = async (
+      options: { access?: string },
+      claim: Record<string, unknown>,
+    ) => {
+      vi.useFakeTimers();
+      const open = vi.fn(() => ({ close: vi.fn() }));
+      vi.stubGlobal("open", open);
+      vi.stubGlobal("addEventListener", vi.fn());
+      vi.stubGlobal("removeEventListener", vi.fn());
+      const fetchImpl = vi.fn(async (input: RequestInfo | URL) =>
+        String(input).includes("/api/session/claim")
+          ? jsonResponse(claim)
+          : jsonResponse({ ok: true }),
+      );
+      const client = new ServiceClient(
+        "/atproto",
+        fetchImpl as unknown as typeof fetch,
+      );
+      const signedIn = client.signIn(options);
+      await vi.advanceTimersByTimeAsync(1000);
+      const session = await signedIn;
+      vi.useRealTimers();
+      return { open, fetchImpl, session };
+    };
+
+    it("asks for a permission set when given one", async () => {
+      const { open, session } = await signInWith(
+        { access: "feeds" },
+        { token: "t1", did: "did:plc:me", access: "feeds" },
+      );
+      const url = new URL(String((open.mock.calls[0] as unknown[])[0]));
+      expect(url.searchParams.get("access")).toBe("feeds");
+      expect(session).toEqual({ did: "did:plc:me", access: "feeds" });
+    });
+
+    it("asks for no set by default", async () => {
+      const { open } = await signInWith({}, { token: "t1", did: "did:plc:me" });
+      const url = new URL(String((open.mock.calls[0] as unknown[])[0]));
+      expect(url.searchParams.has("access")).toBe(false);
+    });
+
+    it("retires the previous session after signing in again", async () => {
+      store.set(TOKEN_KEY, "old-token");
+      const { fetchImpl } = await signInWith(
+        { access: "feeds" },
+        { token: "new-token", did: "did:plc:me", access: "feeds" },
+      );
+      const retire = fetchImpl.mock.calls.find(([input]) =>
+        String(input).endsWith("/api/session/retire"),
+      ) as [string, RequestInit] | undefined;
+      expect(retire?.[1]).toMatchObject({
+        method: "POST",
+        headers: { authorization: "Bearer old-token" },
+      });
+      expect(store.get(TOKEN_KEY)).toBe("new-token");
+    });
+  });
 });

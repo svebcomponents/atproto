@@ -19,6 +19,9 @@
     supportUrl,
     productUrl,
     error,
+    access,
+    accessDescription,
+    accessNote,
     callbackPayload = "{}",
     message,
   }: PageProps = $props();
@@ -107,9 +110,21 @@
             >
             <span class="origin">{origin}</span>
           </div>
+          {#if accessDescription}
+            <div class="access">
+              <span class="label">Also asks to</span>
+              <span class="access-description">{accessDescription}</span>
+              {#if accessNote}<p class="access-note">{accessNote}</p>{/if}
+            </div>
+          {/if}
           {#if error}<p class="error">{error}</p>{/if}
           <form method="get" action={actionUrl}>
             <input type="hidden" name="origin" value={origin} />
+            {#if access}<input
+                type="hidden"
+                name="access"
+                value={access}
+              />{/if}
             {#if claim}<input type="hidden" name="claim" value={claim} />{/if}
             {#if returnTo}<input
                 type="hidden"
@@ -346,6 +361,26 @@
     font-size: 0.92rem;
     color: var(--ink);
     word-break: break-all;
+  }
+
+  .access {
+    margin: -0.6rem 0 1.1rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--page);
+  }
+
+  .access-description {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .access-note {
+    margin: 0.35rem 0 0;
+    font-size: 0.82rem;
+    color: var(--meta);
   }
 
   label {

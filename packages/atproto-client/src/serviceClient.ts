@@ -9,6 +9,8 @@ export interface ServiceSessionInfo {
   handle?: string;
   displayName?: string;
   avatarUrl?: string;
+  /** the permission set this session signed in with, if any */
+  access?: string;
 }
 
 export interface CreatedRecord {
@@ -355,16 +357,21 @@ export class ServiceClient {
    * never auto-close); (2) polling a one-time claim keyed by an unguessable
    * nonce (robust, works even if the popup became a tab the user closes by
    * hand). Whichever arrives first wins.
+   *
+   * `access` names a permission set the bridge operator offers to this
+   * site, for access beyond commenting. Signing in again, with or without
+   * one, replaces this page's previous session on the bridge.
    */
   async signIn(
-    options: { timeoutMs?: number } = {},
+    options: { timeoutMs?: number; access?: string } = {},
   ): Promise<ServiceSessionInfo> {
     const timeoutMs = options.timeoutMs ?? 5 * 60_000;
     const origin = globalThis.location.origin;
     const nonce = crypto.randomUUID();
     const startUrl =
       `${this.serviceUrl}/oauth/start` +
-      `?origin=${encodeURIComponent(origin)}&claim=${encodeURIComponent(nonce)}`;
+      `?origin=${encodeURIComponent(origin)}&claim=${encodeURIComponent(nonce)}` +
+      (options.access ? `&access=${encodeURIComponent(options.access)}` : "");
     const popup = globalThis.open(
       startUrl,
       "atproto-comments-signin",
@@ -395,7 +402,9 @@ export class ServiceClient {
         } catch {
           // disconnected by COOP — the callback page closes itself
         }
+        const previous = this.#token;
         this.#storeToken(token ?? null);
+        if (previous && token && previous !== token) this.#retire(previous);
         resolve(session);
       };
       const fail = (error: ServiceError) => {
@@ -410,11 +419,13 @@ export class ServiceClient {
         handle?: string;
         displayName?: string;
         avatarUrl?: string;
+        access?: string;
       }): ServiceSessionInfo => ({
         did: data.did ?? "",
         ...(data.handle ? { handle: data.handle } : {}),
         ...(data.displayName ? { displayName: data.displayName } : {}),
         ...(data.avatarUrl ? { avatarUrl: data.avatarUrl } : {}),
+        ...(typeof data.access === "string" ? { access: data.access } : {}),
       });
 
       // Mechanism 1: postMessage fast path
@@ -427,6 +438,7 @@ export class ServiceClient {
           handle?: string;
           displayName?: string;
           avatarUrl?: string;
+          access?: string;
         };
         if (data?.type !== "atproto-comments:session" || !data.did) return;
         finish(toSession(data), data.token);
@@ -445,6 +457,7 @@ export class ServiceClient {
               handle?: string;
               displayName?: string;
               avatarUrl?: string;
+              access?: string;
             };
             finish(toSession(claim), claim.token);
           })
@@ -477,6 +490,21 @@ export class ServiceClient {
         globalThis.clearInterval(poll);
         globalThis.clearTimeout(deadline);
       };
+    });
+  }
+
+  /**
+   * Ends the bridge session behind a token this client no longer uses,
+   * keeping the reader's login (unlike {@link signOut}). Best-effort: an
+   * abandoned session also ages out on its own.
+   */
+  #retire(token: string): void {
+    void this.fetchImpl(`${this.serviceUrl}/api/session/retire`, {
+      method: "POST",
+      credentials: "include",
+      headers: { authorization: `Bearer ${token}` },
+    }).catch(() => {
+      // best-effort
     });
   }
 

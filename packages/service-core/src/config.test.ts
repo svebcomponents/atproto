@@ -86,3 +86,91 @@ describe("resolveConfig", () => {
     ).toThrow(/http/);
   });
 });
+
+describe("permission sets", () => {
+  const EXTENSION = "chrome-extension://abcdefghijklmnopabcdefghijklmnop";
+  const feeds = {
+    clientName: "Reader App",
+    description: "Read your timeline",
+    origins: [`${EXTENSION}/`],
+    methods: [
+      {
+        nsid: "app.bsky.feed.getTimeline",
+        aud: "did:web:api.bsky.app#bsky_appview",
+      },
+    ],
+  };
+  const base = () => ({
+    publicUrl: "https://comments.example",
+    sessionSecret: "test-secret-that-is-at-least-32-chars-long",
+    stateStore: { set: vi.fn(), get: vi.fn(), del: vi.fn() },
+    sessionStore: { set: vi.fn(), get: vi.fn(), del: vi.fn() },
+    serviceSessionStore: { set: vi.fn(), get: vi.fn(), del: vi.fn() },
+  });
+
+  it("offers none by default", () => {
+    expect(resolveConfig(base()).permissionSets).toEqual({});
+  });
+
+  it("adds the set's rpc scopes to the default scope", () => {
+    const config = resolveConfig({ ...base(), permissionSets: { feeds } });
+    expect(config.permissionSets["feeds"]!.scope).toBe(
+      `${config.scope} rpc:app.bsky.feed.getTimeline?aud=did:web:api.bsky.app%23bsky_appview`,
+    );
+    // the default client's scope is unchanged
+    expect(config.scope).toBe(resolveConfig(base()).scope);
+  });
+
+  it("normalizes the set's origins", () => {
+    const config = resolveConfig({ ...base(), permissionSets: { feeds } });
+    expect(config.permissionSets["feeds"]!.origins).toEqual([EXTENSION]);
+  });
+
+  it("namespaces the set's stores, leaving the default keys alone", async () => {
+    const config = base();
+    const { permissionSets } = resolveConfig({
+      ...config,
+      permissionSets: { feeds },
+    });
+    await permissionSets["feeds"]!.sessionStore.set("did:plc:me", {} as never);
+    await permissionSets["feeds"]!.stateStore.get("state-key");
+    expect(config.sessionStore.set).toHaveBeenCalledWith(
+      "sets/feeds/did:plc:me",
+      {},
+    );
+    expect(config.stateStore.get).toHaveBeenCalledWith("sets/feeds/state-key");
+  });
+
+  it.each([
+    ["an invalid name", { "Feeds!": feeds }, /lowercase/],
+    ["no origins", { feeds: { ...feeds, origins: [] } }, /at least one/],
+    ["no methods", { feeds: { ...feeds, methods: [] } }, /methods/],
+    [
+      "an invalid NSID",
+      { feeds: { ...feeds, methods: [{ ...feeds.methods[0]!, nsid: "x" }] } },
+      /NSID/,
+    ],
+    [
+      "an aud without a service fragment",
+      {
+        feeds: {
+          ...feeds,
+          methods: [{ ...feeds.methods[0]!, aud: "did:web:api.bsky.app" }],
+        },
+      },
+      /service fragment/,
+    ],
+  ])("rejects %s", (_label, permissionSets, error) => {
+    expect(() => resolveConfig({ ...base(), permissionSets })).toThrow(error);
+  });
+
+  it("rejects a set origin the deployment's allowlist would refuse", () => {
+    expect(() =>
+      resolveConfig({
+        ...base(),
+        allowedOrigins: ["https://blog.example"],
+        permissionSets: { feeds },
+      }),
+    ).toThrow(/not in allowedOrigins/);
+  });
+});

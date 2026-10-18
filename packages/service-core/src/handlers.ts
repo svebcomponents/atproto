@@ -12,6 +12,7 @@ import {
 import {
   parseExtensionOrigin,
   resolveConfig,
+  type ResolvedPermissionSet,
   type ServiceConfig,
   type ResolvedServiceConfig,
   type ServiceSession,
@@ -270,7 +271,12 @@ const authenticateCookie = async (
     return null;
   }
   if (requestOrigin !== null && requestOrigin !== session.origin) return null;
-  return { did: session.did, origin: session.origin, sid };
+  return {
+    did: session.did,
+    origin: session.origin,
+    sid,
+    ...(session.access ? { access: session.access } : {}),
+  };
 };
 
 /**
@@ -284,6 +290,8 @@ const authenticateCookie = async (
  */
 interface AuthorizeState {
   origin: string;
+  /** the permission set being signed in to; absent for the default client */
+  access?: string;
   /** claim nonce the opener polls with (undefined for the redirect fallback) */
   claim?: string;
   /** no-JS flow: page to redirect back to once signed in (cookie mode only) */
@@ -293,6 +301,8 @@ interface AuthorizeState {
 export interface CreateServiceOptions {
   /** test seam: bypasses NodeOAuthClient construction */
   oauthClient?: OAuthBridgeClient;
+  /** test seam: bypasses client construction for these permission sets */
+  permissionSetOAuthClients?: Readonly<Record<string, OAuthBridgeClient>>;
   /** test/runtime seam for the Spacedust websocket transport */
   webSocketFactory?: WebSocketFactory;
   /** test seam: bypasses the default shared per-thread stream broker */
@@ -310,9 +320,20 @@ export const createAtprotoCommentsService = (
 ): AtprotoCommentsService => {
   const config = resolveConfig(serviceConfig);
   const renderSignInPage = options.renderSignInPage ?? signInPage;
-  const clientPromise: Promise<OAuthBridgeClient> = options.oauthClient
+  const defaultClient: Promise<OAuthBridgeClient> = options.oauthClient
     ? Promise.resolve(options.oauthClient)
     : buildOAuthClient(config);
+  const setClients = new Map(
+    Object.values(config.permissionSets).map((set) => {
+      const injected = options.permissionSetOAuthClients?.[set.name];
+      return [
+        set.name,
+        injected ? Promise.resolve(injected) : buildOAuthClient(config, set),
+      ] as const;
+    }),
+  );
+  const clients: OAuthClients = (access) =>
+    access === undefined ? defaultClient : setClients.get(access);
 
   const tokens = createSessionTokenIssuer({
     secret: config.sessionSecret,
@@ -371,20 +392,39 @@ export const createAtprotoCommentsService = (
           route,
           config,
           tokens,
-          clientPromise,
+          clients,
           commentStreams,
         );
       }
 
+      // Each permission set's client keeps its metadata and callback under
+      // /clients/<name>; the signing keys (/jwks.json) are shared.
+      const setRoute = /^\/clients\/([^/]+)(\/.*)$/.exec(route);
+      if (setRoute) {
+        const set = config.permissionSets[setRoute[1]!];
+        const client = set && clients(set.name);
+        if (!set || !client) {
+          return jsonError(404, "NotFound", "Unknown route");
+        }
+        switch (`${request.method} ${setRoute[2]!}`) {
+          case "GET /client-metadata.json":
+            return json((await client).clientMetadata);
+          case "GET /oauth/callback":
+            return handleCallback(request, url, config, tokens, client, set);
+          default:
+            return jsonError(404, "NotFound", "Unknown route");
+        }
+      }
+
       switch (`${request.method} ${route}`) {
         case "GET /client-metadata.json":
-          return json((await clientPromise).clientMetadata);
+          return json((await defaultClient).clientMetadata);
         case "GET /jwks.json":
-          return json((await clientPromise).jwks);
+          return json((await defaultClient).jwks);
         case "GET /oauth/start":
-          return handleStart(url, config, clientPromise, renderSignInPage);
+          return handleStart(url, config, clients, renderSignInPage);
         case "GET /oauth/callback":
-          return handleCallback(url, config, tokens, clientPromise);
+          return handleCallback(request, url, config, tokens, defaultClient);
         default:
           return jsonError(404, "NotFound", "Unknown route");
       }
@@ -395,7 +435,7 @@ export const createAtprotoCommentsService = (
 const handleStart = async (
   url: URL,
   config: ResolvedServiceConfig,
-  clientPromise: Promise<OAuthBridgeClient>,
+  clients: OAuthClients,
   renderSignInPage: SignInPageRenderer,
 ): Promise<Response> => {
   const origin = parseAllowedOrigin(url.searchParams.get("origin"), config);
@@ -405,6 +445,27 @@ const handleStart = async (
       400,
     );
   }
+  // Extra access is offered only to the origins the operator listed for it:
+  // the set's origin list, not the sign-in page, is what keeps a site from
+  // asking readers for more than commenting.
+  const access = url.searchParams.get("access") || undefined;
+  const set = access === undefined ? undefined : config.permissionSets[access];
+  if (access !== undefined && !set) {
+    return html(
+      errorPage("This service does not offer the access this site asked for."),
+      400,
+    );
+  }
+  if (set && !set.origins.includes(origin)) {
+    return html(
+      errorPage("This site is not allowed to ask for this access."),
+      403,
+    );
+  }
+  const clientPromise = clients(set?.name);
+  if (!clientPromise) {
+    return html(errorPage("Sign-in is unavailable."), 500);
+  }
   const handle = url.searchParams.get("handle")?.trim() ?? "";
   const claim = url.searchParams.get("claim")?.trim();
   const returnTo = parseReturnUrl(url.searchParams.get("return"), origin);
@@ -413,7 +474,7 @@ const handleStart = async (
   if (!handle) {
     return html(
       await renderSignInPage({
-        ...signInPageProps(config, startUrl, origin),
+        ...signInPageProps(config, startUrl, origin, set),
         // preserved as hidden fields so the handle submission carries them back
         ...(claim ? { claim } : {}),
         ...(returnTo ? { returnTo } : {}),
@@ -424,6 +485,7 @@ const handleStart = async (
   try {
     const state: AuthorizeState = {
       origin,
+      ...(set ? { access: set.name } : {}),
       ...(claim ? { claim } : {}),
       ...(returnTo ? { return: returnTo } : {}),
     };
@@ -438,7 +500,7 @@ const handleStart = async (
   } catch {
     return html(
       await renderSignInPage({
-        ...signInPageProps(config, startUrl, origin),
+        ...signInPageProps(config, startUrl, origin, set),
         ...(claim ? { claim } : {}),
         ...(returnTo ? { returnTo } : {}),
         error: `Could not start sign-in for "${handle}" — check the handle and try again.`,
@@ -448,10 +510,15 @@ const handleStart = async (
   }
 };
 
+/** shown under a set's description when it reads feeds or the timeline */
+const FEED_ACCESS_NOTE =
+  "Reading your feeds and timeline can reveal who you follow and what you see.";
+
 const signInPageProps = (
   config: ResolvedServiceConfig,
   actionUrl: string,
   origin: string,
+  set?: ResolvedPermissionSet,
 ): SignInPageRenderProps => {
   const pageTitle = config.oauthPage?.title;
   const brand = config.oauthPage?.brand;
@@ -476,14 +543,25 @@ const signInPageProps = (
       : {}),
     ...(links?.support ? { supportUrl: links.support } : {}),
     ...(config.productUrl ? { productUrl: config.productUrl } : {}),
+    ...(set
+      ? {
+          access: set.name,
+          accessDescription: set.description,
+          ...(set.methods.some(({ nsid }) => nsid.startsWith("app.bsky.feed."))
+            ? { accessNote: FEED_ACCESS_NOTE }
+            : {}),
+        }
+      : {}),
   };
 };
 
 const handleCallback = async (
+  request: Request,
   url: URL,
   config: ResolvedServiceConfig,
   tokens: SessionTokenIssuer,
   clientPromise: Promise<OAuthBridgeClient>,
+  set?: ResolvedPermissionSet,
 ): Promise<Response> => {
   let did: string;
   let origin: string;
@@ -496,6 +574,15 @@ const handleCallback = async (
     const parsedState = JSON.parse(state ?? "") as Partial<AuthorizeState>;
     const parsedOrigin = parseAllowedOrigin(parsedState.origin ?? null, config);
     if (!parsedOrigin) throw new Error("state is missing an allowed origin");
+    // Each client's flow state lives in its own namespaced store, so a flow
+    // cannot finish on another client's callback; checked again here so the
+    // session is only ever recorded for the set the flow was started for.
+    if ((parsedState.access ?? undefined) !== set?.name) {
+      throw new Error("state belongs to a different client");
+    }
+    if (set && !set.origins.includes(parsedOrigin)) {
+      throw new Error("origin is not listed for this permission set");
+    }
     origin = parsedOrigin;
     // The claim nonce becomes a store key and ends up in a redirect URL, so
     // it must be a plain short string — the callback accepts whatever the
@@ -520,7 +607,23 @@ const handleCallback = async (
     origin,
     createdAt: new Date().toISOString(),
     ...profile,
+    ...(set ? { access: set.name } : {}),
   });
+  // Signing in again replaces this browser's earlier session on the same
+  // site, e.g. a step-up from commenting to a permission set. Cookie mode
+  // can do it here: the callback is first-party, so it carries the old
+  // cookie. Bearer clients retire their previous token themselves
+  // (`POST /api/session/retire`). Only the row goes; the ATProto login of
+  // the old session's client stays, since other sites may be using it.
+  if (config.sessionMode === "cookie") {
+    const previousSid = readCookie(request, config.sessionCookieName);
+    const previous = previousSid
+      ? await config.serviceSessionStore.get(previousSid)
+      : undefined;
+    if (previousSid && previous?.origin === origin) {
+      await config.serviceSessionStore.del(previousSid);
+    }
+  }
   config.metrics.record(origin, "signIn");
   const token =
     config.sessionMode === "bearer"
@@ -530,6 +633,7 @@ const handleCallback = async (
     ...(token ? { token } : {}),
     did,
     ...profile,
+    ...(set ? { access: set.name } : {}),
   };
 
   // Primary handoff: stash the claim for the opener to poll. OAuth providers
@@ -633,7 +737,7 @@ const handleApi = async (
   route: string,
   config: ResolvedServiceConfig,
   tokens: SessionTokenIssuer,
-  clientPromise: Promise<OAuthBridgeClient>,
+  clients: OAuthClients,
   commentStreams: CommentStreamBroker,
 ): Promise<Response> => {
   const requestOrigin = parseAllowedOrigin(
@@ -740,6 +844,17 @@ const handleApi = async (
     );
   }
   const cors = corsHeaders(claims.origin);
+  // The session acts through the client it signed in with. A set the
+  // operator has since removed leaves nothing to act through.
+  const clientPromise = clients(claims.access);
+  if (!clientPromise) {
+    return jsonError(
+      401,
+      "InvalidSession",
+      "This sign-in's access is no longer offered — sign in again",
+      cors,
+    );
+  }
 
   switch (`${request.method} ${route}`) {
     case "GET /api/session": {
@@ -756,6 +871,7 @@ const handleApi = async (
           handle: session?.handle,
           displayName: session?.displayName,
           avatarUrl: session?.avatarUrl,
+          ...(claims.access ? { access: claims.access } : {}),
         },
         200,
         cors,
@@ -816,6 +932,14 @@ const handleApi = async (
       return json({ token }, 200, cors);
     }
 
+    case "POST /api/session/retire": {
+      // Ends this browser session only, keeping the ATProto login: what a
+      // client does with its previous token after signing in again on the
+      // same site. Signing out (below) is what gives up the login.
+      await config.serviceSessionStore.del(claims.sid);
+      return json({ ok: true }, 200, cors);
+    }
+
     case "POST /api/session/logout": {
       await config.serviceSessionStore.del(claims.sid);
       // Also give up the ATProto grant. Without this, signing out ends only
@@ -823,10 +947,11 @@ const handleApi = async (
       // lets the bridge post as this account stays on disk indefinitely —
       // "sign out" has to mean the service can no longer act as the user.
       //
-      // Token sets are keyed by DID, so a reader signed in on two sites at
-      // once ends both by signing out of either. That is the safer default:
-      // the alternative silently keeps a live credential for an account
-      // whose owner just asked to be signed out.
+      // Token sets are keyed by DID within each client, so a reader signed
+      // in on two sites of the same client ends both by signing out of
+      // either. That is the safer default: the alternative silently keeps a
+      // live credential for an account whose owner just asked to be signed
+      // out. Logins of other clients (permission sets) are not touched.
       try {
         await (await clientPromise).revoke(claims.did);
       } catch {
@@ -1023,6 +1148,11 @@ const handleApi = async (
       return jsonError(404, "NotFound", "Unknown route", cors);
   }
 };
+
+/** the default client (`undefined`) or a permission set's client */
+type OAuthClients = (
+  access: string | undefined,
+) => Promise<OAuthBridgeClient> | undefined;
 
 const handleCommentStream = async (
   request: Request,

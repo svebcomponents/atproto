@@ -144,6 +144,7 @@ GET    /oauth/start?origin=…             begin sign-in (popup entry, handle pa
 GET    /oauth/callback                   token exchange → session handoff page
 GET    /api/session                      who is signed in (session profile snapshot)
 POST   /api/session/refresh              renew the browser session
+POST   /api/session/retire               end this browser session, keeping the ATProto grant
 POST   /api/session/logout               delete session and revoke the ATProto grant
 POST   /api/reply                        create a reply post as the signed-in reader
 POST   /api/like, /api/repost            like/repost as the signed-in reader
@@ -151,6 +152,8 @@ DELETE /api/like, /api/repost            undo them (removes the reader's record)
 GET    /api/viewer?like=…&repost=…       the reader's own like/repost records for those posts
 GET    /api/comments/stream?thread=…     SSE reply signals for one thread
 GET    /api/stats                        whole-service counts (no origins, no readers)
+GET    /clients/<set>/client-metadata.json  a permission set's OAuth client metadata
+GET    /clients/<set>/oauth/callback     a permission set's token exchange
 ```
 
 ## Session modes
@@ -206,6 +209,75 @@ ID (Chrome's manifest `key`) so it stays the same across machines and
 unpacked builds. Firefox gives each installation its own `moz-extension://`
 UUID, so an allowlist cannot list a Firefox extension for every reader; such
 an extension needs a bridge without `allowedOrigins`.
+
+## Permission sets
+
+Some sites need a little more of the reader's account than commenting, such
+as reading their timeline. The operator can offer that to specific sites as a
+permission set:
+
+```ts
+createAtprotoCommentsService({
+  // ...
+  permissionSets: {
+    feeds: {
+      // the app name the reader's PDS shows on its approval screen
+      clientName: "Reader App (via comments.example)",
+      // listed on the bridge's sign-in page
+      description: "Read your feeds and timeline",
+      // the only origins that may sign in under this set
+      origins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop"],
+      methods: [
+        {
+          nsid: "app.bsky.feed.getTimeline",
+          aud: "did:web:api.bsky.app#bsky_appview",
+        },
+      ],
+    },
+  },
+});
+```
+
+A listed site asks for it with `signIn({ access: "feeds" })`.
+
+**Each set is its own OAuth client:**
+
+- its `client_id` is `<basePath>/clients/<name>/client-metadata.json`, with its
+  own `clientName` and redirect URI;
+- its scope is `scope` plus an `rpc:<nsid>?aud=<aud>` scope per method, so a
+  site in the set can also comment with the same login and its readers
+  approve once;
+- it keeps its logins and flow state in the same `stateStore` and
+  `sessionStore`, under keys prefixed with `sets/<name>/`;
+- it shares the default client's signing keys (`/jwks.json`).
+
+**This keeps one site's grant away from every other site:**
+
+- Comment sections keep the default client: the same `client_id`, scope,
+  approval screen, and stored logins as without permission sets.
+- The extra scopes exist only in the set's logins, and only the set's
+  `origins` can sign in under it.
+- The bridge records the set on the session (`ServiceSession.access`), and
+  every request acts through that session's own client.
+
+**Sign-out** revokes the login of the session's own client. Signing out of a
+comment section never touches a set's login, and the other way round. Within
+one client the existing rule holds: a reader signed in on two of its sites
+ends both by signing out of either.
+
+**Signing in again** on a site replaces that site's previous session, for
+example when it steps up from commenting to a set:
+
+- cookie mode deletes the previous session in the callback;
+- bearer clients retire their previous token with `POST /api/session/retire`,
+  which `ServiceClient.signIn` does for you.
+
+The previous client's login stays, since other sites may be using it.
+
+Each set's `origins` must also be in `allowedOrigins` when the deployment has
+an allowlist. A set cannot list a Firefox extension, whose `moz-extension://`
+UUID differs per installation (see [Browser extensions](#browser-extensions)).
+Without permission sets, nothing changes.
 
 ## Live comment events
 
