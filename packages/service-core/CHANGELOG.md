@@ -1,5 +1,66 @@
 # @svebcomponents/atproto.bridge
 
+## 0.6.0
+
+### Minor Changes
+
+- 03856b2: Accept browser-extension origins (`chrome-extension://<id>`,
+  `moz-extension://<uuid>`, `safari-web-extension://<uuid>`) like websites. An
+  extension's pages can sign in and hold an origin-bound bearer session. A
+  bridge without `allowedOrigins` accepts them; a bridge with an allowlist
+  accepts the extensions listed in it.
+- 0b35e4e: Add permission sets: extra access the operator offers to specific sites.
+
+  - Each set is its own OAuth client, with its own `client_id`, approval-screen
+    name, scope, and stored logins.
+  - Only the set's listed origins can sign in under it, with
+    `signIn({ access: "<name>" })`.
+  - Sign-out revokes only the login of the session's own client.
+  - Signing in again replaces the site's previous session through the new
+    `POST /api/session/retire`.
+
+  Without `permissionSets`, the bridge behaves exactly as before.
+
+- e840ef2: Let permission sets request service-auth tokens.
+
+  - A set can list `serviceAuth` pairs (`aud`, `lxm`).
+  - Its sites call `POST /api/service-auth`, or
+    `ServiceClient.getServiceAuth({ aud, lxm })`, to get a short-lived token
+    signed by the reader's own PDS.
+  - Their backend verifies the token against the account's DID document.
+
+- 5a15b10: Keep readers signed in past the bearer token's lifetime. `ServiceClient`
+  renews its token once it is past half its lifetime, before the next request,
+  and the bridge's `/api/session/refresh` now accepts a token that expired
+  within the new `sessionRefreshWindowSeconds` (default 7 days). Refresh
+  rotates: renewing retires the previous token, so a copied token cannot be
+  renewed once the reader's own client has renewed. The client measures a
+  token's age by its own clock from when it received the token, renews and
+  retries once on a 401, and picks up a token another page of the origin
+  renewed. Previously the client never refreshed, so every reader was signed
+  out an hour after signing in.
+- b361024: Add a scoped XRPC proxy for permission sets.
+
+  - A session signed in under a set can call that set's queries through
+    `GET /api/xrpc/<nsid>`, or `ServiceClient.query(nsid, params)`.
+  - `atproto-proxy` always comes from the operator's config.
+  - Reads have their own rate limiter, `proxyRateLimiter`.
+
+### Patch Changes
+
+- c0ea6be: Export the `PermissionSetConfig`, `PermissionSetMethod` and
+  `PermissionSetServiceAuth` types.
+- c0ea6be: Check the shape of each permission set at construction, since sets often come
+  from JSON: a malformed entry now fails with its name instead of a bare
+  TypeError. A set's `clientName` is limited to 100 characters.
+- Updated dependencies [0b35e4e]
+- Updated dependencies [b428c42]
+- Updated dependencies [e840ef2]
+- Updated dependencies [5a15b10]
+- Updated dependencies [d4df4a0]
+- Updated dependencies [b361024]
+  - @svebcomponents/atproto.client@0.7.0
+
 ## 0.5.0
 
 ### Minor Changes
